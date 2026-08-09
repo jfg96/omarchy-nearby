@@ -108,6 +108,21 @@ Panel {
   function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.running = true }
   function acceptIncoming() { if (!incoming) return; send({command:"accept",request_id:incoming.requestId}); viewState="receiving"; transferPeer=incoming.sender; transferName=Model.incomingSummary(incoming.files); progress=0 }
   function declineIncoming() { if (!incoming) return; send({command:"decline",request_id:incoming.requestId}); incoming=null; viewState="nearby" }
+  function finishOutgoing(terminalState, message, completed) {
+    outgoingTransferId = ""
+    if (incoming) {
+      viewState = Model.viewAfterOutgoing(true, terminalState)
+      selectedIndex = 1
+      statusText = "Incoming transfer"
+      errorText = ""
+      progress = 0
+      return
+    }
+    viewState = Model.viewAfterOutgoing(false, terminalState)
+    statusText = message
+    errorText = terminalState === "error" ? message : ""
+    if (completed) progress = 1
+  }
   function moveCursor(dx, dy) {
     cursorActive = true
     if (viewState === "nearby") {
@@ -149,9 +164,9 @@ Panel {
     else if (event.event === "incoming_declined") { viewState="nearby"; statusText="Declined" }
     else if (event.event === "outgoing_preparing") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; transferName=String(event.name); transferPeer=String(event.target); progress=0; stopDiscovery() }
     else if (event.event === "outgoing_progress") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; progress=event.total>0 ? event.bytes/event.total : 0 }
-    else if (event.event === "outgoing_done") { if(String(event.transferId)!==outgoingTransferId)return; outgoingTransferId=""; viewState="success"; statusText="Sent"; progress=1 }
-    else if (event.event === "outgoing_cancelled") { if(String(event.transferId)!==outgoingTransferId)return; outgoingTransferId=""; viewState="error"; errorText="Transfer cancelled"; statusText=errorText }
-    else if (event.event === "outgoing_failed") { if(event.transferId && String(event.transferId)!==outgoingTransferId)return; outgoingTransferId=""; viewState="error"; errorText=String(event.message||"Transfer failed"); statusText=errorText }
+    else if (event.event === "outgoing_done") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("success", "Sent", true) }
+    else if (event.event === "outgoing_cancelled") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", "Transfer cancelled", false) }
+    else if (event.event === "outgoing_failed") { if(event.transferId && String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", String(event.message||"Transfer failed"), false) }
     else if (event.event === "error") { viewState="error"; errorText=String(event.message||"Transfer failed"); statusText=errorText }
   }
 

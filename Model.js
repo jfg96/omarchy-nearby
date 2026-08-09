@@ -45,4 +45,8 @@ function incomingSummary(files) {
   return String(files[0].name || "Transfer") + " + " + (files.length - 1) + " more"
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary }
+function viewAfterOutgoing(hasPendingIncoming, terminalState) {
+  return hasPendingIncoming ? "incoming" : terminalState
+}
+
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, viewAfterOutgoing }
