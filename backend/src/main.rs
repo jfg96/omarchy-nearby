@@ -9,7 +9,7 @@ use localsend_rs::protocol::{DeviceInfo, FileId, FileMetadata, Protocol};
 use localsend_rs::server::{PendingRequest, ServerEvent};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -20,6 +20,7 @@ use tokio::sync::{mpsc, oneshot};
 const PEER_TTL: Duration = Duration::from_secs(90);
 const MULTICAST_GRACE: Duration = Duration::from_secs(1);
 const CACHED_PROBE_CONCURRENCY: usize = 5;
+const MAX_SUBNET_ADDRESSES: u32 = 1024;
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "command", rename_all = "snake_case")]
@@ -127,8 +128,21 @@ fn expire_and_snapshot(registry: &Arc<Mutex<HashMap<String, Peer>>>) -> Vec<Valu
     peers.values().map(|p| event_device(&p.device)).collect()
 }
 
-fn http_scan_targets(interfaces: Vec<Ipv4Addr>) -> (Vec<String>, Vec<String>) {
+fn ipv4_prefix_length(netmask: Ipv4Addr) -> Option<u32> {
+    let mask = u32::from(netmask);
+    let prefix = mask.count_ones();
+    let expected = if prefix == 0 {
+        0
+    } else {
+        u32::MAX << (32 - prefix)
+    };
+    (mask == expected).then_some(prefix)
+}
+
+fn http_scan_targets(interfaces: Vec<(Ipv4Addr, Ipv4Addr)>) -> (Vec<String>, Vec<String>) {
     let usable: BTreeSet<Ipv4Addr> = interfaces
+        .iter()
+        .map(|(ip, _)| *ip)
         .into_iter()
         .filter(|ip| {
             !ip.is_unspecified()
@@ -138,26 +152,51 @@ fn http_scan_targets(interfaces: Vec<Ipv4Addr>) -> (Vec<String>, Vec<String>) {
                 && !ip.is_broadcast()
         })
         .collect();
-    let subnets: BTreeSet<[u8; 3]> = usable
-        .iter()
-        .map(|ip| {
-            let octets = ip.octets();
-            [octets[0], octets[1], octets[2]]
-        })
-        .collect();
+    let mut subnets: BTreeMap<(u32, u32), BTreeSet<Ipv4Addr>> = BTreeMap::new();
+    for (ip, netmask) in interfaces {
+        if !usable.contains(&ip) {
+            continue;
+        }
+        let Some(prefix) = ipv4_prefix_length(netmask) else {
+            continue;
+        };
+        subnets
+            .entry((u32::from(ip) & u32::from(netmask), prefix))
+            .or_default()
+            .insert(ip);
+    }
     let labels = subnets
-        .iter()
-        .map(|prefix| format!("{}.{}.{}.0/24", prefix[0], prefix[1], prefix[2]))
+        .keys()
+        .map(|(network, prefix)| format!("{}/{}", Ipv4Addr::from(*network), prefix))
         .collect();
-    let targets = subnets
+    let targets: BTreeSet<Ipv4Addr> = subnets
         .iter()
-        .flat_map(|prefix| {
-            (1u8..=254).map(move |host| Ipv4Addr::new(prefix[0], prefix[1], prefix[2], host))
+        .flat_map(|((network, prefix), local_addresses)| {
+            let address_count = 1u64 << (32 - prefix);
+            let scan_ranges = if address_count > u64::from(MAX_SUBNET_ADDRESSES) {
+                local_addresses
+                    .iter()
+                    .map(|address| (u32::from(*address) & 0xffff_ff00, 256u32))
+                    .collect::<BTreeSet<_>>()
+            } else {
+                BTreeSet::from([(*network, address_count as u32)])
+            };
+            scan_ranges
+                .into_iter()
+                .flat_map(|(scan_network, scan_count)| {
+                    (1..scan_count.saturating_sub(1))
+                        .map(move |host| Ipv4Addr::from(scan_network + host))
+                })
         })
         .filter(|candidate| !usable.contains(candidate))
-        .map(|candidate| candidate.to_string())
         .collect();
-    (labels, targets)
+    (
+        labels,
+        targets
+            .into_iter()
+            .map(|candidate| candidate.to_string())
+            .collect(),
+    )
 }
 
 fn cached_candidate_ips(
@@ -267,7 +306,7 @@ async fn start_active_discovery(
             let fallback = async {
                 let scanner = HttpDiscovery::new_with_device_and_identity(identity, &certificate)
                     .context("could not build discovery client")?;
-                let interfaces = MulticastDiscovery::local_ipv4_interfaces()
+                let interfaces = MulticastDiscovery::local_ipv4_interfaces_with_netmasks()
                     .context("could not enumerate interfaces")?;
                 let (subnets, targets) = http_scan_targets(interfaces);
                 eprintln!("subnets selected: {subnets:?}");
@@ -745,9 +784,18 @@ mod tests {
     #[test]
     fn duplicate_interfaces_produce_one_subnet_scan() {
         let (subnets, targets) = http_scan_targets(vec![
-            Ipv4Addr::new(192, 168, 1, 10),
-            Ipv4Addr::new(192, 168, 1, 11),
-            Ipv4Addr::new(192, 168, 1, 10),
+            (
+                Ipv4Addr::new(192, 168, 1, 10),
+                Ipv4Addr::new(255, 255, 255, 0),
+            ),
+            (
+                Ipv4Addr::new(192, 168, 1, 11),
+                Ipv4Addr::new(255, 255, 255, 0),
+            ),
+            (
+                Ipv4Addr::new(192, 168, 1, 10),
+                Ipv4Addr::new(255, 255, 255, 0),
+            ),
         ]);
         assert_eq!(subnets, vec!["192.168.1.0/24"]);
         assert_eq!(targets.len(), 252);
@@ -758,13 +806,43 @@ mod tests {
     #[test]
     fn multiple_subnets_are_combined_into_one_target_pool() {
         let (subnets, targets) = http_scan_targets(vec![
-            Ipv4Addr::new(10, 0, 0, 2),
-            Ipv4Addr::new(192, 168, 1, 2),
+            (Ipv4Addr::new(10, 0, 0, 2), Ipv4Addr::new(255, 255, 255, 0)),
+            (
+                Ipv4Addr::new(192, 168, 1, 2),
+                Ipv4Addr::new(255, 255, 255, 0),
+            ),
         ]);
         assert_eq!(subnets, vec!["10.0.0.0/24", "192.168.1.0/24"]);
         assert_eq!(targets.len(), 506);
         assert!(targets.contains(&"10.0.0.1".to_string()));
         assert!(targets.contains(&"192.168.1.1".to_string()));
+    }
+
+    #[test]
+    fn real_netmask_controls_scan_range() {
+        let (subnets, targets) = http_scan_targets(vec![(
+            Ipv4Addr::new(192, 168, 1, 10),
+            Ipv4Addr::new(255, 255, 254, 0),
+        )]);
+        assert_eq!(subnets, vec!["192.168.0.0/23"]);
+        assert_eq!(targets.len(), 509);
+        assert!(targets.contains(&"192.168.0.1".to_string()));
+        assert!(targets.contains(&"192.168.1.254".to_string()));
+        assert!(!targets.contains(&"192.168.0.0".to_string()));
+        assert!(!targets.contains(&"192.168.1.255".to_string()));
+        assert!(!targets.contains(&"192.168.1.10".to_string()));
+    }
+
+    #[test]
+    fn large_subnet_is_capped_to_local_24() {
+        let (subnets, targets) = http_scan_targets(vec![(
+            Ipv4Addr::new(10, 20, 30, 40),
+            Ipv4Addr::new(255, 255, 0, 0),
+        )]);
+        assert_eq!(subnets, vec!["10.20.0.0/16"]);
+        assert_eq!(targets.len(), 253);
+        assert!(targets.contains(&"10.20.30.1".to_string()));
+        assert!(!targets.contains(&"10.20.31.1".to_string()));
     }
 
     #[test]

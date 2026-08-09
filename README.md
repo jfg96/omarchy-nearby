@@ -36,6 +36,9 @@ Nearby deliberately uses a cheap-first discovery hierarchy:
 5. Full subnet HTTP scan only as a last resort.
 
 Cached peers are revalidated over the network before being treated as confirmed.
+Subnet fallback uses each interface's real IPv4 netmask. Networks up to `/22` are
+scanned completely; larger networks are bounded to the local `/24` of each selected
+interface to avoid generating tens of thousands of probes.
 
 ### iOS note
 

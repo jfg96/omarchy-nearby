@@ -11,7 +11,7 @@ use crate::protocol::{
 };
 use if_addrs::{IfAddr, get_if_addrs};
 use socket2::{Domain, Protocol as SocketProtocol, Socket, Type};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
@@ -380,13 +380,34 @@ impl MulticastDiscovery {
     }
 
     pub fn local_ipv4_interfaces() -> Result<Vec<Ipv4Addr>> {
-        Self::multicast_interface_entries(None).map(|addresses| {
-            addresses
-                .into_iter()
-                .map(|(_, address)| address)
-                .filter(|ip| !ip.is_unspecified() && !ip.is_loopback() && !ip.is_link_local())
-                .collect()
-        })
+        Self::local_ipv4_interfaces_with_netmasks()
+            .map(|addresses| addresses.into_iter().map(|(address, _)| address).collect())
+    }
+
+    pub fn local_ipv4_interfaces_with_netmasks() -> Result<Vec<(Ipv4Addr, Ipv4Addr)>> {
+        let selected = Self::multicast_interface_entries(None)?;
+        let netmasks = get_if_addrs()
+            .map_err(|error| {
+                LocalSendError::network(format!("Failed to list interfaces: {error}"))
+            })?
+            .into_iter()
+            .filter_map(|interface| match interface.addr {
+                IfAddr::V4(address) => Some(((interface.name, address.ip), address.netmask)),
+                IfAddr::V6(_) => None,
+            })
+            .collect::<BTreeMap<_, _>>();
+        Ok(selected
+            .into_iter()
+            .filter_map(|(name, address)| {
+                netmasks
+                    .get(&(name, address))
+                    .copied()
+                    .map(|netmask| (address, netmask))
+            })
+            .filter(|(address, _)| {
+                !address.is_unspecified() && !address.is_loopback() && !address.is_link_local()
+            })
+            .collect())
     }
 
     fn client_for_announcement(
