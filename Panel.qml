@@ -41,6 +41,7 @@ Panel {
   property string outgoingTransferId: ""
   property int transferSequence: 0
   property int nearbyPhraseIndex: 0
+  property bool shutdownPending: false
 
   readonly property var nearbyPhrases: [
     "Looking nearby",
@@ -85,20 +86,30 @@ Panel {
     if (bar && bar.shell) bar.shell.updateEntryInline(moduleName, settings)
   }
   function toggleReceiver() {
+    if (shutdownPending) return
     var enable = !receiverEnabled
-    persistReceiverEnabled(enable)
     backendRestart.stop()
     if (enable) {
+      persistReceiverEnabled(true)
       errorText = ""
       statusText = "Starting receiver…"
     } else {
       stopDiscovery()
-      backendReady = false
-      devices = []
-      selectedDevice = null
-      viewState = "nearby"
-      statusText = "Turned off"
+      shutdownPending = true
+      send({command:"shutdown"})
+      receiverShutdownFallback.restart()
     }
+  }
+  function finishReceiverShutdown() {
+    receiverShutdownFallback.stop()
+    shutdownPending = false
+    persistReceiverEnabled(false)
+    backendReady = false
+    devices = []
+    selectedDevice = null
+    viewState = "nearby"
+    statusText = "Turned off"
+    errorText = ""
   }
   function startDiscovery() { discoveryActive = true; errorText = ""; statusText = devices.length ? "Ready" : "Looking nearby…"; send({command:"discovery_start"}) }
   function forceFullDiscovery() { discoveryActive = true; errorText = ""; statusText = "Scanning local network…"; send({command:"discovery_start",force_full:true}) }
@@ -188,6 +199,7 @@ Panel {
     stderr: SplitParser { onRead: function(line) { console.warn("nearby backend", line) } }
     onExited: function(code) {
       root.backendReady=false; root.discoveryActive=false
+      if (root.shutdownPending) { root.finishReceiverShutdown(); return }
       if (!root.receiverEnabled) { root.statusText="Turned off"; root.errorText=""; return }
       root.errorText=code===0 ? "Receiver stopped" : "Receiver unavailable"
       root.statusText=root.errorText
@@ -196,6 +208,7 @@ Panel {
     }
   }
   Timer { id: backendRestart; property int attempts: 0; interval: 1000; repeat: false; onTriggered: if (root.receiverEnabled && !backend.running) backend.running=true }
+  Timer { id: receiverShutdownFallback; interval: 250; repeat: false; onTriggered: root.finishReceiverShutdown() }
 
   Timer {
     id: nearbyPhraseTimer
