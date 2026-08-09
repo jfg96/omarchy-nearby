@@ -764,7 +764,7 @@ mod tests {
         assert_eq!(subnets, vec!["10.0.0.0/24", "192.168.1.0/24"]);
         assert_eq!(targets.len(), 506);
         assert!(targets.contains(&"10.0.0.1".to_string()));
-        assert!(targets.contains(&"192.168.50.1".to_string()));
+        assert!(targets.contains(&"192.168.1.1".to_string()));
     }
 
     #[test]
