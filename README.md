@@ -103,6 +103,8 @@ updates and removal with `omarchy plugin update oma.nearby` and
 
 Received files are written to the user's Downloads directory according to the
 backend's current save-path logic.
+Interrupted receives use `.nearby-*.part` files. On startup, Nearby removes only
+its own partial files that are older than 24 hours.
 
 ## Lifecycle
 

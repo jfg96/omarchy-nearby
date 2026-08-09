@@ -21,6 +21,7 @@ const PEER_TTL: Duration = Duration::from_secs(90);
 const MULTICAST_GRACE: Duration = Duration::from_secs(1);
 const CACHED_PROBE_CONCURRENCY: usize = 5;
 const MAX_SUBNET_ADDRESSES: u32 = 1024;
+const STALE_PARTIAL_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "command", rename_all = "snake_case")]
@@ -598,6 +599,32 @@ fn xdg_download_dir(home: &Path) -> PathBuf {
     home.join("Downloads")
 }
 
+fn is_nearby_partial_name(name: &str) -> bool {
+    name.starts_with(".nearby-") && name.ends_with(".part")
+}
+
+async fn cleanup_stale_partial_files(directory: &Path, minimum_age: Duration) -> Result<usize> {
+    let mut entries = tokio::fs::read_dir(directory).await?;
+    let mut removed = 0;
+    while let Some(entry) = entries.next_entry().await? {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if !is_nearby_partial_name(name) || !entry.file_type().await?.is_file() {
+            continue;
+        }
+        let Ok(modified) = entry.metadata().await?.modified() else {
+            continue;
+        };
+        if modified.elapsed().unwrap_or_default() < minimum_age {
+            continue;
+        }
+        if tokio::fs::remove_file(entry.path()).await.is_ok() {
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
 fn load_identity(home: &Path) -> Result<TlsCertificate> {
     let state_dir = std::env::var("XDG_STATE_HOME")
         .map(PathBuf::from)
@@ -640,6 +667,11 @@ async fn main() -> Result<()> {
     let canonical_download = tokio::fs::canonicalize(&download_dir)
         .await
         .context("download destination unavailable")?;
+    match cleanup_stale_partial_files(&canonical_download, STALE_PARTIAL_AGE).await {
+        Ok(removed) if removed > 0 => eprintln!("removed {removed} stale Nearby partial files"),
+        Ok(_) => {}
+        Err(error) => eprintln!("could not clean stale Nearby partial files: {error}"),
+    }
     let alias = std::env::var("HOSTNAME")
         .ok()
         .filter(|s| !s.is_empty())
@@ -818,6 +850,38 @@ mod tests {
     #[test]
     fn xdg_downloads_parsing_falls_back() {
         assert!(xdg_download_dir(Path::new("/tmp/home")).is_absolute());
+    }
+    #[test]
+    fn partial_cleanup_pattern_is_strict() {
+        assert!(is_nearby_partial_name(".nearby-session-file.part"));
+        assert!(!is_nearby_partial_name("nearby-session-file.part"));
+        assert!(!is_nearby_partial_name(".nearby-session-file.txt"));
+        assert!(!is_nearby_partial_name("notes.part"));
+    }
+
+    #[tokio::test]
+    async fn cleanup_removes_only_matching_old_enough_files() {
+        let directory = std::env::temp_dir().join(format!(
+            "omarchy-nearby-cleanup-test-{}-{}",
+            std::process::id(),
+            Instant::now().elapsed().as_nanos()
+        ));
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let partial = directory.join(".nearby-session-file.part");
+        let unrelated = directory.join("notes.part");
+        tokio::fs::write(&partial, b"partial").await.unwrap();
+        tokio::fs::write(&unrelated, b"keep").await.unwrap();
+
+        assert_eq!(
+            cleanup_stale_partial_files(&directory, Duration::ZERO)
+                .await
+                .unwrap(),
+            1
+        );
+        assert!(!partial.exists());
+        assert!(unrelated.exists());
+        tokio::fs::remove_file(unrelated).await.unwrap();
+        tokio::fs::remove_dir(directory).await.unwrap();
     }
     #[test]
     fn outgoing_contract_requires_transfer_id() {
