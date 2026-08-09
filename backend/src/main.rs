@@ -199,23 +199,37 @@ fn http_scan_targets(interfaces: Vec<(Ipv4Addr, Ipv4Addr)>) -> (Vec<String>, Vec
     )
 }
 
-fn cached_candidate_ips(
+fn cached_candidate_devices(
     registry: &Arc<Mutex<HashMap<String, Peer>>>,
-    subnet_targets: &[String],
-) -> Vec<String> {
-    let valid_targets: HashSet<&str> = subnet_targets.iter().map(String::as_str).collect();
-    let mut candidates = BTreeSet::new();
+    interfaces: &[(Ipv4Addr, Ipv4Addr)],
+) -> Vec<DeviceInfo> {
+    let mut candidates = BTreeMap::new();
     let mut peers = registry.lock().unwrap();
     peers.retain(|_, peer| peer.last_seen.elapsed() <= PEER_TTL);
     for peer in peers.values() {
         if let Some(ip) = peer.device.ip.as_deref()
-            && ip.parse::<Ipv4Addr>().is_ok()
-            && valid_targets.contains(ip)
+            && let Ok(remote_ip) = ip.parse::<Ipv4Addr>()
+            && !remote_ip.is_unspecified()
+            && !remote_ip.is_loopback()
+            && !remote_ip.is_link_local()
+            && !remote_ip.is_multicast()
+            && !remote_ip.is_broadcast()
+            && interfaces.iter().any(|(local_ip, netmask)| {
+                let mask = u32::from(*netmask);
+                let remote = u32::from(remote_ip);
+                let network = u32::from(*local_ip) & mask;
+                ipv4_prefix_length(*netmask).is_some()
+                    && (remote & mask) == network
+                    && remote != network
+                    && remote != (network | !mask)
+                    && remote_ip != *local_ip
+            })
         {
-            candidates.insert(ip.to_string());
+            let key = format!("{}\t{:05}\t{}", ip, peer.device.port, peer.device.protocol);
+            candidates.insert(key, peer.device.clone());
         }
     }
-    candidates.into_iter().collect()
+    candidates.into_values().collect()
 }
 
 fn remaining_subnet_targets(
@@ -308,22 +322,38 @@ async fn start_active_discovery(
                     .context("could not build discovery client")?;
                 let interfaces = MulticastDiscovery::local_ipv4_interfaces_with_netmasks()
                     .context("could not enumerate interfaces")?;
-                let (subnets, targets) = http_scan_targets(interfaces);
+                let (subnets, targets) = http_scan_targets(interfaces.clone());
                 eprintln!("subnets selected: {subnets:?}");
 
-                let cached = cached_candidate_ips(&registry, &targets);
-                eprintln!("cached candidates: {cached:?}");
-                let attempted_cached: HashSet<String> = cached.iter().cloned().collect();
-                for ip in &cached {
+                let cached = cached_candidate_devices(&registry, &interfaces);
+                let cached_labels: Vec<String> = cached
+                    .iter()
+                    .map(|device| {
+                        format!(
+                            "{}://{}:{}",
+                            device.protocol,
+                            device.ip.as_deref().unwrap_or("unknown"),
+                            device.port
+                        )
+                    })
+                    .collect();
+                eprintln!("cached candidates: {cached_labels:?}");
+                let attempted_cached: HashSet<String> = cached
+                    .iter()
+                    .filter_map(|device| device.ip.clone())
+                    .collect();
+                for device in &cached {
                     eprintln!(
-                        "cached probe started: {} +{} ms",
-                        ip,
+                        "cached probe started: {}://{}:{} +{} ms",
+                        device.protocol,
+                        device.ip.as_deref().unwrap_or("unknown"),
+                        device.port,
                         started.elapsed().as_millis()
                     );
                 }
                 let mut confirmed_cached = HashSet::new();
                 scanner
-                    .scan_ips_incremental_with_limit(
+                    .scan_devices_incremental_with_limit(
                         cached.clone(),
                         CACHED_PROBE_CONCURRENCY,
                         |device| {
@@ -343,10 +373,15 @@ async fn start_active_discovery(
                         },
                     )
                     .await?;
-                for ip in cached.iter().filter(|ip| !confirmed_cached.contains(*ip)) {
+                for device in cached
+                    .iter()
+                    .filter(|device| !confirmed_cached.contains(device.ip.as_deref().unwrap_or("")))
+                {
                     eprintln!(
-                        "cached probe failed: {} +{} ms",
-                        ip,
+                        "cached probe failed: {}://{}:{} +{} ms",
+                        device.protocol,
+                        device.ip.as_deref().unwrap_or("unknown"),
+                        device.port,
                         started.elapsed().as_millis()
                     );
                 }
@@ -847,10 +882,10 @@ mod tests {
 
     #[test]
     fn cache_candidates_are_recent_valid_lan_ips_and_deduplicated() {
-        let mut phone = DeviceInfo::new("Phone".into(), 53317, Protocol::Https);
+        let mut phone = DeviceInfo::new("Phone".into(), 42424, Protocol::Http);
         phone.fingerprint = "phone".into();
         phone.ip = Some("192.168.50.139".into());
-        let mut duplicate_ip = DeviceInfo::new("Tablet".into(), 53317, Protocol::Https);
+        let mut duplicate_ip = DeviceInfo::new("Tablet".into(), 42424, Protocol::Http);
         duplicate_ip.fingerprint = "tablet".into();
         duplicate_ip.ip = Some("192.168.50.139".into());
         let mut invalid = DeviceInfo::new("Invalid".into(), 53317, Protocol::Https);
@@ -889,11 +924,33 @@ mod tests {
                 },
             ),
         ])));
-        let targets = vec!["192.168.50.139".into(), "192.168.50.173".into()];
-        assert_eq!(
-            cached_candidate_ips(&registry, &targets),
-            vec!["192.168.50.139"]
-        );
+        let interfaces = vec![(
+            Ipv4Addr::new(192, 168, 50, 10),
+            Ipv4Addr::new(255, 255, 255, 0),
+        )];
+        let candidates = cached_candidate_devices(&registry, &interfaces);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].ip.as_deref(), Some("192.168.50.139"));
+        assert_eq!(candidates[0].port, 42424);
+        assert_eq!(candidates[0].protocol, Protocol::Http);
+    }
+
+    #[test]
+    fn cache_candidate_uses_real_subnet_beyond_capped_scan_range() {
+        let mut peer = DeviceInfo::new("Peer".into(), 42424, Protocol::Http);
+        peer.fingerprint = "peer".into();
+        peer.ip = Some("10.20.31.50".into());
+        let registry = Arc::new(Mutex::new(HashMap::from([(
+            peer.fingerprint.clone(),
+            Peer {
+                device: peer,
+                last_seen: Instant::now(),
+            },
+        )])));
+        let interfaces = vec![(Ipv4Addr::new(10, 20, 30, 40), Ipv4Addr::new(255, 255, 0, 0))];
+        let candidates = cached_candidate_devices(&registry, &interfaces);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].ip.as_deref(), Some("10.20.31.50"));
     }
 
     #[test]

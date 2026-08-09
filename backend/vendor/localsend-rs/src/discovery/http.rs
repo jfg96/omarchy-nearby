@@ -141,6 +141,36 @@ impl HttpDiscovery {
         Ok(())
     }
 
+    /// Revalidate known peers using their last advertised address, port and protocol.
+    /// The alternate scheme is still attempted on the same custom port for compatibility.
+    pub async fn scan_devices_incremental_with_limit<F>(
+        &self,
+        devices: Vec<DeviceInfo>,
+        concurrency: usize,
+        mut on_discovered: F,
+    ) -> Result<()>
+    where
+        F: FnMut(DeviceInfo),
+    {
+        let mut seen = HashSet::new();
+        scan_incrementally(
+            devices,
+            concurrency,
+            |device| async move { self.probe_known_device(&device).await },
+            |device| {
+                if device.fingerprint.is_empty()
+                    || device.fingerprint == self.local_device.fingerprint
+                    || !seen.insert(device.fingerprint.clone())
+                {
+                    return;
+                }
+                on_discovered(device);
+            },
+        )
+        .await;
+        Ok(())
+    }
+
     /// Probe a single host through `/register`, falling back to legacy `/info`. Tries the
     /// configured protocol first and,
     /// like localsend-ts, falls back to the other scheme so an HTTPS scan still finds an
@@ -149,7 +179,26 @@ impl HttpDiscovery {
     /// over a subnet that is mostly empty.
     async fn probe_device(&self, ip: &str) -> Option<DeviceInfo> {
         for protocol in self.protocol_candidates() {
-            match self.probe_device_with(ip, protocol).await {
+            match self
+                .probe_device_with(ip, self.local_device.port, protocol)
+                .await
+            {
+                ProbeOutcome::Found(device) => return Some(device),
+                ProbeOutcome::Unreachable => return None,
+                ProbeOutcome::Miss => continue,
+            }
+        }
+        None
+    }
+
+    async fn probe_known_device(&self, target: &DeviceInfo) -> Option<DeviceInfo> {
+        let ip = target.ip.as_deref()?;
+        let protocols = match target.protocol {
+            Protocol::Https => [Protocol::Https, Protocol::Http],
+            Protocol::Http => [Protocol::Http, Protocol::Https],
+        };
+        for protocol in protocols {
+            match self.probe_device_with(ip, target.port, protocol).await {
                 ProbeOutcome::Found(device) => return Some(device),
                 ProbeOutcome::Unreachable => return None,
                 ProbeOutcome::Miss => continue,
@@ -167,8 +216,8 @@ impl HttpDiscovery {
 
     /// `ip`/`port`/`protocol` on the returned device are taken from the connection we
     /// actually made, because peers may omit them from discovery responses.
-    async fn probe_device_with(&self, ip: &str, protocol: Protocol) -> ProbeOutcome {
-        let base_url = format!("{}://{}:{}", protocol, ip, self.local_device.port);
+    async fn probe_device_with(&self, ip: &str, port: u16, protocol: Protocol) -> ProbeOutcome {
+        let base_url = format!("{}://{}:{}", protocol, ip, port);
         let register_url = format!("{base_url}/api/localsend/v2/register");
         let response = match self
             .client
@@ -201,7 +250,7 @@ impl HttpDiscovery {
             }
         };
         device.ip = Some(ip.to_string());
-        device.port = self.local_device.port;
+        device.port = port;
         device.protocol = protocol;
         tracing::info!(
             "[DISCOVER/TCP] {} ({}, model: {:?})",
@@ -222,15 +271,15 @@ impl HttpDiscovery {
     }
 }
 
-async fn scan_incrementally<T, Probe, ProbeFuture, OnDiscovered>(
-    targets: Vec<String>,
+async fn scan_incrementally<Target, Output, Probe, ProbeFuture, OnDiscovered>(
+    targets: Vec<Target>,
     concurrency: usize,
     probe: Probe,
     mut on_discovered: OnDiscovered,
 ) where
-    Probe: Fn(String) -> ProbeFuture,
-    ProbeFuture: Future<Output = Option<T>>,
-    OnDiscovered: FnMut(T),
+    Probe: Fn(Target) -> ProbeFuture,
+    ProbeFuture: Future<Output = Option<Output>>,
+    OnDiscovered: FnMut(Output),
 {
     let mut pending = stream::iter(targets)
         .map(probe)
@@ -450,12 +499,43 @@ mod tests {
         server.stop();
     }
 
+    #[tokio::test]
+    async fn cached_probe_uses_the_peers_custom_port_and_protocol() {
+        use crate::{LocalSendServer, Protocol};
+
+        let output = tempfile::tempdir().expect("output directory");
+        let (mut server, _events) = LocalSendServer::builder()
+            .alias("custom-port-target")
+            .port(0)
+            .save_dir(output.path())
+            .protocol(Protocol::Http)
+            .build()
+            .await
+            .expect("start HTTP receiver");
+        let mut cached = server.device().clone();
+        cached.ip = Some("127.0.0.1".into());
+
+        let discovery =
+            HttpDiscovery::new("scanner".into(), 53317, Protocol::Https).expect("build discovery");
+        let mut found = Vec::new();
+        discovery
+            .scan_devices_incremental_with_limit(vec![cached], 1, |device| found.push(device))
+            .await
+            .expect("probe cached peer");
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].alias, "custom-port-target");
+        assert_eq!(found[0].port, server.port());
+        assert_eq!(found[0].protocol, Protocol::Http);
+        server.stop();
+    }
+
     #[tokio::test(start_paused = true)]
     async fn fast_peer_is_published_while_slow_host_is_still_pending() {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let task = tokio::spawn(async move {
             scan_incrementally(
-                vec!["slow".into(), "fast".into()],
+                vec!["slow".to_string(), "fast".to_string()],
                 2,
                 |host| async move {
                     if host == "fast" {
