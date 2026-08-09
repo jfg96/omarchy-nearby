@@ -15,6 +15,7 @@
     "displayName": "Nearby",
     "description": "Send and receive with nearby devices",
     "category": "Network",
-    "allowMultiple": false
+    "allowMultiple": false,
+    "defaultSection": "right"
   }
 }

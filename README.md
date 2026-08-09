@@ -66,31 +66,35 @@ The repository intentionally does **not** track a machine-built helper binary.
 Build it locally:
 
 ```sh
-cd oma.nearby
 ./build.sh
 ```
 
 This creates:
 
 ```text
-oma.nearby/bin/omarchy-nearby-helper
+bin/omarchy-nearby-helper
 ```
 
 ## Install
 
-Build first, then copy the plugin directory:
+Install the repository with Omarchy's plugin manager without enabling it yet:
 
 ```sh
-mkdir -p ~/.config/omarchy/plugins
-cp -r oma.nearby ~/.config/omarchy/plugins/
+omarchy plugin add https://github.com/jfg96/omarchy-nearby.git --yes
 ```
 
-Add the object from `shell-entry.json` to the desired section of `bar.layout` in
-`~/.config/omarchy/shell.json`, then restart the shell:
+Nearby deliberately does not distribute a machine-built helper binary. Build the
+helper inside the managed plugin checkout, then enable the widget:
 
 ```sh
-omarchy restart shell
+cd ~/.config/omarchy/plugins/oma.nearby
+./build.sh
+omarchy plugin enable oma.nearby
 ```
+
+The widget is placed in the right section of the bar by default. Omarchy manages
+updates and removal with `omarchy plugin update oma.nearby` and
+`omarchy plugin remove oma.nearby`.
 
 Received files are written to the user's Downloads directory according to the
 backend's current save-path logic.
@@ -127,18 +131,18 @@ The Rust helper vendors a modified `localsend-rs` library. See
 Frontend model tests:
 
 ```sh
-node oma.nearby/tests/model.test.js
+node tests/model.test.js
 ```
 
 Backend tests:
 
 ```sh
-cargo test --manifest-path oma.nearby/backend/Cargo.toml
-cargo test --manifest-path oma.nearby/backend/vendor/localsend-rs/Cargo.toml --features https
+cargo test --manifest-path backend/Cargo.toml
+cargo test --manifest-path backend/vendor/localsend-rs/Cargo.toml --features https
 ```
 
 A larger manual interoperability and robustness checklist is kept in
-`oma.nearby/ROBUSTNESS.md`.
+`ROBUSTNESS.md`.
 
 ## Security notes
 

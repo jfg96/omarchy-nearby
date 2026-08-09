@@ -4,8 +4,8 @@
 *~
 
 # Rust build output
-oma.nearby/backend/target/
+backend/target/
 
 # Locally built helper
-oma.nearby/bin/*
-!oma.nearby/bin/.gitkeep
+bin/*
+!bin/.gitkeep
