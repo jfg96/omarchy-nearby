@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2
+
+- Correctly accept published, non-draft GitHub releases in the installer.
+
 ## 1.0.1
 
 - Fix the release workflow installation of the third-party license generator.

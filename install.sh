@@ -39,8 +39,8 @@ release_json=$(curl --fail --location --silent --show-error "$release_url") \
 tag=$(jq -r '.tag_name // empty' <<<"$release_json")
 [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "GitHub did not return a stable SemVer release"
 [[ -z $requested_tag || $tag == "$requested_tag" ]] || fail "GitHub returned release $tag instead of $requested_tag"
-[[ $(jq -r '.draft // true' <<<"$release_json") == "false" ]] || fail "refusing to install a draft release"
-[[ $(jq -r '.prerelease // true' <<<"$release_json") == "false" ]] || fail "refusing to install a prerelease"
+jq -e '.draft == false' >/dev/null <<<"$release_json" || fail "refusing to install a draft release"
+jq -e '.prerelease == false' >/dev/null <<<"$release_json" || fail "refusing to install a prerelease"
 
 asset_name="omarchy-nearby-helper-${tag}-${platform}"
 checksum_name="${asset_name}.sha256"
