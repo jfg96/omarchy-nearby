@@ -9,6 +9,16 @@ Rust helper.
 
 > Independent project. Not affiliated with or endorsed by LocalSend or Omarchy.
 
+## Screenshots
+
+### Discover devices
+
+![Nearby discovering compatible devices on the local network](assets/screenshots/nearby-discovery.png)
+
+### Send files or clipboard text
+
+![Nearby actions for sending files or clipboard text to a selected device](assets/screenshots/nearby-send-actions.png)
+
 ## Features
 
 - Native Omarchy bar widget and popup
