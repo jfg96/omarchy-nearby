@@ -1,0 +1,9 @@
+const assert = require("node:assert/strict")
+const Model = require("../Model.js")
+
+const phone = {alias:"<b>Phone</b>",fingerprint:"fp",deviceType:"mobile",ip:"192.0.2.2"}
+assert.equal(Model.upsertDevice([], phone).length, 1)
+assert.equal(Model.upsertDevice(Model.upsertDevice([], phone), {...phone, alias:"Phone 2"})[0].alias, "Phone 2")
+assert.deepEqual(Model.snapshotDevices([phone, {...phone, alias:"Newest"}]).map(d => d.alias), ["Newest"])
+assert.equal(Model.parseLine("not json"), null)
+console.log("Model tests passed")

@@ -1,0 +1,4 @@
+pub const PROTOCOL_VERSION: &str = "2.1";
+pub const DEFAULT_MULTICAST_ADDRESS: &str = "224.0.0.167";
+pub const DEFAULT_MULTICAST_PORT: u16 = 53317;
+pub const DEFAULT_HTTP_PORT: u16 = 53317;

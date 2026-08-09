@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "oma.nearby",
+  "name": "Nearby",
+  "version": "1.0.0",
+  "author": "jfg96",
+  "description": "Native nearby sharing compatible with the LocalSend protocol",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Nearby",
+    "description": "Send and receive with nearby devices",
+    "category": "Network",
+    "allowMultiple": false
+  }
+}

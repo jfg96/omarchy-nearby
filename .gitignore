@@ -1,0 +1,11 @@
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Rust build output
+oma.nearby/backend/target/
+
+# Locally built helper
+oma.nearby/bin/*
+!oma.nearby/bin/.gitkeep
