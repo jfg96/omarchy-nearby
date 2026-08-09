@@ -232,10 +232,10 @@ Panel {
     running: false
     stdout: StdioCollector { id: pickerOutput; waitForEnd: true }
     onExited: function(code) {
+      if (code === 127) { root.viewState="error"; root.errorText="zenity is required to choose files"; root.statusText=root.errorText; return }
       if (code !== 0 || !root.selectedDevice) return
       var paths=String(pickerOutput.text || "").split("\n").filter(function(v){return v.trim()!==""})
       if (paths.length) { root.transferSequence++; root.outgoingTransferId="out-"+Date.now()+"-"+root.transferSequence; root.send({command:"send_files",transfer_id:root.outgoingTransferId,device:root.selectedDevice,paths:paths}) }
-      else if (code === 127) { root.viewState="error"; root.errorText="zenity is required to choose files" }
     }
   }
   Process {
