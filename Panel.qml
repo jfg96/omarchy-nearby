@@ -11,9 +11,12 @@ Panel {
   ipcTarget: "oma.nearby"
   manageIpc: false
 
-  readonly property string pluginDir: bar && bar.shell && bar.shell.barWidgetRegistry.metadataFor(moduleName)
-    ? String(bar.shell.barWidgetRegistry.metadataFor(moduleName).sourceDir || "")
-    : (Quickshell.env("HOME") || "") + "/.config/omarchy/plugins/" + moduleName
+  // The host may replace moduleName with an instance id. Keep the manifest id
+  // stable for registry lookups and filesystem paths.
+  readonly property string manifestPluginId: "oma.nearby"
+  readonly property string pluginDir: bar && bar.shell && bar.shell.barWidgetRegistry.metadataFor(manifestPluginId)
+    ? String(bar.shell.barWidgetRegistry.metadataFor(manifestPluginId).sourceDir || "")
+    : (Quickshell.env("HOME") || "") + "/.config/omarchy/plugins/" + manifestPluginId
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.4)
