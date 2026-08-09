@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Fix the release workflow installation of the third-party license generator.
+
 ## 1.0.0
 
 - Initial public release.

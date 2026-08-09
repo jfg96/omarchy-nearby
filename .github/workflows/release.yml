@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the tagged source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -55,7 +55,7 @@ jobs:
           ldd backend/target/release/omarchy-nearby-helper
 
       - name: Install license generator
-        run: cargo install cargo-about --locked --version 0.9.1
+        run: cargo install cargo-about --locked --version 0.9.1 --features cli
 
       - name: Assemble release assets
         shell: bash
