@@ -16,7 +16,7 @@ use tokio::sync::broadcast;
 
 pub type Result<T> = std::result::Result<T, LocalSendError>;
 
-/// Concurrent `/info` probes in flight during a subnet scan. Matches the official
+/// Concurrent HTTP probes in flight during a subnet scan. Matches the official
 /// LocalSend client and localsend-ts (`concurrency: 50`).
 const SCAN_CONCURRENCY: usize = 50;
 
@@ -74,9 +74,9 @@ impl HttpDiscovery {
     }
 
     /// Sweeps every host `x.y.z.1..=254` in the `/24` subnet of `base_ip` (excluding
-    /// our own address), asking each one `GET /api/localsend/v2/info`, and returns the
-    /// LocalSend devices that answered. This is the protocol's "legacy" HTTP discovery
-    /// (spec §2.2): it finds any device whose HTTP server is reachable, even one that is
+    /// our own address), asking each one to register and returning the LocalSend devices
+    /// that answered. Legacy peers which do not support `/register` are retried through
+    /// `/info`. This finds any device whose HTTP server is reachable, even one that is
     /// missing multicast (lossy Wi-Fi, or a mobile app suspended in the background).
     ///
     /// Probes run concurrently ([`SCAN_CONCURRENCY`] at a time). LocalSend devices use
@@ -87,8 +87,8 @@ impl HttpDiscovery {
         self.scan_ips(subnet_hosts(base_ip)?).await
     }
 
-    /// Probe a caller-supplied set of hosts over the normal LocalSend `/info`
-    /// endpoint.  This is useful for routed networks where the caller knows a
+    /// Probe a caller-supplied set of hosts over LocalSend's HTTP discovery endpoints.
+    /// This is useful for routed networks where the caller knows a
     /// reachable address but cannot enumerate it through multicast; it still
     /// performs the same TLS/HTTP negotiation, response decoding and
     /// fingerprint-based de-duplication as a subnet scan.
@@ -100,7 +100,7 @@ impl HttpDiscovery {
     }
 
     /// Probe hosts through one globally bounded pool and publish each valid peer as soon as
-    /// its `/info` request completes. Dropping this future cancels every in-flight probe.
+    /// its registration request completes. Dropping this future cancels every in-flight probe.
     pub async fn scan_ips_incremental<F>(&self, ips: Vec<String>, on_discovered: F) -> Result<()>
     where
         F: FnMut(DeviceInfo),
@@ -124,7 +124,7 @@ impl HttpDiscovery {
         scan_incrementally(
             ips,
             concurrency,
-            |ip| async move { self.probe_info(&ip).await },
+            |ip| async move { self.probe_device(&ip).await },
             |device| {
                 // Skip ourselves and de-duplicate by fingerprint. A peer may answer on
                 // multiple addresses, but its first valid result is published immediately.
@@ -141,14 +141,15 @@ impl HttpDiscovery {
         Ok(())
     }
 
-    /// Probe a single host's `/info` endpoint. Tries the configured protocol first and,
+    /// Probe a single host through `/register`, falling back to legacy `/info`. Tries the
+    /// configured protocol first and,
     /// like localsend-ts, falls back to the other scheme so an HTTPS scan still finds an
     /// HTTP-only peer (and vice-versa). A host that is unreachable at the TCP level is not
     /// retried on the other scheme — it would fail there too — which keeps the scan fast
     /// over a subnet that is mostly empty.
-    async fn probe_info(&self, ip: &str) -> Option<DeviceInfo> {
+    async fn probe_device(&self, ip: &str) -> Option<DeviceInfo> {
         for protocol in self.protocol_candidates() {
-            match self.probe_info_with(ip, protocol).await {
+            match self.probe_device_with(ip, protocol).await {
                 ProbeOutcome::Found(device) => return Some(device),
                 ProbeOutcome::Unreachable => return None,
                 ProbeOutcome::Miss => continue,
@@ -165,13 +166,17 @@ impl HttpDiscovery {
     }
 
     /// `ip`/`port`/`protocol` on the returned device are taken from the connection we
-    /// actually made, because the official app omits `port`/`protocol` from `/info`.
-    async fn probe_info_with(&self, ip: &str, protocol: Protocol) -> ProbeOutcome {
-        let url = format!(
-            "{}://{}:{}/api/localsend/v2/info",
-            protocol, ip, self.local_device.port
-        );
-        let response = match self.client.get(&url).send().await {
+    /// actually made, because peers may omit them from discovery responses.
+    async fn probe_device_with(&self, ip: &str, protocol: Protocol) -> ProbeOutcome {
+        let base_url = format!("{}://{}:{}", protocol, ip, self.local_device.port);
+        let register_url = format!("{base_url}/api/localsend/v2/register");
+        let response = match self
+            .client
+            .post(&register_url)
+            .json(&self.local_device)
+            .send()
+            .await
+        {
             Ok(response) => response,
             // Connect failures/timeouts mean nothing is listening on this host — the other
             // scheme won't fare better, so signal the caller to stop probing this host.
@@ -181,12 +186,19 @@ impl HttpDiscovery {
             Err(e) if e.is_timeout() => return ProbeOutcome::Unreachable,
             Err(_) => return ProbeOutcome::Miss,
         };
-        if !response.status().is_success() {
-            return ProbeOutcome::Miss;
-        }
-        let mut device: DeviceInfo = match response.json().await {
-            Ok(device) => device,
-            Err(_) => return ProbeOutcome::Miss,
+        let mut device: DeviceInfo = if response.status().is_success() {
+            match response.json().await {
+                Ok(device) => device,
+                Err(_) => match self.probe_legacy_info(&base_url).await {
+                    Some(device) => device,
+                    None => return ProbeOutcome::Miss,
+                },
+            }
+        } else {
+            match self.probe_legacy_info(&base_url).await {
+                Some(device) => device,
+                None => return ProbeOutcome::Miss,
+            }
         };
         device.ip = Some(ip.to_string());
         device.port = self.local_device.port;
@@ -198,6 +210,15 @@ impl HttpDiscovery {
             device.device_model
         );
         ProbeOutcome::Found(device)
+    }
+
+    async fn probe_legacy_info(&self, base_url: &str) -> Option<DeviceInfo> {
+        let url = format!("{base_url}/api/localsend/v2/info");
+        let response = self.client.get(url).send().await.ok()?;
+        if !response.status().is_success() {
+            return None;
+        }
+        response.json().await.ok()
     }
 }
 
@@ -391,7 +412,7 @@ mod tests {
         use crate::{LocalSendServer, Protocol};
 
         let output = tempfile::tempdir().expect("output directory");
-        let (mut server, _events) = LocalSendServer::builder()
+        let (mut server, mut events) = LocalSendServer::builder()
             .alias("http-scan-target")
             .port(0)
             .save_dir(output.path())
@@ -417,6 +438,14 @@ mod tests {
             .expect("the HTTP server must be discovered after the HTTPS attempt");
         assert_eq!(target.alias, "http-scan-target");
         assert_eq!(target.protocol, Protocol::Http);
+        let registered = tokio::time::timeout(Duration::from_secs(1), events.recv())
+            .await
+            .expect("scanner must POST /register")
+            .expect("server event channel remains open");
+        assert!(matches!(
+            registered,
+            crate::server::ServerEvent::PeerRegistered(device) if device.alias == "scanner"
+        ));
 
         server.stop();
     }
@@ -515,7 +544,7 @@ mod tests {
             found
                 .iter()
                 .any(|peer| peer.ip.as_deref() == Some(target.as_str())),
-            "the explicit LocalSend target must answer /info"
+            "the explicit LocalSend target must answer HTTP discovery"
         );
     }
 }
