@@ -14,8 +14,14 @@ Panel {
   // The host may replace moduleName with an instance id. Keep the manifest id
   // stable for registry lookups and filesystem paths.
   readonly property string manifestPluginId: "oma.nearby"
-  readonly property string pluginDir: bar && bar.shell && bar.shell.barWidgetRegistry.metadataFor(manifestPluginId)
-    ? String(bar.shell.barWidgetRegistry.metadataFor(manifestPluginId).sourceDir || "")
+  readonly property var manifestMetadata: bar && bar.shell
+    ? bar.shell.barWidgetRegistry.metadataFor(manifestPluginId)
+    : null
+  readonly property string metadataSourceDir: manifestMetadata
+    ? String(manifestMetadata.sourceDir || "")
+    : ""
+  readonly property string pluginDir: metadataSourceDir !== ""
+    ? metadataSourceDir
     : (Quickshell.env("HOME") || "") + "/.config/omarchy/plugins/" + manifestPluginId
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
