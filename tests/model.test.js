@@ -8,4 +8,8 @@ assert.deepEqual(Model.snapshotDevices([phone, {...phone, alias:"Newest"}]).map(
 assert.equal(Model.parseLine("not json"), null)
 assert.equal(Model.viewAfterOutgoing(true, "success"), "incoming")
 assert.equal(Model.viewAfterOutgoing(false, "error"), "error")
+assert.equal(Model.helperVersionMatches("1.0.0", "1.0.0"), true)
+assert.equal(Model.helperVersionMatches("1.0.1-dev", "1.0.0"), false)
+assert.equal(Model.helperVersionMatches("1.0.0", ""), false)
+assert.equal(Model.helperVersionMatches("", ""), false)
 console.log("Model tests passed")

@@ -71,7 +71,8 @@ Runtime:
 - `libnotify` (`notify-send`) for desktop notifications
 - Local network access to TCP/UDP port `53317`
 
-Build:
+The recommended installation uses a prebuilt Linux x86_64 helper and does not
+require Rust. Building from source requires:
 
 - Rust toolchain with Cargo
 
@@ -92,24 +93,52 @@ bin/omarchy-nearby-helper
 
 ## Install
 
-Install the repository with Omarchy's plugin manager without enabling it yet:
+Download and run the small installer:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/jfg96/omarchy-nearby/main/install.sh \
+  -o /tmp/omarchy-nearby-install.sh
+bash /tmp/omarchy-nearby-install.sh
+```
+
+The installer uses Omarchy's plugin manager, resolves a published release to an
+exact tag, downloads the Linux x86_64 helper built from that tag, verifies its
+SHA256, installs it atomically, and enables `oma.nearby`. It does not use `sudo`,
+install packages, install Rust, or compile code.
+
+Install or reinstall a specific release with:
+
+```sh
+bash /tmp/omarchy-nearby-install.sh v1.0.0
+```
+
+The widget is placed in the right section of the bar by default. Omarchy manages
+removal with `omarchy plugin remove oma.nearby`.
+
+### Updates
+
+Prebuilt installations must be updated with Nearby's installer so the plugin and
+helper move to the same release together:
+
+```sh
+~/.config/omarchy/plugins/oma.nearby/install.sh
+```
+
+Running `omarchy plugin update oma.nearby` updates source files but cannot update
+the release helper. Nearby detects that version mismatch, stops the backend, and
+asks you to run the installer again.
+
+### Install from source
+
+The complete source remains in every release. To build the exact same helper
+locally, install the plugin without enabling it, build, then enable it:
 
 ```sh
 omarchy plugin add https://github.com/jfg96/omarchy-nearby.git --yes
-```
-
-Nearby deliberately does not distribute a machine-built helper binary. Build the
-helper inside the managed plugin checkout, then enable the widget:
-
-```sh
 cd ~/.config/omarchy/plugins/oma.nearby
 ./build.sh
 omarchy plugin enable oma.nearby
 ```
-
-The widget is placed in the right section of the bar by default. Omarchy manages
-updates and removal with `omarchy plugin update oma.nearby` and
-`omarchy plugin remove oma.nearby`.
 
 Received files are written to the user's Downloads directory according to the
 backend's current save-path logic.
@@ -142,6 +171,19 @@ Quickshell UI (Panel.qml)
 
 The Rust helper vendors a modified `localsend-rs` library. See
 `THIRD_PARTY_NOTICES.md` for attribution and licensing information.
+
+## Releases
+
+Stable releases use tags such as `v1.0.0`. The tag, `manifest.json`, Rust package,
+and helper all carry the same version. Release helpers are built only by GitHub
+Actions and are stored only as GitHub Release assets, together with a SHA256 file
+and generated third-party license notices.
+
+Development on `main` uses the next SemVer prerelease, such as `1.0.1-dev`, as
+soon as it diverges from the preceding stable tag. Both `manifest.json` and
+`backend/Cargo.toml` must be advanced together before functional changes land.
+This ensures an accidental source-only plugin update cannot be mistaken for the
+previous release.
 
 ## Tests
 

@@ -49,4 +49,8 @@ function viewAfterOutgoing(hasPendingIncoming, terminalState) {
   return hasPendingIncoming ? "incoming" : terminalState
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, viewAfterOutgoing }
+function helperVersionMatches(pluginVersion, helperVersion) {
+  return String(pluginVersion || "") !== "" && String(pluginVersion) === String(helperVersion || "")
+}
+
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, viewAfterOutgoing, helperVersionMatches }

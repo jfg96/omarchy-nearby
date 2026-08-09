@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Verify release versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          manifest_version=$(jq -r '.version' manifest.json)
+          cargo_version=$(cargo metadata --no-deps --format-version 1 --manifest-path backend/Cargo.toml | jq -r '.packages[0].version')
+          [[ "$version" == "$manifest_version" ]]
+          [[ "$version" == "$cargo_version" ]]
+          [[ "$(git rev-list -n 1 "$GITHUB_REF_NAME")" == "$GITHUB_SHA" ]]
+
+      - name: Test frontend model
+        run: node tests/model.test.js
+
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path backend/Cargo.toml --all -- --check
+
+      - name: Test Nearby helper
+        run: cargo test --locked --manifest-path backend/Cargo.toml
+
+      - name: Test vendored localsend-rs
+        run: cargo test --locked --manifest-path backend/vendor/localsend-rs/Cargo.toml --features https
+
+      - name: Build release helper
+        run: cargo build --release --locked --manifest-path backend/Cargo.toml
+
+      - name: Inspect release helper
+        run: |
+          file backend/target/release/omarchy-nearby-helper
+          ldd backend/target/release/omarchy-nearby-helper
+
+      - name: Install license generator
+        run: cargo install cargo-about --locked --version 0.9.1
+
+      - name: Assemble release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset="omarchy-nearby-helper-${GITHUB_REF_NAME}-linux-x86_64"
+          mkdir -p dist
+          install -m755 backend/target/release/omarchy-nearby-helper "dist/$asset"
+          (cd dist && sha256sum "$asset" > "$asset.sha256")
+          cargo about generate --manifest-path backend/Cargo.toml about.hbs > dist/THIRD_PARTY_LICENSES.html
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          dist/*
+          --verify-tag
+          --generate-notes
+          --title "$GITHUB_REF_NAME"

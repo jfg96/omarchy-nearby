@@ -701,7 +701,7 @@ async fn main() -> Result<()> {
         .await
         .context("passive receiver discovery could not start")?;
     emit(
-        json!({"event":"ready","alias":identity.alias,"directory":canonical_download,"port":server.port(),"fingerprint":identity.fingerprint}),
+        json!({"event":"ready","helperVersion":env!("CARGO_PKG_VERSION"),"alias":identity.alias,"directory":canonical_download,"port":server.port(),"fingerprint":identity.fingerprint}),
     );
     let pending = Arc::new(Mutex::new(HashMap::<String, PendingRequest>::new()));
     let pending_events = pending.clone();

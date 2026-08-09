@@ -20,6 +20,9 @@ Panel {
   readonly property string metadataSourceDir: manifestMetadata
     ? String(manifestMetadata.sourceDir || "")
     : ""
+  readonly property string pluginVersion: manifestMetadata
+    ? String(manifestMetadata.version || "")
+    : ""
   readonly property string pluginDir: metadataSourceDir !== ""
     ? metadataSourceDir
     : (Quickshell.env("HOME") || "") + "/.config/omarchy/plugins/" + manifestPluginId
@@ -48,6 +51,8 @@ Panel {
   property int transferSequence: 0
   property int nearbyPhraseIndex: 0
   property bool shutdownPending: false
+  property bool backendAcceptedThisRun: false
+  property bool backendVersionMismatch: false
 
   readonly property var nearbyPhrases: [
     "Looking nearby",
@@ -159,7 +164,18 @@ Panel {
   }
   function handleEvent(event) {
     if (!event || !event.event) return
-    if (event.event === "ready") { backendReady=true; backendRestart.attempts=0; statusText="Ready to receive"; errorText=""; if(opened&&viewState==="nearby")startDiscovery() }
+    if (backendVersionMismatch && event.event !== "ready") return
+    if (event.event === "ready") {
+      if (!Model.helperVersionMatches(pluginVersion, event.helperVersion)) {
+        backendReady=false
+        backendVersionMismatch=true
+        errorText="Nearby backend version mismatch. Run the Nearby installer again."
+        statusText=errorText
+        send({command:"shutdown"})
+        return
+      }
+      backendAcceptedThisRun=true; backendReady=true; backendVersionMismatch=false; backendRestart.attempts=0; statusText="Ready to receive"; errorText=""; if(opened&&viewState==="nearby")startDiscovery()
+    }
     else if (event.event === "peer_snapshot") { devices=Model.snapshotDevices(event.devices); statusText=devices.length ? "Ready" : "Looking nearby…" }
     else if (event.event === "device") { devices=Model.upsertDevice(devices,event.device); statusText=devices.length ? "Ready" : "Looking nearby…" }
     else if (event.event === "discovery_started") discoveryActive=true
@@ -203,10 +219,20 @@ Panel {
     stdinEnabled: true
     stdout: SplitParser { onRead: function(line) { root.handleEvent(Model.parseLine(line)) } }
     stderr: SplitParser { onRead: function(line) { console.warn("nearby backend", line) } }
+    onStarted: {
+      root.backendAcceptedThisRun=false
+      root.backendVersionMismatch=false
+    }
     onExited: function(code) {
       root.backendReady=false; root.discoveryActive=false
       if (root.shutdownPending) { root.finishReceiverShutdown(); return }
       if (!root.receiverEnabled) { root.statusText="Turned off"; root.errorText=""; return }
+      if (root.backendVersionMismatch) return
+      if (!root.backendAcceptedThisRun) {
+        root.errorText="Nearby backend could not start. Run the Nearby installer again or build it with ./build.sh."
+        root.statusText=root.errorText
+        return
+      }
       root.errorText=code===0 ? "Receiver stopped" : "Receiver unavailable"
       root.statusText=root.errorText
       if (root.viewState==="sending"||root.viewState==="receiving") { root.viewState="error"; root.errorText="Nearby backend stopped during transfer"; root.statusText=root.errorText }
