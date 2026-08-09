@@ -39,6 +39,8 @@ Cached peers are revalidated over the network before being treated as confirmed.
 Subnet fallback uses each interface's real IPv4 netmask. Networks up to `/22` are
 scanned completely; larger networks are bounded to the local `/24` of each selected
 interface to avoid generating tens of thousands of probes.
+The panel also provides **Search for new devices**, which bypasses cache-hit
+short-circuiting and forces the bounded subnet scan when a new peer is missing.
 
 ### iOS note
 

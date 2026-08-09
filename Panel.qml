@@ -101,6 +101,7 @@ Panel {
     }
   }
   function startDiscovery() { discoveryActive = true; errorText = ""; statusText = devices.length ? "Ready" : "Looking nearby…"; send({command:"discovery_start"}) }
+  function forceFullDiscovery() { discoveryActive = true; errorText = ""; statusText = "Scanning local network…"; send({command:"discovery_start",force_full:true}) }
   function stopDiscovery() { discoveryActive = false; send({command:"discovery_stop"}) }
   function chooseDevice(index) { if (index >= 0 && index < devices.length) { selectedDevice = devices[index]; viewState = "target"; selectedIndex = 0 } }
   function goBack() { if (viewState === "target") { viewState = "nearby"; selectedDevice = null; selectedIndex = 0 } else close() }
@@ -126,14 +127,14 @@ Panel {
   function moveCursor(dx, dy) {
     cursorActive = true
     if (viewState === "nearby") {
-      if (dy !== 0) selectedIndex = Math.max(-1, Math.min(devices.length - 1, selectedIndex + dy))
+      if (dy !== 0) selectedIndex = Math.max(-1, Math.min(devices.length, selectedIndex + dy))
       return
     }
     var count = viewState === "target" ? 2 : (viewState === "incoming" ? 2 : 1)
     if (count > 0 && dy !== 0) selectedIndex = Math.max(0, Math.min(count - 1, selectedIndex + dy))
   }
   function activateCursor() {
-    if (viewState === "nearby") selectedIndex < 0 ? toggleReceiver() : chooseDevice(selectedIndex)
+    if (viewState === "nearby") selectedIndex < 0 ? toggleReceiver() : (selectedIndex === devices.length ? forceFullDiscovery() : chooseDevice(selectedIndex))
     else if (viewState === "target") selectedIndex === 0 ? selectFiles() : sendClipboard()
     else if (viewState === "incoming") selectedIndex === 0 ? declineIncoming() : acceptIncoming()
     else if (viewState === "sending") send({command:"cancel_outgoing",transfer_id:outgoingTransferId})
@@ -298,6 +299,7 @@ Panel {
             model: root.devices
             Button { required property var modelData; required property int index; width:parent.width; leftAlign:true; bordered:false; iconText:Model.iconFor(modelData.deviceType); text:modelData.alias; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===index; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=index}}; onClicked:root.chooseDevice(index) }
           }
+          Button { visible:root.receiverEnabled&&root.backendReady; width:parent.width; leftAlign:true; bordered:false; iconText:"󰑐"; text:"Search for new devices"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=root.devices.length}}; onClicked:root.forceFullDiscovery() }
         }
 
         Column {

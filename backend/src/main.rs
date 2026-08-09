@@ -25,7 +25,10 @@ const MAX_SUBNET_ADDRESSES: u32 = 1024;
 #[derive(Debug, Deserialize)]
 #[serde(tag = "command", rename_all = "snake_case")]
 enum Command {
-    DiscoveryStart,
+    DiscoveryStart {
+        #[serde(default)]
+        force_full: bool,
+    },
     DiscoveryStop,
     Accept {
         request_id: String,
@@ -265,6 +268,7 @@ async fn start_active_discovery(
     identity: DeviceInfo,
     certificate: TlsCertificate,
     registry: Arc<Mutex<HashMap<String, Peer>>>,
+    force_full: bool,
 ) -> DiscoveryControl {
     let (stop_tx, mut stop_rx) = oneshot::channel();
     let started = Instant::now();
@@ -293,7 +297,7 @@ async fn start_active_discovery(
             let retries_finished = tokio::select! {
                 found = &mut grace => {
                     eprintln!("grace period finished: +{} ms", started.elapsed().as_millis());
-                    if found {
+                    if found && !force_full {
                         eprintln!("HTTP fallback skipped: recent multicast peer available");
                         eprintln!("discovery finished: +{} ms", started.elapsed().as_millis());
                         return;
@@ -304,7 +308,7 @@ async fn start_active_discovery(
                     if let Err(error) = result { eprintln!("multicast retries failed: {error}"); }
                     let found = grace.await;
                     eprintln!("grace period finished: +{} ms", started.elapsed().as_millis());
-                    if found {
+                    if found && !force_full {
                         eprintln!("HTTP fallback skipped: recent multicast peer available");
                         eprintln!("discovery finished: +{} ms", started.elapsed().as_millis());
                         return;
@@ -325,7 +329,11 @@ async fn start_active_discovery(
                 let (subnets, targets) = http_scan_targets(interfaces.clone());
                 eprintln!("subnets selected: {subnets:?}");
 
-                let cached = cached_candidate_devices(&registry, &interfaces);
+                let cached = if force_full {
+                    Vec::new()
+                } else {
+                    cached_candidate_devices(&registry, &interfaces)
+                };
                 let cached_labels: Vec<String> = cached
                     .iter()
                     .map(|device| {
@@ -389,7 +397,7 @@ async fn start_active_discovery(
                 let Some(remaining_targets) = remaining_subnet_targets(
                     targets,
                     &attempted_cached,
-                    !confirmed_cached.is_empty(),
+                    !force_full && !confirmed_cached.is_empty(),
                 ) else {
                     eprintln!("CACHE HIT: full subnet scan skipped");
                     eprintln!("HTTP scan finished: +{} ms", started.elapsed().as_millis());
@@ -754,7 +762,10 @@ async fn main() -> Result<()> {
                 let Some(line)=line? else {break};
                 let command: Command = match serde_json::from_str(&line) { Ok(v)=>v, Err(_)=>{emit(json!({"event":"error","message":"Invalid backend command"}));continue;} };
                 match command {
-                    Command::DiscoveryStart => if discovery.is_none() { discovery=Some(start_active_discovery(passive.clone(),identity.clone(),certificate.clone(),registry.clone()).await); },
+                    Command::DiscoveryStart { force_full } => {
+                        if force_full && let Some(control)=discovery.take(){let _=control.stop.send(());}
+                        if discovery.is_none() { discovery=Some(start_active_discovery(passive.clone(),identity.clone(),certificate.clone(),registry.clone(),force_full).await); }
+                    },
                     Command::DiscoveryStop => if let Some(control)=discovery.take(){let _=control.stop.send(());},
                     Command::Accept { request_id } => { let ok=pending.lock().unwrap().remove(&request_id).is_some_and(|req|req.accept()); emit(if ok {json!({"event":"incoming_accepted","requestId":request_id})} else {json!({"event":"incoming_expired","requestId":request_id})}); },
                     Command::Decline { request_id } => { let ok=pending.lock().unwrap().remove(&request_id).is_some_and(|req|req.decline()); emit(if ok {json!({"event":"incoming_declined","requestId":request_id})} else {json!({"event":"incoming_expired","requestId":request_id})}); },
@@ -814,6 +825,19 @@ mod tests {
         assert!(
             matches!(serde_json::from_str::<Command>(raw).unwrap(),Command::SendFiles{transfer_id,..} if transfer_id=="x")
         );
+    }
+
+    #[test]
+    fn discovery_start_defaults_to_cached_mode_and_accepts_forced_scan() {
+        assert!(matches!(
+            serde_json::from_str::<Command>(r#"{"command":"discovery_start"}"#).unwrap(),
+            Command::DiscoveryStart { force_full: false }
+        ));
+        assert!(matches!(
+            serde_json::from_str::<Command>(r#"{"command":"discovery_start","force_full":true}"#)
+                .unwrap(),
+            Command::DiscoveryStart { force_full: true }
+        ));
     }
 
     #[test]
