@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, anyhow};
 use localsend_rs::LocalSendServer;
-use localsend_rs::client::{LocalSendClient, TlsTrustPolicy};
+use localsend_rs::client::{LocalSendClient, ProgressCallback, TlsTrustPolicy};
 use localsend_rs::core::build_file_metadata;
 use localsend_rs::crypto::{TlsCertificate, generate_tls_certificate};
 use localsend_rs::discovery::{Discovery, HttpDiscovery, MulticastDiscovery};
@@ -11,8 +11,10 @@ use localsend_rs::server::{PendingRequest, ServerEvent};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::future::Future;
 use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -566,39 +568,61 @@ async fn send_payload(
     }
     let mut completed = 0u64;
     for (file_id, token) in &prepared.files {
-        let temp_text;
-        let path = if let Some(path) = sources.get(file_id.as_str()) {
-            path.clone()
+        let path = sources.get(file_id.as_str()).cloned();
+        let text_bytes = if path.is_some() {
+            None
         } else {
             let body = text_source
                 .as_ref()
                 .filter(|(id, _)| id == file_id.as_str())
                 .map(|(_, b)| b.as_str())
-                .unwrap_or("");
-            temp_text =
-                std::env::temp_dir().join(format!("omarchy-nearby-{}-{file_id}.txt", transfer_id));
-            tokio::fs::write(&temp_text, body).await?;
-            temp_text.clone()
+                .ok_or_else(|| anyhow!("prepared text payload mismatch"))?;
+            Some(body.as_bytes().to_vec())
         };
-        let size = tokio::fs::metadata(&path).await?.len();
+        let size = if let Some(path) = path.as_ref() {
+            tokio::fs::metadata(path).await?.len()
+        } else {
+            text_bytes.as_ref().map_or(0, |bytes| bytes.len() as u64)
+        };
         let base = completed;
         let alias = target.alias.clone();
         let id = transfer_id.clone();
         let last_emit = Arc::new(Mutex::new(Instant::now() - Duration::from_secs(1)));
         let progress_clock = last_emit.clone();
-        let upload = client.upload_file(&target, &prepared.session_id, file_id, token, &path, Some(Box::new(move |sent,_,_| {
+        let progress = Some(Box::new(move |sent, _, _| {
             let mut last = progress_clock.lock().unwrap();
-            if base + sent < total && last.elapsed() < Duration::from_millis(75) { return; }
+            if base + sent < total && last.elapsed() < Duration::from_millis(75) {
+                return;
+            }
             *last = Instant::now();
-            emit(json!({"event":"outgoing_progress","transferId":id,"bytes":base+sent,"total":total,"target":alias}));
-        })));
+            emit(
+                json!({"event":"outgoing_progress","transferId":id,"bytes":base+sent,"total":total,"target":alias}),
+            );
+        }) as ProgressCallback);
+        let upload: Pin<Box<dyn Future<Output = localsend_rs::error::Result<()>> + Send + '_>> =
+            if let Some(path) = path.as_ref() {
+                Box::pin(client.upload_file(
+                    &target,
+                    &prepared.session_id,
+                    file_id,
+                    token,
+                    path,
+                    progress,
+                ))
+            } else {
+                Box::pin(client.upload_bytes(
+                    &target,
+                    &prepared.session_id,
+                    file_id,
+                    token,
+                    text_bytes.unwrap_or_default(),
+                    progress,
+                ))
+            };
         let (result, cancelled) = tokio::select! {
             result = upload => (result.map_err(anyhow::Error::from), false),
             _ = &mut cancel_rx => { let _ = client.cancel(&target,&prepared.session_id).await; emit(json!({"event":"outgoing_cancelled","transferId":transfer_id})); (Ok(()), true) }
         };
-        if text_source.is_some() {
-            let _ = tokio::fs::remove_file(&path).await;
-        }
         result?;
         if cancelled {
             return Ok(SendPayloadOutcome::Finished);

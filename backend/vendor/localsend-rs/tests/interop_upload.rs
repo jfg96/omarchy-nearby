@@ -1,7 +1,10 @@
 mod common;
 
 use localsend_rs::server::{LocalSendServer, ServerEvent};
-use localsend_rs::{DeviceInfo, LocalSendClient, Protocol, build_file_metadata, sha256_from_file};
+use localsend_rs::{
+    DeviceInfo, FileId, FileMetadata, LocalSendClient, Protocol, build_file_metadata,
+    sha256_from_bytes, sha256_from_file,
+};
 use std::collections::HashMap;
 
 #[tokio::test]
@@ -93,6 +96,78 @@ async fn uploads_a_file_byte_for_byte_rs_to_rs() {
         .expect("saved file");
     assert_eq!(got_sha, want_sha);
 
+    server.stop();
+}
+
+#[tokio::test]
+async fn uploads_in_memory_bytes_without_a_source_file() {
+    let save_dir = tempfile::tempdir().expect("save dir");
+    let (mut server, mut events) = LocalSendServer::builder()
+        .alias("Memory Receiver")
+        .port(0)
+        .save_dir(save_dir.path())
+        .protocol(Protocol::Http)
+        .auto_accept(true)
+        .build()
+        .await
+        .expect("build");
+    let target = common::target_device(server.port());
+    common::wait_for_http_info(server.port()).await;
+
+    let payload = b"clipboard contents stay in memory".to_vec();
+    let file_id = FileId::new();
+    let mut files = HashMap::new();
+    files.insert(
+        file_id.clone(),
+        FileMetadata {
+            id: file_id.clone(),
+            file_name: "message.txt".into(),
+            size: payload.len() as u64,
+            file_type: "text/plain".into(),
+            sha256: Some(sha256_from_bytes(&payload)),
+            preview: None,
+            metadata: None,
+        },
+    );
+    let client = LocalSendClient::new(DeviceInfo::new("Memory Sender".into(), 0, Protocol::Http));
+    let prepared = client
+        .prepare_upload(&target, files, None)
+        .await
+        .expect("prepare");
+    let token = prepared.files.get(&file_id).expect("token");
+    let progress = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let samples = progress.clone();
+    client
+        .upload_bytes(
+            &target,
+            &prepared.session_id,
+            &file_id,
+            token,
+            payload.clone(),
+            Some(Box::new(move |sent, total, _| {
+                samples.lock().unwrap().push((sent, total));
+            })),
+        )
+        .await
+        .expect("in-memory upload");
+
+    loop {
+        let event = tokio::time::timeout(std::time::Duration::from_secs(2), events.recv())
+            .await
+            .expect("receiver event should arrive")
+            .expect("receiver event stream should stay open");
+        if matches!(event, ServerEvent::SessionCompleted { .. }) {
+            break;
+        }
+    }
+    assert_eq!(
+        std::fs::read(save_dir.path().join("message.txt")).unwrap(),
+        payload
+    );
+    assert_eq!(
+        progress.lock().unwrap().last(),
+        Some(&(payload.len() as u64, payload.len() as u64))
+    );
     server.stop();
 }
 

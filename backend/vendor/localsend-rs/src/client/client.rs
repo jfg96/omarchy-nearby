@@ -5,7 +5,7 @@ use crate::error::{LocalSendError, Result};
 use crate::protocol::{
     DeviceInfo, FileId, FileMetadata, PrepareUploadRequest, PrepareUploadResponse, SessionId, Token,
 };
-use futures_util::StreamExt;
+use futures_util::{StreamExt, stream};
 use reqwest::{Body, Client as HttpClient, StatusCode};
 use std::collections::HashMap;
 #[cfg(feature = "https")]
@@ -215,6 +215,55 @@ impl LocalSendClient {
             target, session_id, file_id, token, file_path, progress, None,
         )
         .await
+    }
+
+    /// Uploads an in-memory payload without materializing it as a temporary
+    /// file. This is intended for small generated content such as text shares.
+    pub async fn upload_bytes(
+        &self,
+        target: &DeviceInfo,
+        session_id: &SessionId,
+        file_id: &FileId,
+        token: &Token,
+        bytes: Vec<u8>,
+        progress: Option<ProgressCallback>,
+    ) -> Result<()> {
+        let ip = target
+            .ip
+            .as_ref()
+            .ok_or_else(|| LocalSendError::network("Target IP not provided"))?;
+        let url = format!(
+            "{}://{}:{}/api/localsend/v2/upload?sessionId={}&fileId={}&token={}",
+            target.protocol, ip, target.port, session_id, file_id, token
+        );
+        let total_bytes = bytes.len() as u64;
+        let started = std::time::Instant::now();
+        let data = bytes::Bytes::from(bytes);
+        let body_stream =
+            stream::once(async move { Ok::<_, std::io::Error>(data) }).inspect(move |chunk| {
+                if let (Ok(chunk), Some(callback)) = (chunk, progress.as_ref()) {
+                    callback(
+                        chunk.len() as u64,
+                        total_bytes,
+                        started.elapsed().as_secs_f64(),
+                    );
+                }
+            });
+        let response = self
+            .client
+            .post(&url)
+            .header(reqwest::header::CONTENT_LENGTH, total_bytes)
+            .body(Body::wrap_stream(body_stream))
+            .send()
+            .await?;
+
+        match response.status() {
+            StatusCode::OK | StatusCode::NO_CONTENT => Ok(()),
+            status => Err(LocalSendError::http_failed(
+                status.as_u16(),
+                "In-memory upload failed",
+            )),
+        }
     }
 
     /// Uploads a file while optionally pacing the source stream. The rate
