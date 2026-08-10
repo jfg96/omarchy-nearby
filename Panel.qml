@@ -377,8 +377,8 @@ Panel {
 
   BarIconButton {
     id: button; anchors.fill: parent; bar: root.bar; text: "󰀂"
-    active: root.incoming !== null || root.viewState === "receiving" || root.viewState === "sending"
-    tooltipText: !root.receiverEnabled ? "Nearby · Turned off" : (root.backendReady ? (root.incoming ? "Incoming transfer" : "Nearby · Ready to receive") : "Nearby · Receiver unavailable")
+    active: root.incoming !== null || root.viewState === "receiving" || root.viewState === "sending" || root.viewState === "pin"
+    tooltipText: !root.receiverEnabled ? "Nearby · Turned off" : (root.backendReady ? (root.viewState === "pin" ? "Nearby · PIN required" : (root.incoming ? "Incoming transfer" : "Nearby · Ready to receive")) : "Nearby · Receiver unavailable")
     onPressed: function(code) { root.toggle() }
   }
 
