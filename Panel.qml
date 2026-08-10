@@ -354,7 +354,7 @@ Panel {
         Column {
           visible: root.viewState === "nearby"; width: parent.width; spacing: Style.space(4)
           PanelSectionHeader { text: "NEARBY"; foreground:root.foreground; fontFamily:root.fontFamily }
-          Text { visible: root.devices.length===0; text: !root.receiverEnabled ? "Nearby is turned off" : (root.discoveryActive ? "Finding devices…" : (root.backendReady ? "No devices nearby" : root.errorText)); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; topPadding:Style.space(12); bottomPadding:Style.space(12) }
+          Text { visible: root.devices.length===0; width:parent.width; textFormat:Text.PlainText; text: !root.receiverEnabled ? "Nearby is turned off" : (root.discoveryActive ? "Finding devices…" : (root.backendReady ? "No devices nearby" : root.errorText)); wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; topPadding:Style.space(12); bottomPadding:Style.space(12) }
           Repeater {
             model: root.devices
             Button { required property var modelData; required property int index; width:parent.width; leftAlign:true; bordered:false; iconText:Model.iconFor(modelData.deviceType); text:modelData.alias; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===index; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=index}}; onClicked:root.chooseDevice(index) }
@@ -390,8 +390,8 @@ Panel {
 
         Column {
           visible: root.viewState==="success"||root.viewState==="error"; width:parent.width; spacing:Style.space(8)
-          Text { text:root.viewState==="success" ? root.statusText : root.errorText; color:root.viewState==="error"?root.urgent:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true }
-          Text { visible:root.viewState==="success"; text:root.transferPeer!=="" ? (root.statusText==="Sent"?"to ":"from ")+root.transferPeer : ""; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Text { width:parent.width; textFormat:Text.PlainText; text:root.viewState==="success" ? root.statusText : root.errorText; wrapMode:Text.Wrap; color:root.viewState==="error"?root.urgent:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true }
+          Text { visible:root.viewState==="success"; width:parent.width; textFormat:Text.PlainText; text:root.transferPeer!=="" ? (root.statusText==="Sent"?"to ":"from ")+root.transferPeer : ""; wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Button { text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive; onClicked:{root.viewState="nearby";root.startDiscovery()} }
         }
 
