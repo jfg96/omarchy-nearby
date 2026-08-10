@@ -45,6 +45,29 @@ function incomingSummary(files) {
   return String(files[0].name || "Transfer") + " + " + (files.length - 1) + " more"
 }
 
+function enqueueIncoming(queue, request) {
+  var next = (queue || []).slice()
+  if (!request || !request.requestId) return next
+  for (var i = 0; i < next.length; i++) {
+    if (next[i] && next[i].requestId === request.requestId) {
+      next[i] = request
+      return next
+    }
+  }
+  next.push(request)
+  return next
+}
+
+function removeIncoming(queue, requestId) {
+  return (queue || []).filter(function(request) {
+    return request && request.requestId !== requestId
+  })
+}
+
+function currentIncoming(queue) {
+  return queue && queue.length ? queue[0] : null
+}
+
 function viewAfterOutgoing(hasPendingIncoming, terminalState) {
   return hasPendingIncoming ? "incoming" : terminalState
 }
@@ -63,4 +86,4 @@ function manifestVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, viewAfterOutgoing, helperVersionMatches, manifestVersion }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, viewAfterOutgoing, helperVersionMatches, manifestVersion }

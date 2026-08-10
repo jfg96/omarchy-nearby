@@ -38,7 +38,8 @@ Panel {
   property string errorText: ""
   property int selectedIndex: 0
   property bool cursorActive: false
-  property var incoming: null
+  property var incomingQueue: []
+  readonly property var incoming: Model.currentIncoming(incomingQueue)
   property string incomingText: ""
   property string lastReceivedPath: ""
   property real progress: 0
@@ -133,6 +134,8 @@ Panel {
     backendReady = false
     devices = []
     selectedDevice = null
+    incomingQueue = []
+    activeIncomingSession = ""
     viewState = "nearby"
     statusText = "Turned off"
     errorText = ""
@@ -145,7 +148,31 @@ Panel {
   function selectFiles() { if (!selectedDevice || picker.running) return; picker.running = true }
   function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.running = true }
   function acceptIncoming() { if (!incoming) return; send({command:"accept",request_id:incoming.requestId}); viewState="receiving"; transferPeer=incoming.sender; transferName=Model.incomingSummary(incoming.files); progress=0 }
-  function declineIncoming() { if (!incoming) return; send({command:"decline",request_id:incoming.requestId}); incoming=null; viewState="nearby" }
+  function declineIncoming() {
+    if (!incoming) return
+    var requestId = incoming.requestId
+    send({command:"decline",request_id:requestId})
+    incomingQueue = Model.removeIncoming(incomingQueue, requestId)
+    viewState = incoming ? "incoming" : "nearby"
+    statusText = incoming ? "Incoming transfer" : "Declined"
+    selectedIndex = incoming ? 1 : 0
+  }
+  function finishIncoming(terminalState, message, completed) {
+    activeIncomingSession = ""
+    if (viewState === "sending") return
+    if (incoming) {
+      viewState = "incoming"
+      selectedIndex = 1
+      statusText = "Incoming transfer"
+      errorText = ""
+      progress = 0
+      return
+    }
+    viewState = terminalState
+    statusText = message
+    errorText = terminalState === "error" ? message : ""
+    if (completed) progress = 1
+  }
   function finishOutgoing(terminalState, message, completed) {
     outgoingTransferId = ""
     if (incoming) {
@@ -196,21 +223,28 @@ Panel {
     else if (event.event === "discovery_started") discoveryActive=true
     else if (event.event === "discovery_stopped") discoveryActive=false
     else if (event.event === "incoming_request") {
-      incoming=event; incomingText=""; if (viewState!=="sending" && viewState!=="receiving") { viewState="incoming"; selectedIndex=1 }
+      incomingQueue=Model.enqueueIncoming(incomingQueue,event); incomingText=""; if (viewState!=="sending" && viewState!=="receiving") { viewState="incoming"; selectedIndex=1 }
       Quickshell.execDetached(["notify-send","-a","Nearby","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
     }
     else if (event.event === "incoming_text") {
       incomingText=String(event.text || ""); transferPeer=String(event.sender || ""); viewState="text"; stopDiscovery()
       Quickshell.execDetached(["notify-send","-a","Nearby","Text received","From "+transferPeer])
     }
-    else if (event.event === "incoming_accepted") { if (incoming && incoming.requestId===event.requestId) incoming=null }
-    else if (event.event === "incoming_expired") { if (incoming && incoming.requestId===event.requestId) { incoming=null; if(viewState==="incoming"||viewState==="receiving"){viewState="error";errorText="Transfer request expired"} } }
+    else if (event.event === "incoming_accepted") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
+    else if (event.event === "incoming_expired") {
+      var expiredWasCurrent=incoming&&incoming.requestId===event.requestId
+      incomingQueue=Model.removeIncoming(incomingQueue,event.requestId)
+      if (expiredWasCurrent&&viewState==="incoming") {
+        if (incoming) { statusText="Incoming transfer"; selectedIndex=1 }
+        else { viewState="error"; errorText="Transfer request expired"; statusText=errorText }
+      }
+    }
     else if (event.event === "incoming_progress") { if(activeIncomingSession==="")activeIncomingSession=String(event.sessionId); if(activeIncomingSession!==String(event.sessionId))return; if(viewState!=="sending")viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0 }
     else if (event.event === "file_received") { if(activeIncomingSession!==""&&activeIncomingSession!==String(event.sessionId))return; activeIncomingSession=String(event.sessionId); lastReceivedPath=String(event.path); transferName=String(event.name); transferPeer=String(event.sender) }
-    else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; activeIncomingSession=""; if(viewState!=="sending"){viewState="success";statusText="Received";progress=1} }
-    else if (event.event === "incoming_cancelled") { if(activeIncomingSession!==""&&activeIncomingSession!==String(event.sessionId))return; activeIncomingSession=""; if(viewState!=="sending"){viewState="error";errorText="Transfer cancelled";statusText=errorText} }
-    else if (event.event === "incoming_failed") { if(activeIncomingSession!==""&&activeIncomingSession!==String(event.sessionId))return; activeIncomingSession=""; if(viewState!=="sending"){viewState="error";errorText=String(event.message||"Transfer failed");statusText=errorText} }
-    else if (event.event === "incoming_declined") { viewState="nearby"; statusText="Declined" }
+    else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success","Received",true) }
+    else if (event.event === "incoming_cancelled") { if(activeIncomingSession!==""&&activeIncomingSession!==String(event.sessionId))return; finishIncoming("error","Transfer cancelled",false) }
+    else if (event.event === "incoming_failed") { if(activeIncomingSession!==""&&activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",String(event.message||"Transfer failed"),false) }
+    else if (event.event === "incoming_declined") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
     else if (event.event === "outgoing_preparing") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; transferName=String(event.name); transferPeer=String(event.target); progress=0; stopDiscovery() }
     else if (event.event === "outgoing_progress") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; progress=event.total>0 ? event.bytes/event.total : 0 }
     else if (event.event === "outgoing_done") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("success", "Sent", true) }
@@ -239,7 +273,7 @@ Panel {
       root.backendVersionMismatch=false
     }
     onExited: function(code) {
-      root.backendReady=false; root.discoveryActive=false
+      root.backendReady=false; root.discoveryActive=false; root.incomingQueue=[]; root.activeIncomingSession=""
       if (root.shutdownPending) { root.finishReceiverShutdown(); return }
       if (!root.receiverEnabled) { root.statusText="Turned off"; root.errorText=""; return }
       if (root.backendVersionMismatch) return
@@ -373,6 +407,7 @@ Panel {
           visible: root.viewState === "incoming" && root.incoming; width:parent.width; spacing:Style.space(8)
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incoming ? root.incoming.sender+" wants to send" : ""; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true }
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incoming ? Model.incomingSummary(root.incoming.files)+" · "+Model.formatBytes(root.incoming.total) : ""; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; elide:Text.ElideRight }
+          Text { visible:root.incomingQueue.length>1; width:parent.width; text:(root.incomingQueue.length-1)+(root.incomingQueue.length===2 ? " more request" : " more requests"); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { width:parent.width; spacing:Style.space(8)
             Button { width:(parent.width-parent.spacing)/2; text:"Decline"; foreground:root.urgent; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:root.declineIncoming() }
             Button { width:(parent.width-parent.spacing)/2; text:"Accept"; foreground:root.foreground; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===1; onClicked:root.acceptIncoming() }
