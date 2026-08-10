@@ -40,7 +40,7 @@ anything locally.
 Install or reinstall a specific release with:
 
 ```sh
-bash /tmp/omarchy-nearby-install.sh v1.0.2
+bash /tmp/omarchy-nearby-install.sh v1.0.3
 ```
 
 The widget is placed in the right section of the bar by default. Remove it with
@@ -168,12 +168,12 @@ asks you to run the installer again.
 
 ## Releases
 
-Stable releases use tags such as `v1.0.2`. The tag, `manifest.json`, Rust package,
+Stable releases use tags such as `v1.0.3`. The tag, `manifest.json`, Rust package,
 and helper all carry the same version. Release helpers are built only by GitHub
 Actions and stored as GitHub Release assets with a SHA256 file and generated
 third-party license notices.
 
-Development on `main` uses the next SemVer prerelease, such as `1.0.3-dev`, as soon
+Development on `main` uses the next SemVer prerelease, such as `1.0.4-dev`, as soon
 as it diverges from the preceding stable tag. `manifest.json` and
 `backend/Cargo.toml` are advanced together so a source-only update cannot be
 mistaken for the previous release.

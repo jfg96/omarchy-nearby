@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3
+
+- Read the frontend version from the plugin manifest so strict helper version
+  checks work with Omarchy/Quattro's curated runtime widget metadata.
+
 ## 1.0.2
 
 - Correctly accept published, non-draft GitHub releases in the installer.
