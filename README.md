@@ -66,7 +66,7 @@ Runtime:
 - `zenity` for file selection
 - `wl-clipboard` (`wl-copy` / `wl-paste`) for text sharing
 - `libnotify` (`notify-send`) for desktop notifications
-- Local network access to TCP/UDP port `53317`
+- Local network connectivity for LocalSend traffic (default TCP/UDP port `53317`)
 
 The recommended prebuilt installation supports Linux x86_64. Building from source
 requires a Rust toolchain with Cargo.
@@ -124,12 +124,14 @@ short-circuiting and forces the bounded subnet scan when a new peer is missing.
 
 ### iOS note
 
-During testing, the official LocalSend Android client responded to active discovery
-immediately. The iOS client can enter a state where it remains visibly open but does
-not confirm the multicast discovery round. In that case Nearby falls back to a cached
-IP probe, or to a subnet scan when no usable cache entry exists. This is documented as
-an interoperability limitation rather than worked around by making the normal path
-more aggressive.
+During testing, the official LocalSend Android client responded to Nearby's active
+discovery immediately and consistently. LocalSend on iOS was also discovered normally
+when the app was opened or brought to the foreground while Nearby was already
+scanning. A specific edge case was observed when the iOS app had already been open
+before Nearby started scanning: it could remain visibly open yet stop responding to
+the multicast discovery round. Fully closing and reopening LocalSend on iOS restored
+immediate discovery. In that stale-open state, Nearby also falls back to a cached IP
+probe, or to a bounded subnet scan when no usable cache entry exists.
 
 ## Build from source
 
