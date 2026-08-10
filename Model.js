@@ -53,4 +53,14 @@ function helperVersionMatches(pluginVersion, helperVersion) {
   return String(pluginVersion || "") !== "" && String(pluginVersion) === String(helperVersion || "")
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, viewAfterOutgoing, helperVersionMatches }
+function manifestVersion(text, pluginId) {
+  try {
+    const manifest = JSON.parse(String(text || ""))
+    if (String(manifest.id || "") !== String(pluginId || "")) return ""
+    return String(manifest.version || "")
+  } catch (_) {
+    return ""
+  }
+}
+
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, viewAfterOutgoing, helperVersionMatches, manifestVersion }

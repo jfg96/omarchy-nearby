@@ -20,12 +20,10 @@ Panel {
   readonly property string metadataSourceDir: manifestMetadata
     ? String(manifestMetadata.sourceDir || "")
     : ""
-  readonly property string pluginVersion: manifestMetadata
-    ? String(manifestMetadata.version || "")
-    : ""
   readonly property string pluginDir: metadataSourceDir !== ""
     ? metadataSourceDir
     : (Quickshell.env("HOME") || "") + "/.config/omarchy/plugins/" + manifestPluginId
+  property string pluginVersion: ""
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.4)
@@ -53,6 +51,23 @@ Panel {
   property bool shutdownPending: false
   property bool backendAcceptedThisRun: false
   property bool backendVersionMismatch: false
+
+  FileView {
+    path: root.pluginDir + "/manifest.json"
+    printErrors: false
+    onLoaded: {
+      root.pluginVersion = Model.manifestVersion(text(), root.manifestPluginId)
+      if (root.pluginVersion === "") {
+        root.errorText = "Nearby manifest version unavailable."
+        root.statusText = root.errorText
+      }
+    }
+    onLoadFailed: function(error) {
+      root.pluginVersion = ""
+      root.errorText = "Nearby manifest version unavailable."
+      root.statusText = root.errorText
+    }
+  }
 
   readonly property var nearbyPhrases: [
     "Looking nearby",
@@ -215,7 +230,7 @@ Panel {
   Process {
     id: backend
     command: [root.pluginDir + "/bin/omarchy-nearby-helper"]
-    running: root.receiverEnabled
+    running: root.receiverEnabled && root.pluginVersion !== ""
     stdinEnabled: true
     stdout: SplitParser { onRead: function(line) { root.handleEvent(Model.parseLine(line)) } }
     stderr: SplitParser { onRead: function(line) { console.warn("nearby backend", line) } }
