@@ -4,6 +4,7 @@ use localsend_rs::client::{LocalSendClient, TlsTrustPolicy};
 use localsend_rs::core::build_file_metadata;
 use localsend_rs::crypto::{TlsCertificate, generate_tls_certificate};
 use localsend_rs::discovery::{Discovery, HttpDiscovery, MulticastDiscovery};
+use localsend_rs::error::LocalSendError;
 use localsend_rs::protocol::types::FileMetadataDetails;
 use localsend_rs::protocol::{DeviceInfo, FileId, FileMetadata, Protocol};
 use localsend_rs::server::{PendingRequest, ServerEvent};
@@ -41,11 +42,15 @@ enum Command {
         transfer_id: String,
         device: DeviceInfo,
         paths: Vec<String>,
+        #[serde(default)]
+        pin: Option<String>,
     },
     SendText {
         transfer_id: String,
         device: DeviceInfo,
         text: String,
+        #[serde(default)]
+        pin: Option<String>,
     },
     CancelOutgoing {
         transfer_id: String,
@@ -60,6 +65,24 @@ struct DiscoveryControl {
 struct OutgoingControl {
     id: String,
     cancel: oneshot::Sender<()>,
+}
+struct OutgoingDone {
+    id: String,
+    event: Option<Value>,
+}
+#[derive(Debug, PartialEq, Eq)]
+enum SendPayloadOutcome {
+    Finished,
+    PinRequired,
+    InvalidPin,
+}
+
+fn pin_failure_outcome(pin_was_provided: bool) -> SendPayloadOutcome {
+    if pin_was_provided {
+        SendPayloadOutcome::InvalidPin
+    } else {
+        SendPayloadOutcome::PinRequired
+    }
 }
 struct Peer {
     device: DeviceInfo,
@@ -464,8 +487,9 @@ async fn send_payload(
     target: DeviceInfo,
     paths: Vec<String>,
     text: Option<String>,
+    pin: Option<String>,
     mut cancel_rx: oneshot::Receiver<()>,
-) -> Result<()> {
+) -> Result<SendPayloadOutcome> {
     if target.ip.as_deref().unwrap_or("").is_empty() {
         return Err(anyhow!("device disappeared"));
     }
@@ -525,13 +549,20 @@ async fn send_payload(
     emit(
         json!({"event":"outgoing_preparing","transferId":transfer_id,"name":summary,"count":metadata.len(),"total":total,"target":valid_remote_text(&target.alias,128)}),
     );
-    let prepared = tokio::select! {
-        result = client.prepare_upload(&target, metadata, None) => result?,
-        _ = &mut cancel_rx => { emit(json!({"event":"outgoing_cancelled","transferId":transfer_id})); return Ok(()); }
+    let prepared_result = tokio::select! {
+        result = client.prepare_upload(&target, metadata, pin.as_deref()) => result,
+        _ = &mut cancel_rx => { emit(json!({"event":"outgoing_cancelled","transferId":transfer_id})); return Ok(SendPayloadOutcome::Finished); }
+    };
+    let prepared = match prepared_result {
+        Ok(prepared) => prepared,
+        Err(LocalSendError::InvalidPin | LocalSendError::PinRequired) => {
+            return Ok(pin_failure_outcome(pin.is_some()));
+        }
+        Err(error) => return Err(error.into()),
     };
     if prepared.session_id.as_str().is_empty() {
         emit(json!({"event":"outgoing_done","transferId":transfer_id,"target":target.alias}));
-        return Ok(());
+        return Ok(SendPayloadOutcome::Finished);
     }
     let mut completed = 0u64;
     for (file_id, token) in &prepared.files {
@@ -570,12 +601,12 @@ async fn send_payload(
         }
         result?;
         if cancelled {
-            return Ok(());
+            return Ok(SendPayloadOutcome::Finished);
         }
         completed += size;
     }
     emit(json!({"event":"outgoing_done","transferId":transfer_id,"target":target.alias}));
-    Ok(())
+    Ok(SendPayloadOutcome::Finished)
 }
 
 fn xdg_download_dir(home: &Path) -> PathBuf {
@@ -774,7 +805,7 @@ async fn main() -> Result<()> {
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
     let mut discovery: Option<DiscoveryControl> = None;
     let mut outgoing: Option<OutgoingControl> = None;
-    let (out_done_tx, mut out_done_rx) = mpsc::unbounded_channel::<String>();
+    let (out_done_tx, mut out_done_rx) = mpsc::unbounded_channel::<OutgoingDone>();
     let mut expiry = tokio::time::interval(Duration::from_secs(5));
     loop {
         tokio::select! {
@@ -789,7 +820,10 @@ async fn main() -> Result<()> {
                 }
                 record_peer(&registry,device)
             },
-            Some(done_id) = out_done_rx.recv() => if outgoing.as_ref().is_some_and(|o|o.id==done_id) { outgoing=None; },
+            Some(done) = out_done_rx.recv() => if outgoing.as_ref().is_some_and(|o|o.id==done.id) {
+                outgoing=None;
+                if let Some(event)=done.event { emit(event); }
+            },
             line = lines.next_line() => {
                 let Some(line)=line? else {break};
                 let command: Command = match serde_json::from_str(&line) { Ok(v)=>v, Err(_)=>{emit(json!({"event":"error","message":"Invalid backend command"}));continue;} };
@@ -801,15 +835,31 @@ async fn main() -> Result<()> {
                     Command::DiscoveryStop => if let Some(control)=discovery.take(){let _=control.stop.send(());},
                     Command::Accept { request_id } => { let ok=pending.lock().unwrap().remove(&request_id).is_some_and(|req|req.accept()); emit(if ok {json!({"event":"incoming_accepted","requestId":request_id})} else {json!({"event":"incoming_expired","requestId":request_id})}); },
                     Command::Decline { request_id } => { let ok=pending.lock().unwrap().remove(&request_id).is_some_and(|req|req.decline()); emit(if ok {json!({"event":"incoming_declined","requestId":request_id})} else {json!({"event":"incoming_expired","requestId":request_id})}); },
-                    Command::SendFiles { transfer_id,device,paths } => {
+                    Command::SendFiles { transfer_id,device,paths,pin } => {
                         if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Another transfer is already active"}));continue;}
                         let (tx,rx)=oneshot::channel(); outgoing=Some(OutgoingControl{id:transfer_id.clone(),cancel:tx});
-                        let (identity,done)=(identity.clone(),out_done_tx.clone()); tokio::spawn(async move {if let Err(e)=send_payload(transfer_id.clone(),identity,device,paths,None,rx).await{emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":human_error(&e)}));} let _=done.send(transfer_id);});
+                        let (identity,done)=(identity.clone(),out_done_tx.clone()); tokio::spawn(async move {
+                            let event=match send_payload(transfer_id.clone(),identity,device,paths,None,pin,rx).await {
+                                Ok(SendPayloadOutcome::Finished)=>None,
+                                Ok(SendPayloadOutcome::PinRequired)=>Some(json!({"event":"outgoing_pin_required","transferId":transfer_id})),
+                                Ok(SendPayloadOutcome::InvalidPin)=>Some(json!({"event":"outgoing_invalid_pin","transferId":transfer_id})),
+                                Err(error)=>Some(json!({"event":"outgoing_failed","transferId":transfer_id,"message":human_error(&error)})),
+                            };
+                            let _=done.send(OutgoingDone{id:transfer_id,event});
+                        });
                     }
-                    Command::SendText { transfer_id,device,text } => {
+                    Command::SendText { transfer_id,device,text,pin } => {
                         if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Another transfer is already active"}));continue;}
                         let (tx,rx)=oneshot::channel(); outgoing=Some(OutgoingControl{id:transfer_id.clone(),cancel:tx});
-                        let (identity,done)=(identity.clone(),out_done_tx.clone()); tokio::spawn(async move {if let Err(e)=send_payload(transfer_id.clone(),identity,device,vec![],Some(text),rx).await{emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":human_error(&e)}));} let _=done.send(transfer_id);});
+                        let (identity,done)=(identity.clone(),out_done_tx.clone()); tokio::spawn(async move {
+                            let event=match send_payload(transfer_id.clone(),identity,device,vec![],Some(text),pin,rx).await {
+                                Ok(SendPayloadOutcome::Finished)=>None,
+                                Ok(SendPayloadOutcome::PinRequired)=>Some(json!({"event":"outgoing_pin_required","transferId":transfer_id})),
+                                Ok(SendPayloadOutcome::InvalidPin)=>Some(json!({"event":"outgoing_invalid_pin","transferId":transfer_id})),
+                                Err(error)=>Some(json!({"event":"outgoing_failed","transferId":transfer_id,"message":human_error(&error)})),
+                            };
+                            let _=done.send(OutgoingDone{id:transfer_id,event});
+                        });
                     }
                     Command::CancelOutgoing { transfer_id } => if outgoing.as_ref().is_some_and(|o|o.id==transfer_id) { if let Some(control)=outgoing.take(){let _=control.cancel.send(());} },
                     Command::Shutdown => break,
@@ -889,6 +939,98 @@ mod tests {
         assert!(
             matches!(serde_json::from_str::<Command>(raw).unwrap(),Command::SendFiles{transfer_id,..} if transfer_id=="x")
         );
+    }
+
+    #[test]
+    fn outgoing_contract_accepts_optional_pin() {
+        let without_pin = r#"{"command":"send_text","transfer_id":"x","device":{"alias":"Phone","version":"2.1","deviceModel":"iPhone","deviceType":"mobile","fingerprint":"abc","port":53317,"protocol":"https","download":false,"ip":"192.0.2.2"},"text":"hello"}"#;
+        let with_pin = r#"{"command":"send_text","transfer_id":"x","device":{"alias":"Phone","version":"2.1","deviceModel":"iPhone","deviceType":"mobile","fingerprint":"abc","port":53317,"protocol":"https","download":false,"ip":"192.0.2.2"},"text":"hello","pin":"123456"}"#;
+        assert!(matches!(
+            serde_json::from_str::<Command>(without_pin).unwrap(),
+            Command::SendText { pin: None, .. }
+        ));
+        assert!(matches!(
+            serde_json::from_str::<Command>(with_pin).unwrap(),
+            Command::SendText { pin: Some(pin), .. } if pin == "123456"
+        ));
+    }
+
+    #[test]
+    fn pin_failure_distinguishes_missing_and_invalid_values() {
+        assert_eq!(pin_failure_outcome(false), SendPayloadOutcome::PinRequired);
+        assert_eq!(pin_failure_outcome(true), SendPayloadOutcome::InvalidPin);
+    }
+
+    #[tokio::test]
+    async fn outgoing_text_retries_against_a_pin_protected_receiver() {
+        let directory = std::env::temp_dir().join(format!(
+            "omarchy-nearby-pin-test-{}-{}",
+            std::process::id(),
+            FileId::new().as_str()
+        ));
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (mut server, _events) = LocalSendServer::builder()
+            .alias("Pinned")
+            .port(0)
+            .save_dir(&directory)
+            .protocol(Protocol::Http)
+            .pin("123456")
+            .auto_accept(true)
+            .build()
+            .await
+            .unwrap();
+        let mut target = DeviceInfo::new("Pinned".into(), server.port(), Protocol::Http);
+        target.ip = Some("127.0.0.1".into());
+        target.fingerprint = "pin-test-target".into();
+        let identity = DeviceInfo::new("Nearby test".into(), 53317, Protocol::Http);
+
+        let (cancel_tx, cancel_rx) = oneshot::channel();
+        let missing = send_payload(
+            "pin-missing".into(),
+            identity.clone(),
+            target.clone(),
+            vec![],
+            Some("hello".into()),
+            None,
+            cancel_rx,
+        )
+        .await
+        .unwrap();
+        assert_eq!(missing, SendPayloadOutcome::PinRequired);
+        drop(cancel_tx);
+
+        let (cancel_tx, cancel_rx) = oneshot::channel();
+        let invalid = send_payload(
+            "pin-invalid".into(),
+            identity.clone(),
+            target.clone(),
+            vec![],
+            Some("hello".into()),
+            Some("000000".into()),
+            cancel_rx,
+        )
+        .await
+        .unwrap();
+        assert_eq!(invalid, SendPayloadOutcome::InvalidPin);
+        drop(cancel_tx);
+
+        let (cancel_tx, cancel_rx) = oneshot::channel();
+        let accepted = send_payload(
+            "pin-valid".into(),
+            identity,
+            target,
+            vec![],
+            Some("hello".into()),
+            Some("123456".into()),
+            cancel_rx,
+        )
+        .await
+        .unwrap();
+        assert_eq!(accepted, SendPayloadOutcome::Finished);
+        drop(cancel_tx);
+
+        server.stop();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[test]

@@ -19,6 +19,12 @@ assert.deepEqual(Model.removeIncoming([requestA, requestB], "missing"), [request
 assert.equal(Model.currentIncoming([requestA, requestB]), requestA)
 assert.equal(Model.currentIncoming([]), null)
 assert.equal(Model.currentIncoming(null), null)
+const pendingFiles = {kind:"files",device:phone,paths:["/tmp/a","/tmp/b"]}
+const pendingText = {kind:"text",device:phone,text:"hello"}
+assert.equal(Model.outgoingCommand(null, "out-1", null), null)
+assert.deepEqual(Model.outgoingCommand(pendingFiles, "out-1", null), {command:"send_files",transfer_id:"out-1",device:phone,paths:["/tmp/a","/tmp/b"]})
+assert.deepEqual(Model.outgoingCommand(pendingText, "out-2", "123456"), {command:"send_text",transfer_id:"out-2",device:phone,text:"hello",pin:"123456"})
+assert.equal(Object.hasOwn(pendingText, "pin"), false)
 assert.equal(Model.viewAfterOutgoing(true, "success"), "incoming")
 assert.equal(Model.viewAfterOutgoing(false, "error"), "error")
 assert.equal(Model.helperVersionMatches("1.0.0", "1.0.0"), true)

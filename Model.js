@@ -68,6 +68,15 @@ function currentIncoming(queue) {
   return queue && queue.length ? queue[0] : null
 }
 
+function outgoingCommand(pending, transferId, pin) {
+  if (!pending || !pending.device || (pending.kind !== "files" && pending.kind !== "text")) return null
+  var command = {command:pending.kind === "files" ? "send_files" : "send_text", transfer_id:transferId, device:pending.device}
+  if (pending.kind === "files") command.paths = (pending.paths || []).slice()
+  else command.text = String(pending.text || "")
+  if (typeof pin === "string" && pin !== "") command.pin = pin
+  return command
+}
+
 function viewAfterOutgoing(hasPendingIncoming, terminalState) {
   return hasPendingIncoming ? "incoming" : terminalState
 }
@@ -86,4 +95,4 @@ function manifestVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, viewAfterOutgoing, helperVersionMatches, manifestVersion }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, helperVersionMatches, manifestVersion }

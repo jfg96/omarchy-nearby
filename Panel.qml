@@ -47,6 +47,8 @@ Panel {
   property string transferPeer: ""
   property string activeIncomingSession: ""
   property string outgoingTransferId: ""
+  property var pendingOutgoing: null
+  property string pinError: ""
   property int transferSequence: 0
   property int nearbyPhraseIndex: 0
   property bool shutdownPending: false
@@ -136,6 +138,7 @@ Panel {
     selectedDevice = null
     incomingQueue = []
     activeIncomingSession = ""
+    clearPendingOutgoing()
     viewState = "nearby"
     statusText = "Turned off"
     errorText = ""
@@ -144,9 +147,34 @@ Panel {
   function forceFullDiscovery() { discoveryActive = true; errorText = ""; statusText = "Scanning local network…"; send({command:"discovery_start",force_full:true}) }
   function stopDiscovery() { discoveryActive = false; send({command:"discovery_stop"}) }
   function chooseDevice(index) { if (index >= 0 && index < devices.length) { selectedDevice = devices[index]; viewState = "target"; selectedIndex = 0 } }
-  function goBack() { if (viewState === "target") { viewState = "nearby"; selectedDevice = null; selectedIndex = 0 } else close() }
+  function goBack() { if (viewState === "pin") cancelPin(); else if (viewState === "target") { viewState = "nearby"; selectedDevice = null; selectedIndex = 0 } else close() }
   function selectFiles() { if (!selectedDevice || picker.running) return; picker.running = true }
   function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.running = true }
+  function clearPendingOutgoing() { pendingOutgoing=null; outgoingTransferId=""; pinError=""; pinInput.text="" }
+  function dispatchPendingOutgoing(pin) {
+    if (!pendingOutgoing) return
+    transferSequence++
+    outgoingTransferId="out-"+Date.now()+"-"+transferSequence
+    var command=Model.outgoingCommand(pendingOutgoing,outgoingTransferId,pin)
+    if (!command) { clearPendingOutgoing(); viewState="error"; errorText="Transfer failed"; return }
+    pinInput.text=""
+    pinError=""
+    send(command)
+  }
+  function beginOutgoing(pending) { pendingOutgoing=pending; dispatchPendingOutgoing(null) }
+  function retryWithPin() {
+    var pin=String(pinInput.text || "")
+    if (pin === "") { pinError="Enter the receiver PIN"; pinInput.forceActiveFocus(); return }
+    dispatchPendingOutgoing(pin)
+  }
+  function showPinPrompt(message) {
+    outgoingTransferId=""
+    viewState="pin"
+    pinError=message
+    statusText="PIN required"
+    Qt.callLater(function(){pinInput.forceActiveFocus()})
+  }
+  function cancelPin() { clearPendingOutgoing(); viewState=incoming ? "incoming" : (selectedDevice ? "target" : "nearby"); selectedIndex=incoming ? 1 : 0; Qt.callLater(function(){keyCatcher.forceActiveFocus()}) }
   function acceptIncoming() { if (!incoming) return; send({command:"accept",request_id:incoming.requestId}); viewState="receiving"; transferPeer=incoming.sender; transferName=Model.incomingSummary(incoming.files); progress=0 }
   function declineIncoming() {
     if (!incoming) return
@@ -174,7 +202,7 @@ Panel {
     if (completed) progress = 1
   }
   function finishOutgoing(terminalState, message, completed) {
-    outgoingTransferId = ""
+    clearPendingOutgoing()
     if (incoming) {
       viewState = Model.viewAfterOutgoing(true, terminalState)
       selectedIndex = 1
@@ -223,7 +251,7 @@ Panel {
     else if (event.event === "discovery_started") discoveryActive=true
     else if (event.event === "discovery_stopped") discoveryActive=false
     else if (event.event === "incoming_request") {
-      incomingQueue=Model.enqueueIncoming(incomingQueue,event); incomingText=""; if (viewState!=="sending" && viewState!=="receiving") { viewState="incoming"; selectedIndex=1 }
+      incomingQueue=Model.enqueueIncoming(incomingQueue,event); incomingText=""; if (viewState!=="sending" && viewState!=="receiving" && viewState!=="pin") { viewState="incoming"; selectedIndex=1 }
       Quickshell.execDetached(["notify-send","-a","Nearby","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
     }
     else if (event.event === "incoming_text") {
@@ -249,6 +277,8 @@ Panel {
     else if (event.event === "outgoing_progress") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; progress=event.total>0 ? event.bytes/event.total : 0 }
     else if (event.event === "outgoing_done") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("success", "Sent", true) }
     else if (event.event === "outgoing_cancelled") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", "Transfer cancelled", false) }
+    else if (event.event === "outgoing_pin_required") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt("") }
+    else if (event.event === "outgoing_invalid_pin") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt("Incorrect PIN") }
     else if (event.event === "outgoing_failed") { if(event.transferId && String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", String(event.message||"Transfer failed"), false) }
     else if (event.event === "error") { viewState="error"; errorText=String(event.message||"Transfer failed"); statusText=errorText }
   }
@@ -258,7 +288,7 @@ Panel {
       cursorActive=false; selectedIndex=-1; nearbyPhraseIndex=0
       if (viewState === "nearby" && receiverEnabled && backendReady) startDiscovery()
       Qt.callLater(function(){ keyCatcher.forceActiveFocus() })
-    } else stopDiscovery()
+    } else { if (viewState==="pin") cancelPin(); stopDiscovery() }
   }
 
   Process {
@@ -273,7 +303,7 @@ Panel {
       root.backendVersionMismatch=false
     }
     onExited: function(code) {
-      root.backendReady=false; root.discoveryActive=false; root.incomingQueue=[]; root.activeIncomingSession=""
+      root.backendReady=false; root.discoveryActive=false; root.incomingQueue=[]; root.activeIncomingSession=""; root.clearPendingOutgoing()
       if (root.shutdownPending) { root.finishReceiverShutdown(); return }
       if (!root.receiverEnabled) { root.statusText="Turned off"; root.errorText=""; return }
       if (root.backendVersionMismatch) return
@@ -330,7 +360,7 @@ Panel {
       if (code === 127) { root.viewState="error"; root.errorText="zenity is required to choose files"; root.statusText=root.errorText; return }
       if (code !== 0 || !root.selectedDevice) return
       var paths=String(pickerOutput.text || "").split("\n").filter(function(v){return v.trim()!==""})
-      if (paths.length) { root.transferSequence++; root.outgoingTransferId="out-"+Date.now()+"-"+root.transferSequence; root.send({command:"send_files",transfer_id:root.outgoingTransferId,device:root.selectedDevice,paths:paths}) }
+      if (paths.length) root.beginOutgoing({kind:"files",device:root.selectedDevice,paths:paths})
     }
   }
   Process {
@@ -340,7 +370,7 @@ Panel {
     stdout: StdioCollector { id: clipboardOutput; waitForEnd: true }
     onExited: function(code) {
       var text=String(clipboardOutput.text || "")
-      if (code===0 && text.trim()!=="" && root.selectedDevice) { root.transferSequence++; root.outgoingTransferId="out-"+Date.now()+"-"+root.transferSequence; root.send({command:"send_text",transfer_id:root.outgoingTransferId,device:root.selectedDevice,text:text}) }
+      if (code===0 && text.trim()!=="" && root.selectedDevice) root.beginOutgoing({kind:"text",device:root.selectedDevice,text:text})
       else { root.viewState="error"; root.errorText=code===127 ? "wl-paste is required to read the clipboard" : "Clipboard is empty" }
     }
   }
@@ -358,6 +388,7 @@ Panel {
     contentHeight: panel.fittedContentHeight(content.implicitHeight, Style.space(560))
     PanelKeyCatcher {
       id: keyCatcher; anchors.fill: parent
+      blocked: root.viewState==="pin" && pinInput.activeFocus
       onMoveRequested: function(dx,dy){root.moveCursor(dx,dy)}
       onActivateRequested: root.activateCursor()
       onCloseRequested: root.goBack()
@@ -365,7 +396,7 @@ Panel {
         id: content; width: parent.width; spacing: Style.space(12)
         PanelHero {
           id: hero
-          title: root.viewState === "target" && root.selectedDevice ? root.selectedDevice.alias : (root.viewState === "incoming" ? "Incoming" : "Nearby")
+          title: (root.viewState === "target" || root.viewState === "pin") && root.selectedDevice ? root.selectedDevice.alias : (root.viewState === "incoming" ? "Incoming" : "Nearby")
           meta: root.heroMetaText
           detail: ""
           foreground: root.foreground; fontFamily: root.fontFamily
@@ -401,6 +432,24 @@ Panel {
           PanelSectionHeader { text:"SEND"; foreground:root.foreground; fontFamily:root.fontFamily }
           Button { width:parent.width; leftAlign:true; iconText:"󰈔"; text:"Send files"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.selectFiles() }
           Button { width:parent.width; leftAlign:true; iconText:"󰅇"; text:"Send clipboard"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=1}}; onClicked:root.sendClipboard() }
+        }
+
+        Column {
+          visible: root.viewState === "pin"; width:parent.width; spacing:Style.space(8)
+          PanelSectionHeader { text:"RECEIVER PIN"; foreground:root.foreground; fontFamily:root.fontFamily }
+          Text { width:parent.width; text:"This receiver requires a PIN"; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          TextField {
+            id: pinInput; width:parent.width; password:true; placeholderText:"PIN"; maximumLength:32; foreground:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body
+            inputMethodHints: Qt.ImhDigitsOnly
+            validator: RegularExpressionValidator { regularExpression: /[0-9]*/ }
+            onAccepted: root.retryWithPin()
+            Keys.onPressed: function(event) { if(event.key===Qt.Key_Escape){root.cancelPin();event.accepted=true} }
+          }
+          Text { visible:root.pinError!==""; width:parent.width; text:root.pinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Row { width:parent.width; spacing:Style.space(8)
+            Button { width:(parent.width-parent.spacing)/2; text:"Cancel"; bordered:true; foreground:root.dim; onClicked:root.cancelPin() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Retry"; bordered:true; foreground:root.foreground; onClicked:root.retryWithPin() }
+          }
         }
 
         Column {
