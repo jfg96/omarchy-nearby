@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Test frontend model
+        run: node tests/model.test.js
+
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path backend/Cargo.toml --all -- --check
+
+      - name: Test Nearby helper
+        run: cargo test --locked --manifest-path backend/Cargo.toml
+
+      - name: Test vendored localsend-rs
+        run: cargo test --locked --manifest-path backend/vendor/localsend-rs/Cargo.toml --features https
