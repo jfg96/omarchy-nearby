@@ -103,6 +103,12 @@ fn emit(value: Value) {
 }
 
 fn human_error(error: &anyhow::Error) -> &'static str {
+    if matches!(
+        error.downcast_ref::<LocalSendError>(),
+        Some(LocalSendError::RateLimited)
+    ) {
+        return "Too many incorrect PIN attempts";
+    }
     let text = format!("{error:#}").to_lowercase();
     if text.contains("permission") {
         "Permission denied"
@@ -983,6 +989,12 @@ mod tests {
     fn pin_failure_distinguishes_missing_and_invalid_values() {
         assert_eq!(pin_failure_outcome(false), SendPayloadOutcome::PinRequired);
         assert_eq!(pin_failure_outcome(true), SendPayloadOutcome::InvalidPin);
+    }
+
+    #[test]
+    fn pin_rate_limit_has_a_specific_user_message() {
+        let error = anyhow::Error::from(LocalSendError::RateLimited);
+        assert_eq!(human_error(&error), "Too many incorrect PIN attempts");
     }
 
     #[tokio::test]
