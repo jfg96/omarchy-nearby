@@ -163,6 +163,7 @@ Panel {
   }
   function beginOutgoing(pending) { pendingOutgoing=pending; dispatchPendingOutgoing(null) }
   function retryWithPin() {
+    if (outgoingTransferId !== "") return
     var pin=String(pinInput.text || "")
     if (pin === "") { pinError="Enter the receiver PIN"; pinInput.forceActiveFocus(); return }
     dispatchPendingOutgoing(pin)
@@ -187,7 +188,7 @@ Panel {
   }
   function finishIncoming(terminalState, message, completed) {
     activeIncomingSession = ""
-    if (viewState === "sending") return
+    if (pendingOutgoing) return
     if (incoming) {
       viewState = "incoming"
       selectedIndex = 1
@@ -255,8 +256,8 @@ Panel {
       Quickshell.execDetached(["notify-send","-a","Nearby","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
     }
     else if (event.event === "incoming_text") {
-      incomingText=String(event.text || ""); transferPeer=String(event.sender || ""); viewState="text"; stopDiscovery()
-      Quickshell.execDetached(["notify-send","-a","Nearby","Text received","From "+transferPeer])
+      incomingText=String(event.text || ""); if (!pendingOutgoing) { transferPeer=String(event.sender || ""); viewState="text"; stopDiscovery() }
+      Quickshell.execDetached(["notify-send","-a","Nearby","Text received","From "+String(event.sender || "")])
     }
     else if (event.event === "incoming_accepted") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
     else if (event.event === "incoming_expired") {
@@ -267,11 +268,11 @@ Panel {
         else { viewState="error"; errorText="Transfer request expired"; statusText=errorText }
       }
     }
-    else if (event.event === "incoming_progress") { if(activeIncomingSession==="")activeIncomingSession=String(event.sessionId); if(activeIncomingSession!==String(event.sessionId))return; if(viewState!=="sending")viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0 }
-    else if (event.event === "file_received") { if(activeIncomingSession!==""&&activeIncomingSession!==String(event.sessionId))return; activeIncomingSession=String(event.sessionId); lastReceivedPath=String(event.path); transferName=String(event.name); transferPeer=String(event.sender) }
+    else if (event.event === "incoming_progress") { if(activeIncomingSession==="")activeIncomingSession=String(event.sessionId); if(activeIncomingSession!==String(event.sessionId))return; if(pendingOutgoing)return; viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0 }
+    else if (event.event === "file_received") { if(activeIncomingSession!==""&&activeIncomingSession!==String(event.sessionId))return; activeIncomingSession=String(event.sessionId); lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
     else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success","Received",true) }
-    else if (event.event === "incoming_cancelled") { if(activeIncomingSession!==""&&activeIncomingSession!==String(event.sessionId))return; finishIncoming("error","Transfer cancelled",false) }
-    else if (event.event === "incoming_failed") { if(activeIncomingSession!==""&&activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",String(event.message||"Transfer failed"),false) }
+    else if (event.event === "incoming_cancelled") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error","Transfer cancelled",false) }
+    else if (event.event === "incoming_failed") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",String(event.message||"Transfer failed"),false) }
     else if (event.event === "incoming_declined") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
     else if (event.event === "outgoing_preparing") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; transferName=String(event.name); transferPeer=String(event.target); progress=0; stopDiscovery() }
     else if (event.event === "outgoing_progress") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; progress=event.total>0 ? event.bytes/event.total : 0 }
@@ -287,8 +288,8 @@ Panel {
     if (opened) {
       cursorActive=false; selectedIndex=-1; nearbyPhraseIndex=0
       if (viewState === "nearby" && receiverEnabled && backendReady) startDiscovery()
-      Qt.callLater(function(){ keyCatcher.forceActiveFocus() })
-    } else { if (viewState==="pin") cancelPin(); stopDiscovery() }
+      Qt.callLater(function(){ if (viewState==="pin") pinInput.forceActiveFocus(); else keyCatcher.forceActiveFocus() })
+    } else { stopDiscovery() }
   }
 
   Process {

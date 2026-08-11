@@ -28,7 +28,7 @@ jobs:
           components: rustfmt
 
       - name: Test frontend model
-        run: node tests/model.test.js
+        run: node tests/model.test.js && node tests/panel-state.test.js
 
       - name: Check Rust formatting
         run: cargo fmt --manifest-path backend/Cargo.toml --all -- --check
