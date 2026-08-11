@@ -244,6 +244,23 @@ function incoming(requestId, sender = requestId) {
 }
 
 {
+  const state = panel({viewState: "receiving"})
+  state.handleEvent({event: "incoming_progress", sessionId: "a", name: "a.txt", sender: "Alice", bytes: 1, total: 2})
+  state.handleEvent({event: "incoming_cancelled", sessionId: "a"})
+  state.handleEvent({event: "incoming_progress", sessionId: "a", name: "a.txt", sender: "Alice", bytes: 2, total: 2})
+  assert.equal(state.activeIncomingSession, "", "late progress must not resurrect cancelled incoming A")
+  assert.equal(state.viewState, "error")
+}
+
+{
+  const state = panel({viewState: "receiving"})
+  state.handleEvent({event: "incoming_progress", sessionId: "b", name: "b.txt", sender: "Bob", bytes: 1, total: 2})
+  state.handleEvent({event: "incoming_progress", sessionId: "a", name: "a.txt", sender: "Alice", bytes: 2, total: 2})
+  assert.equal(state.activeIncomingSession, "b")
+  assert.equal(state.transferName, "b.txt")
+}
+
+{
   const state = panel()
   state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "outgoing"})
   const transferId = state.outgoingTransferId
