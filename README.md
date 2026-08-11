@@ -40,7 +40,7 @@ anything locally.
 Install or reinstall a specific release with:
 
 ```sh
-bash /tmp/omarchy-nearby-install.sh v1.0.3
+bash /tmp/omarchy-nearby-install.sh v1.0.4
 ```
 
 The widget is placed in the right section of the bar by default. Remove it with

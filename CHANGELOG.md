@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.4
+
+- Queue incoming transfer requests so simultaneous approvals are handled in
+  order instead of replacing one another.
+- Support sending files and clipboard text to PIN-protected LocalSend receivers,
+  including clear retry, cancellation, and rate-limit feedback.
+- Keep outgoing clipboard contents in memory rather than writing plaintext to a
+  temporary file.
+- Isolate incoming, outgoing, PIN, and deferred-text state across cancellation,
+  expiry, helper restarts, popup visibility changes, and late transfer events.
+- Improve received-text and terminal-state navigation for both mouse and keyboard,
+  with clearer wrapped status and error messages.
+- Add comprehensive frontend state-transition coverage and run it in normal CI
+  and release validation.
+
 ## 1.0.3
 
 - Read the frontend version from the plugin manifest so strict helper version
