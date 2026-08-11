@@ -167,6 +167,21 @@ function incoming(requestId, sender = requestId) {
 
 {
   const state = panel()
+  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "cancel retry"})
+  state.handleEvent({event: "outgoing_pin_required", transferId: state.outgoingTransferId})
+  state.pinInput.text = "123456"
+  state.retryWithPin()
+  const retryId = state.outgoingTransferId
+  state.cancelPin()
+  assert.deepEqual(state.sent.filter(command => command.command === "cancel_outgoing"),
+    [{command: "cancel_outgoing", transfer_id: retryId}],
+    "leaving PIN while its retry is in flight must cancel that helper transfer exactly once")
+  assert.equal(state.pendingOutgoing, null)
+  assert.equal(state.outgoingTransferId, "")
+}
+
+{
+  const state = panel()
   state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "keep me"})
   state.handleEvent({event: "outgoing_pin_required", transferId: state.outgoingTransferId})
   const pending = state.pendingOutgoing
