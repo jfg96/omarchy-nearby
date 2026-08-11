@@ -184,8 +184,8 @@ Panel {
     var requestId = incoming.requestId
     send({command:"decline",request_id:requestId})
     incomingQueue = Model.removeIncoming(incomingQueue, requestId)
-    viewState = incoming ? "incoming" : "nearby"
-    statusText = incoming ? "Incoming transfer" : "Declined"
+    if (!incoming&&incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received" }
+    else { viewState = incoming ? "incoming" : "nearby"; statusText = incoming ? "Incoming transfer" : "Declined" }
     selectedIndex = incoming ? 1 : 0
   }
   function finishIncoming(terminalState, message, completed) {
@@ -271,7 +271,7 @@ Panel {
     else if (event.event === "discovery_started") discoveryActive=true
     else if (event.event === "discovery_stopped") discoveryActive=false
     else if (event.event === "incoming_request") {
-      incomingQueue=Model.enqueueIncoming(incomingQueue,event); incomingText=""; if (viewState!=="sending" && viewState!=="receiving" && viewState!=="pin") { viewState="incoming"; selectedIndex=1 }
+      incomingQueue=Model.enqueueIncoming(incomingQueue,event); if(!incomingTextPending)incomingText=""; if (viewState!=="sending" && viewState!=="receiving" && viewState!=="pin") { viewState="incoming"; selectedIndex=1 }
       Quickshell.execDetached(["notify-send","-a","Nearby","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
     }
     else if (event.event === "incoming_text") {
@@ -284,6 +284,7 @@ Panel {
       incomingQueue=Model.removeIncoming(incomingQueue,event.requestId)
       if (expiredWasCurrent&&(viewState==="incoming"||(viewState==="receiving"&&activeIncomingSession===""))) {
         if (incoming) { statusText="Incoming transfer"; selectedIndex=1 }
+        else if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received"; errorText="" }
         else { viewState="error"; errorText="Transfer request expired"; statusText=errorText }
       }
     }

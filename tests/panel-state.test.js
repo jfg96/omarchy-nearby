@@ -245,6 +245,19 @@ function incoming(requestId, sender = requestId) {
 
 {
   const state = panel()
+  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "outgoing"})
+  const transferId = state.outgoingTransferId
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "deferred"})
+  state.handleEvent(incoming("files"))
+  state.handleEvent({event: "outgoing_done", transferId})
+  assert.equal(state.viewState, "incoming")
+  state.declineIncoming()
+  assert.equal(state.viewState, "text", "deferred text must follow the last queued file request")
+  assert.equal(state.incomingText, "deferred")
+}
+
+{
+  const state = panel()
   state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "first"})
   state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "duplicate"})
   assert.equal(state.sent.filter(command => command.command === "send_text").length, 1,
