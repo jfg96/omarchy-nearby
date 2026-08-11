@@ -222,6 +222,7 @@ Panel {
     if (completed) progress = 1
   }
   function finishText() { incomingText=""; incomingTextPending=false; viewState="nearby"; selectedIndex=0; startDiscovery() }
+  function finishTerminal() { viewState="nearby"; selectedIndex=0; startDiscovery() }
   function moveCursor(dx, dy) {
     cursorActive = true
     if (viewState === "nearby") {
@@ -237,7 +238,7 @@ Panel {
     else if (viewState === "incoming") selectedIndex === 0 ? declineIncoming() : acceptIncoming()
     else if (viewState === "text") { if(selectedIndex===0)clipboardWriter.running=true; else finishText() }
     else if (viewState === "sending") send({command:"cancel_outgoing",transfer_id:outgoingTransferId})
-    else if (viewState === "success" || viewState === "error") { viewState="nearby"; selectedIndex=0 }
+    else if (viewState === "success" || viewState === "error") finishTerminal()
   }
   function handleBackendExit(code) {
     backendReady=false; discoveryActive=false; incomingQueue=[]; incomingTextPending=false; activeIncomingSession=""; clearPendingOutgoing()
@@ -485,7 +486,7 @@ Panel {
           visible: root.viewState==="success"||root.viewState==="error"; width:parent.width; spacing:Style.space(8)
           Text { width:parent.width; textFormat:Text.PlainText; text:root.viewState==="success" ? root.statusText : root.errorText; wrapMode:Text.Wrap; color:root.viewState==="error"?root.urgent:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true }
           Text { visible:root.viewState==="success"; width:parent.width; textFormat:Text.PlainText; text:root.transferPeer!=="" ? (root.statusText==="Sent"?"to ":"from ")+root.transferPeer : ""; wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
-          Button { text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive; onClicked:{root.viewState="nearby";root.startDiscovery()} }
+          Button { text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive; onClicked:root.finishTerminal() }
         }
 
         Column {

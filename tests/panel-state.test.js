@@ -31,7 +31,7 @@ function extractFunction(name) {
 const functionNames = [
   "send", "persistReceiverEnabled", "startDiscovery", "stopDiscovery", "clearPendingOutgoing", "dispatchPendingOutgoing",
   "beginOutgoing", "retryWithPin", "showPinPrompt", "cancelPin",
-  "acceptIncoming", "declineIncoming", "finishIncoming", "finishOutgoing", "finishText", "finishReceiverShutdown", "activateCursor", "handleBackendExit", "handleEvent"
+  "acceptIncoming", "declineIncoming", "finishIncoming", "finishOutgoing", "finishText", "finishTerminal", "finishReceiverShutdown", "activateCursor", "handleBackendExit", "handleEvent"
 ]
 
 function panel(initial = {}) {
@@ -358,6 +358,14 @@ function incoming(requestId, sender = requestId) {
   assert.equal(state.viewState, "nearby", "received text must have an exit independent of wl-copy completion")
   assert.match(source, /onExited: function\(code\) \{ if\(root\.viewState!=="text"\)return;/,
     "late wl-copy completion must not reopen a text result after the user exits")
+}
+
+{
+  const keyboard = panel({viewState: "success", discoveryActive: false})
+  keyboard.activateCursor()
+  assert.equal(keyboard.viewState, "nearby")
+  assert.equal(keyboard.discoveryActive, true, "keyboard Done must restart discovery like the visual button")
+  assert.equal(keyboard.sent.at(-1).command, "discovery_start")
 }
 
 console.log("panel state tests passed")
