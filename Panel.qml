@@ -163,7 +163,7 @@ Panel {
     pinError=""
     send(command)
   }
-  function beginOutgoing(pending) { if(pendingOutgoing)return; pendingOutgoing=pending; dispatchPendingOutgoing(null) }
+  function beginOutgoing(pending) { if(pendingOutgoing||!backend.running)return; pendingOutgoing=pending; dispatchPendingOutgoing(null) }
   function retryWithPin() {
     if (outgoingTransferId !== "") return
     var pin=String(pinInput.text || "")

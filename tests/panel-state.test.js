@@ -283,6 +283,13 @@ function incoming(requestId, sender = requestId) {
 }
 
 {
+  const state = panel({backend: {running: false, write: () => { throw new Error("must not write") }}})
+  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "offline"})
+  assert.equal(state.pendingOutgoing, null, "backend downtime must not create a pending outgoing phantom")
+  assert.equal(state.outgoingTransferId, "")
+}
+
+{
   const state = panel()
   state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "first"})
   const first = state.sent.at(-1)
