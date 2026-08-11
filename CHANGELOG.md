@@ -5,6 +5,11 @@
 - Present the Nearby TLS identity when sending. LocalSend peers ask for a client
   certificate during the handshake, so every outgoing transfer to a real device
   was aborted with `certificate required` and surfaced as "Transfer failed".
+- Choose files with `omarchy-file-select` instead of `zenity`, which Omarchy does
+  not ship. Selecting files opened nothing at all on a stock system.
+- Report a helper command that never launched. Quickshell signals that by
+  returning `running` to false without an exit code, so the previous checks for
+  exit code 127 could not run and the failure was silent.
 
 ## 1.0.4
 

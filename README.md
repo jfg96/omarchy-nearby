@@ -63,7 +63,7 @@ The widget is placed in the right section of the bar by default. Remove it with
 Runtime:
 
 - Omarchy Quattro (Quickshell-based shell)
-- `zenity` for file selection
+- `omarchy-file-select` for file selection, which Omarchy ships
 - `wl-clipboard` (`wl-copy` / `wl-paste`) for text sharing
 - `libnotify` (`notify-send`) for desktop notifications
 - Local network connectivity for LocalSend traffic (default TCP/UDP port `53317`)
