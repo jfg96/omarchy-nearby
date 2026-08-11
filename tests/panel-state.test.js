@@ -368,4 +368,11 @@ function incoming(requestId, sender = requestId) {
   assert.equal(keyboard.sent.at(-1).command, "discovery_start")
 }
 
+assert.match(source,
+  /Clipboard is empty"\s*;?\s*root\.statusText=root\.errorText/,
+  "clipboard read errors must keep statusText aligned with errorText")
+assert.match(source,
+  /wl-copy is required to copy received text"\s*;?\s*root\.statusText=root\.errorText/,
+  "clipboard write errors must keep statusText aligned with errorText")
+
 console.log("panel state tests passed")

@@ -381,7 +381,7 @@ Panel {
     onExited: function(code) {
       var text=String(clipboardOutput.text || "")
       if (code===0 && text.trim()!=="" && root.selectedDevice) root.beginOutgoing({kind:"text",device:root.selectedDevice,text:text})
-      else { root.viewState="error"; root.errorText=code===127 ? "wl-paste is required to read the clipboard" : "Clipboard is empty" }
+      else { root.viewState="error"; root.errorText=code===127 ? "wl-paste is required to read the clipboard" : "Clipboard is empty"; root.statusText=root.errorText }
     }
   }
 
@@ -508,6 +508,6 @@ Panel {
     running: false
     stdinEnabled: true
     onStarted: { write(root.incomingText); closeStdin() }
-    onExited: function(code) { if(root.viewState!=="text")return; if(code===0){root.viewState="success";root.statusText="Received"} else {root.viewState="error";root.errorText="wl-copy is required to copy received text"} }
+    onExited: function(code) { if(root.viewState!=="text")return; if(code===0){root.viewState="success";root.statusText="Received"} else {root.viewState="error";root.errorText="wl-copy is required to copy received text";root.statusText=root.errorText} }
   }
 }
