@@ -13,6 +13,12 @@ tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
+# A LocalSend peer asks for a client certificate, which the in-process test
+# server never does. Standing up a listener that demands one keeps outgoing
+# HTTPS transfers honest.
+rustls = { version = "0.23.36", features = ["ring"] }
+rustls-pemfile = "2.2"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
 
 [profile.release]
 lto = "thin"

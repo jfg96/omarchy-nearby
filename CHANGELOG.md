@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Present the Nearby TLS identity when sending. LocalSend peers ask for a client
+  certificate during the handshake, so every outgoing transfer to a real device
+  was aborted with `certificate required` and surfaced as "Transfer failed".
+
 ## 1.0.4
 
 - Fix copying received text with the Quickshell `Process` API and keep repeated
