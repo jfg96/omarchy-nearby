@@ -237,6 +237,21 @@ Panel {
     else if (viewState === "sending") send({command:"cancel_outgoing",transfer_id:outgoingTransferId})
     else if (viewState === "success" || viewState === "error") { viewState="nearby"; selectedIndex=0 }
   }
+  function handleBackendExit(code) {
+    backendReady=false; discoveryActive=false; incomingQueue=[]; incomingTextPending=false; activeIncomingSession=""; clearPendingOutgoing()
+    if (shutdownPending) { finishReceiverShutdown(); return }
+    if (!receiverEnabled) { statusText="Turned off"; errorText=""; return }
+    if (backendVersionMismatch) return
+    if (!backendAcceptedThisRun) {
+      errorText="Nearby backend could not start. Run the Nearby installer again or build it with ./build.sh."
+      statusText=errorText
+      return
+    }
+    errorText=code===0 ? "Receiver stopped" : "Receiver unavailable"
+    statusText=errorText
+    if (viewState==="sending"||viewState==="receiving"||viewState==="pin") { viewState="error"; errorText="Nearby backend stopped during transfer"; statusText=errorText }
+    if (backendRestart.attempts < 4) { backendRestart.attempts++; backendRestart.interval=Math.min(30000,1000*Math.pow(2,backendRestart.attempts-1)); backendRestart.restart() }
+  }
   function handleEvent(event) {
     if (!event || !event.event) return
     if (backendVersionMismatch && event.event !== "ready") return
@@ -307,21 +322,7 @@ Panel {
       root.backendAcceptedThisRun=false
       root.backendVersionMismatch=false
     }
-    onExited: function(code) {
-      root.backendReady=false; root.discoveryActive=false; root.incomingQueue=[]; root.incomingTextPending=false; root.activeIncomingSession=""; root.clearPendingOutgoing()
-      if (root.shutdownPending) { root.finishReceiverShutdown(); return }
-      if (!root.receiverEnabled) { root.statusText="Turned off"; root.errorText=""; return }
-      if (root.backendVersionMismatch) return
-      if (!root.backendAcceptedThisRun) {
-        root.errorText="Nearby backend could not start. Run the Nearby installer again or build it with ./build.sh."
-        root.statusText=root.errorText
-        return
-      }
-      root.errorText=code===0 ? "Receiver stopped" : "Receiver unavailable"
-      root.statusText=root.errorText
-      if (root.viewState==="sending"||root.viewState==="receiving") { root.viewState="error"; root.errorText="Nearby backend stopped during transfer"; root.statusText=root.errorText }
-      if (backendRestart.attempts < 4) { backendRestart.attempts++; backendRestart.interval=Math.min(30000,1000*Math.pow(2,backendRestart.attempts-1)); backendRestart.restart() }
-    }
+    onExited: function(code) { root.handleBackendExit(code) }
   }
   Timer { id: backendRestart; property int attempts: 0; interval: 1000; repeat: false; onTriggered: if (root.receiverEnabled && !backend.running) backend.running=true }
   Timer { id: receiverShutdownFallback; interval: 250; repeat: false; onTriggered: root.finishReceiverShutdown() }

@@ -31,7 +31,7 @@ function extractFunction(name) {
 const functionNames = [
   "send", "persistReceiverEnabled", "stopDiscovery", "clearPendingOutgoing", "dispatchPendingOutgoing",
   "beginOutgoing", "retryWithPin", "showPinPrompt", "cancelPin",
-  "acceptIncoming", "declineIncoming", "finishIncoming", "finishOutgoing", "finishReceiverShutdown", "handleEvent"
+  "acceptIncoming", "declineIncoming", "finishIncoming", "finishOutgoing", "finishReceiverShutdown", "handleBackendExit", "handleEvent"
 ]
 
 function panel(initial = {}) {
@@ -44,7 +44,7 @@ function panel(initial = {}) {
     backend: {running: true, write: line => sent.push(JSON.parse(line))},
     pinInput: {text: "", forceActiveFocus: () => {}},
     keyCatcher: {forceActiveFocus: () => {}},
-    backendRestart: {attempts: 0},
+    backendRestart: {attempts: 0, interval: 0, restart: () => {}},
     receiverShutdownFallback: {stop: () => {}},
     settings: {},
     bar: null,
@@ -278,6 +278,17 @@ function incoming(requestId, sender = requestId) {
   assert.equal(state.pendingOutgoing, null)
   assert.equal(state.outgoingTransferId, "")
   assert.equal(state.viewState, "nearby")
+}
+
+{
+  const state = panel()
+  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "pending"})
+  state.handleEvent({event: "outgoing_pin_required", transferId: state.outgoingTransferId})
+  state.handleBackendExit(1)
+  assert.equal(state.pendingOutgoing, null)
+  assert.equal(state.outgoingTransferId, "")
+  assert.equal(state.viewState, "error")
+  assert.match(state.errorText, /stopped|unavailable/i)
 }
 
 console.log("panel state tests passed")
