@@ -177,7 +177,7 @@ Panel {
     statusText="PIN required"
     Qt.callLater(function(){pinInput.forceActiveFocus()})
   }
-  function cancelPin() { if(outgoingTransferId!=="")send({command:"cancel_outgoing",transfer_id:outgoingTransferId}); clearPendingOutgoing(); viewState=incoming ? "incoming" : (selectedDevice ? "target" : "nearby"); selectedIndex=incoming ? 1 : 0; Qt.callLater(function(){keyCatcher.forceActiveFocus()}) }
+  function cancelPin() { if(outgoingTransferId!=="")send({command:"cancel_outgoing",transfer_id:outgoingTransferId}); clearPendingOutgoing(); if(incoming){viewState="incoming";selectedIndex=1}else if(incomingTextPending){incomingTextPending=false;viewState="text";statusText="Text received";selectedIndex=0}else{viewState=selectedDevice?"target":"nearby";selectedIndex=0} Qt.callLater(function(){keyCatcher.forceActiveFocus()}) }
   function acceptIncoming() { if (!incoming) return; send({command:"accept",request_id:incoming.requestId}); viewState="receiving"; transferPeer=incoming.sender; transferName=Model.incomingSummary(incoming.files); progress=0 }
   function declineIncoming() {
     if (!incoming) return

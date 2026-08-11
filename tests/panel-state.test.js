@@ -337,4 +337,15 @@ function incoming(requestId, sender = requestId) {
   assert.equal(state.viewState, "error", "helper exit must not leave an empty incoming view")
 }
 
+{
+  const state = panel()
+  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "outgoing"})
+  state.handleEvent({event: "outgoing_pin_required", transferId: state.outgoingTransferId})
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "keep this"})
+  state.cancelPin()
+  assert.equal(state.viewState, "text", "cancelling PIN must reveal already received deferred text")
+  assert.equal(state.incomingText, "keep this")
+  assert.equal(state.incomingTextPending, false)
+}
+
 console.log("panel state tests passed")
