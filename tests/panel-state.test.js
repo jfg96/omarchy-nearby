@@ -328,4 +328,13 @@ function incoming(requestId, sender = requestId) {
   assert.match(state.errorText, /stopped|unavailable/i)
 }
 
+{
+  const state = panel()
+  state.handleEvent(incoming("a"))
+  state.handleBackendExit(1)
+  assert.equal(state.incoming, null)
+  assert.equal(state.activeIncomingSession, "")
+  assert.equal(state.viewState, "error", "helper exit must not leave an empty incoming view")
+}
+
 console.log("panel state tests passed")

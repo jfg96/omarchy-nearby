@@ -249,7 +249,7 @@ Panel {
     }
     errorText=code===0 ? "Receiver stopped" : "Receiver unavailable"
     statusText=errorText
-    if (viewState==="sending"||viewState==="receiving"||viewState==="pin") { viewState="error"; errorText="Nearby backend stopped during transfer"; statusText=errorText }
+    if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; errorText="Nearby backend stopped during transfer"; statusText=errorText }
     if (backendRestart.attempts < 4) { backendRestart.attempts++; backendRestart.interval=Math.min(30000,1000*Math.pow(2,backendRestart.attempts-1)); backendRestart.restart() }
   }
   function handleEvent(event) {
