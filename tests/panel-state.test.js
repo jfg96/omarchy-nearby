@@ -237,6 +237,15 @@ function incoming(requestId, sender = requestId) {
 {
   const state = panel()
   state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "first"})
+  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "duplicate"})
+  assert.equal(state.sent.filter(command => command.command === "send_text").length, 1,
+    "a second begin before helper confirmation must not replace the active outgoing")
+  assert.equal(state.pendingOutgoing.text, "first")
+}
+
+{
+  const state = panel()
+  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "first"})
   const first = state.sent.at(-1)
   state.handleEvent({event: "outgoing_done", transferId: first.transfer_id})
   state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "second"})
