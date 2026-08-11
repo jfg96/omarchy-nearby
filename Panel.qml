@@ -41,6 +41,7 @@ Panel {
   property var incomingQueue: []
   readonly property var incoming: Model.currentIncoming(incomingQueue)
   property string incomingText: ""
+  property bool incomingTextPending: false
   property string lastReceivedPath: ""
   property real progress: 0
   property string transferName: ""
@@ -137,6 +138,7 @@ Panel {
     devices = []
     selectedDevice = null
     incomingQueue = []
+    incomingTextPending = false
     activeIncomingSession = ""
     clearPendingOutgoing()
     viewState = "nearby"
@@ -197,6 +199,7 @@ Panel {
       progress = 0
       return
     }
+    if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received"; errorText=""; progress=0; return }
     viewState = terminalState
     statusText = message
     errorText = terminalState === "error" ? message : ""
@@ -212,6 +215,7 @@ Panel {
       progress = 0
       return
     }
+    if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received"; errorText=""; progress=0; return }
     viewState = Model.viewAfterOutgoing(false, terminalState)
     statusText = message
     errorText = terminalState === "error" ? message : ""
@@ -256,7 +260,7 @@ Panel {
       Quickshell.execDetached(["notify-send","-a","Nearby","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
     }
     else if (event.event === "incoming_text") {
-      incomingText=String(event.text || ""); if (!pendingOutgoing) { transferPeer=String(event.sender || ""); viewState="text"; stopDiscovery() }
+      incomingText=String(event.text || ""); transferPeer=String(event.sender || ""); incomingTextPending=pendingOutgoing!==null; if (!pendingOutgoing) { viewState="text"; stopDiscovery() }
       Quickshell.execDetached(["notify-send","-a","Nearby","Text received","From "+String(event.sender || "")])
     }
     else if (event.event === "incoming_accepted") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
@@ -304,7 +308,7 @@ Panel {
       root.backendVersionMismatch=false
     }
     onExited: function(code) {
-      root.backendReady=false; root.discoveryActive=false; root.incomingQueue=[]; root.activeIncomingSession=""; root.clearPendingOutgoing()
+      root.backendReady=false; root.discoveryActive=false; root.incomingQueue=[]; root.incomingTextPending=false; root.activeIncomingSession=""; root.clearPendingOutgoing()
       if (root.shutdownPending) { root.finishReceiverShutdown(); return }
       if (!root.receiverEnabled) { root.statusText="Turned off"; root.errorText=""; return }
       if (root.backendVersionMismatch) return

@@ -66,6 +66,7 @@ function panel(initial = {}) {
     cursorActive: false,
     incomingQueue: [],
     incomingText: "",
+    incomingTextPending: false,
     lastReceivedPath: "",
     progress: 0,
     transferName: "",
@@ -223,6 +224,14 @@ function incoming(requestId, sender = requestId) {
   state.handleEvent({event: "incoming_text", sessionId: "incoming-text", sender: "Alice", text: "hello"})
   assert.equal(state.viewState, "pin", "incoming text must not hide an unrelated PIN prompt")
   assert.ok(state.pendingOutgoing)
+  state.handleEvent({event: "outgoing_done", transferId: "old"})
+  assert.equal(state.viewState, "pin")
+  state.pinInput.text = "123456"
+  state.retryWithPin()
+  const retryId = state.outgoingTransferId
+  state.handleEvent({event: "outgoing_done", transferId: retryId})
+  assert.equal(state.viewState, "text", "deferred incoming text must become accessible after outgoing completion")
+  assert.equal(state.incomingText, "hello")
 }
 
 {
