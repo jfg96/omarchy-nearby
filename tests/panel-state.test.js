@@ -31,7 +31,7 @@ function extractFunction(name) {
 const functionNames = [
   "send", "persistReceiverEnabled", "stopDiscovery", "clearPendingOutgoing", "dispatchPendingOutgoing",
   "beginOutgoing", "retryWithPin", "showPinPrompt", "cancelPin",
-  "declineIncoming", "finishIncoming", "finishOutgoing", "finishReceiverShutdown", "handleEvent"
+  "acceptIncoming", "declineIncoming", "finishIncoming", "finishOutgoing", "finishReceiverShutdown", "handleEvent"
 ]
 
 function panel(initial = {}) {
@@ -107,6 +107,17 @@ function incoming(requestId, sender = requestId) {
   assert.equal(state.viewState, "incoming")
   state.handleEvent({event: "incoming_expired", requestId: "unknown"})
   assert.equal(state.incoming.requestId, "b")
+}
+
+{
+  const state = panel()
+  state.handleEvent(incoming("a"))
+  state.acceptIncoming()
+  assert.equal(state.viewState, "receiving")
+  state.handleEvent({event: "incoming_expired", requestId: "a"})
+  assert.notEqual(state.viewState, "receiving",
+    "an expired approval must not leave the UI waiting for a receive session that cannot start")
+  assert.equal(state.activeIncomingSession, "")
 }
 
 {

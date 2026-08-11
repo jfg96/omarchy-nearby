@@ -263,7 +263,7 @@ Panel {
     else if (event.event === "incoming_expired") {
       var expiredWasCurrent=incoming&&incoming.requestId===event.requestId
       incomingQueue=Model.removeIncoming(incomingQueue,event.requestId)
-      if (expiredWasCurrent&&viewState==="incoming") {
+      if (expiredWasCurrent&&(viewState==="incoming"||(viewState==="receiving"&&activeIncomingSession===""))) {
         if (incoming) { statusText="Incoming transfer"; selectedIndex=1 }
         else { viewState="error"; errorText="Transfer request expired"; statusText=errorText }
       }
