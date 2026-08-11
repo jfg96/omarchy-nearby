@@ -507,7 +507,7 @@ Panel {
     command: ["wl-copy"]
     running: false
     stdinEnabled: true
-    onStarted: { write(root.incomingText); closeStdin() }
-    onExited: function(code) { if(root.viewState!=="text")return; if(code===0){root.viewState="success";root.statusText="Received"} else {root.viewState="error";root.errorText="wl-copy is required to copy received text";root.statusText=root.errorText} }
+    onStarted: { write(root.incomingText); stdinEnabled=false }
+    onExited: function(code) { stdinEnabled=true; if(root.viewState!=="text")return; if(code===0){root.viewState="success";root.statusText="Received"} else {root.viewState="error";root.errorText="wl-copy is required to copy received text";root.statusText=root.errorText} }
   }
 }

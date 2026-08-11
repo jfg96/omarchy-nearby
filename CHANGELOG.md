@@ -2,6 +2,8 @@
 
 ## 1.0.4
 
+- Fix copying received text with the Quickshell `Process` API and keep repeated
+  clipboard copies working.
 - Queue incoming transfer requests so simultaneous approvals are handled in
   order instead of replacing one another.
 - Support sending files and clipboard text to PIN-protected LocalSend receivers,

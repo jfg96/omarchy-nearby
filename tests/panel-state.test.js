@@ -5,6 +5,12 @@ const Model = require("../Model.js")
 
 const source = fs.readFileSync(require.resolve("../Panel.qml"), "utf8")
 
+assert.equal(source.includes("closeStdin"), false, "Quickshell Process does not expose closeStdin")
+assert.match(source, /onStarted:\s*\{\s*write\(root\.incomingText\);\s*stdinEnabled=false\s*\}/,
+  "clipboard writer must close stdin after writing so wl-copy can finish")
+assert.match(source, /onExited:\s*function\(code\)\s*\{\s*stdinEnabled=true;/,
+  "clipboard writer must re-enable stdin for the next copy")
+
 function extractFunction(name) {
   const marker = `function ${name}`
   const start = source.indexOf(marker)
@@ -356,7 +362,7 @@ function incoming(requestId, sender = requestId) {
   state.selectedIndex = 1
   state.activateCursor()
   assert.equal(state.viewState, "nearby", "received text must have an exit independent of wl-copy completion")
-  assert.match(source, /onExited: function\(code\) \{ if\(root\.viewState!=="text"\)return;/,
+  assert.match(source, /onExited: function\(code\) \{ stdinEnabled=true; if\(root\.viewState!=="text"\)return;/,
     "late wl-copy completion must not reopen a text result after the user exits")
 }
 
