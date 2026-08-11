@@ -150,8 +150,10 @@ Panel {
   function stopDiscovery() { discoveryActive = false; send({command:"discovery_stop"}) }
   function chooseDevice(index) { if (index >= 0 && index < devices.length) { selectedDevice = devices[index]; viewState = "target"; selectedIndex = 0 } }
   function goBack() { if (viewState === "pin") cancelPin(); else if (viewState === "target") { viewState = "nearby"; selectedDevice = null; selectedIndex = 0 } else close() }
-  function selectFiles() { if (!selectedDevice || picker.running) return; picker.running = true }
-  function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.running = true }
+  function failWith(message) { viewState="error"; errorText=message; statusText=errorText }
+  function selectFiles() { if (!selectedDevice || picker.running) return; picker.launched=false; picker.running = true }
+  function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.launched=false; clipboard.running = true }
+  function copyReceivedText() { clipboardWriter.launched=false; clipboardWriter.running=true }
   function clearPendingOutgoing() { pendingOutgoing=null; outgoingTransferId=""; pinError=""; pinInput.text="" }
   function dispatchPendingOutgoing(pin) {
     if (!pendingOutgoing) return
@@ -236,7 +238,7 @@ Panel {
     if (viewState === "nearby") selectedIndex < 0 ? toggleReceiver() : (selectedIndex === devices.length ? forceFullDiscovery() : chooseDevice(selectedIndex))
     else if (viewState === "target") selectedIndex === 0 ? selectFiles() : sendClipboard()
     else if (viewState === "incoming") selectedIndex === 0 ? declineIncoming() : acceptIncoming()
-    else if (viewState === "text") { if(selectedIndex===0)clipboardWriter.running=true; else finishText() }
+    else if (viewState === "text") { if(selectedIndex===0)copyReceivedText(); else finishText() }
     else if (viewState === "sending") send({command:"cancel_outgoing",transfer_id:outgoingTransferId})
     else if (viewState === "success" || viewState === "error") finishTerminal()
   }
@@ -361,13 +363,22 @@ Panel {
     }
   }
 
+  // Quickshell reports a command it could not launch by returning `running` to
+  // false without ever emitting `started` or `exited`, so a missing binary has
+  // to be caught there. Exit codes never carry that news: nothing runs a shell
+  // on our behalf, so the 127 a shell would report cannot reach us.
   Process {
     id: picker
-    command: ["zenity","--file-selection","--multiple","--separator=\n","--title=Send nearby"]
+    property bool launched: false
+    command: ["omarchy-file-select","--title","Send nearby","--multiple"]
     running: false
     stdout: StdioCollector { id: pickerOutput; waitForEnd: true }
+    onStarted: picker.launched=true
+    onRunningChanged: if (!running && !picker.launched) root.failWith("The file chooser could not be started")
     onExited: function(code) {
-      if (code === 127) { root.viewState="error"; root.errorText="zenity is required to choose files"; root.statusText=root.errorText; return }
+      // The chooser separates a decision from a fault: 1 is nobody picking
+      // anything, and anything above it is a chooser that never opened.
+      if (code > 1) { root.failWith("The file chooser did not open"); return }
       if (code !== 0 || !root.selectedDevice) return
       var paths=String(pickerOutput.text || "").split("\n").filter(function(v){return v.trim()!==""})
       if (paths.length) root.beginOutgoing({kind:"files",device:root.selectedDevice,paths:paths})
@@ -375,13 +386,16 @@ Panel {
   }
   Process {
     id: clipboard
+    property bool launched: false
     command: ["wl-paste","--no-newline","--type","text"]
     running: false
     stdout: StdioCollector { id: clipboardOutput; waitForEnd: true }
+    onStarted: clipboard.launched=true
+    onRunningChanged: if (!running && !clipboard.launched) root.failWith("wl-paste is required to read the clipboard")
     onExited: function(code) {
       var text=String(clipboardOutput.text || "")
       if (code===0 && text.trim()!=="" && root.selectedDevice) root.beginOutgoing({kind:"text",device:root.selectedDevice,text:text})
-      else { root.viewState="error"; root.errorText=code===127 ? "wl-paste is required to read the clipboard" : "Clipboard is empty"; root.statusText=root.errorText }
+      else root.failWith("Clipboard is empty")
     }
   }
 
@@ -494,7 +508,7 @@ Panel {
           PanelSectionHeader { text:"RECEIVED TEXT"; foreground:root.foreground; fontFamily:root.fontFamily }
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incomingText; wrapMode:Text.Wrap; maximumLineCount:6; elide:Text.ElideRight; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Copy"; iconText:"󰆏"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:{clipboardWriter.running=true} }
+            Button { width:(parent.width-parent.spacing)/2; text:"Copy"; iconText:"󰆏"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:{root.copyReceivedText()} }
             Button { width:(parent.width-parent.spacing)/2; text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onClicked:root.finishText() }
           }
         }
@@ -504,10 +518,12 @@ Panel {
 
   Process {
     id: clipboardWriter
+    property bool launched: false
     command: ["wl-copy"]
     running: false
     stdinEnabled: true
-    onStarted: { write(root.incomingText); stdinEnabled=false }
-    onExited: function(code) { stdinEnabled=true; if(root.viewState!=="text")return; if(code===0){root.viewState="success";root.statusText="Received"} else {root.viewState="error";root.errorText="wl-copy is required to copy received text";root.statusText=root.errorText} }
+    onStarted: { clipboardWriter.launched=true; write(root.incomingText); stdinEnabled=false }
+    onRunningChanged: if (!running && !clipboardWriter.launched && root.viewState==="text") root.failWith("wl-copy is required to copy received text")
+    onExited: function(code) { stdinEnabled=true; if(root.viewState!=="text")return; if(code===0){root.viewState="success";root.statusText="Received"} else root.failWith("wl-copy is required to copy received text") }
   }
 }

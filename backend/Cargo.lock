@@ -1148,9 +1148,12 @@ version = "1.0.4"
 dependencies = [
  "anyhow",
  "localsend-rs",
+ "rustls",
+ "rustls-pemfile",
  "serde",
  "serde_json",
  "tokio",
+ "tokio-rustls",
 ]
 
 [[package]]

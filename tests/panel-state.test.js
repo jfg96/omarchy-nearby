@@ -6,10 +6,22 @@ const Model = require("../Model.js")
 const source = fs.readFileSync(require.resolve("../Panel.qml"), "utf8")
 
 assert.equal(source.includes("closeStdin"), false, "Quickshell Process does not expose closeStdin")
-assert.match(source, /onStarted:\s*\{\s*write\(root\.incomingText\);\s*stdinEnabled=false\s*\}/,
+assert.match(source, /onStarted:\s*\{[^}]*write\(root\.incomingText\);\s*stdinEnabled=false\s*\}/,
   "clipboard writer must close stdin after writing so wl-copy can finish")
 assert.match(source, /onExited:\s*function\(code\)\s*\{\s*stdinEnabled=true;/,
   "clipboard writer must re-enable stdin for the next copy")
+
+assert.equal(source.includes("zenity"), false,
+  "files are chosen with omarchy-file-select, which Omarchy ships, rather than zenity")
+assert.match(source, /command:\s*\["omarchy-file-select"/,
+  "the file chooser must be omarchy-file-select")
+assert.equal(/code\s*===?\s*127/.test(source), false,
+  "no shell runs on our behalf, so a missing command never reports exit code 127")
+for (const launcher of ["picker", "clipboard", "clipboardWriter"]) {
+  assert.match(source, new RegExp(`onRunningChanged:\\s*if\\s*\\(!running && !${launcher}\\.launched`),
+    `${launcher} must report a command that never launched, which Quickshell signals by ` +
+    "returning running to false without an exit code")
+}
 
 function extractFunction(name) {
   const marker = `function ${name}`
@@ -375,10 +387,17 @@ function incoming(requestId, sender = requestId) {
 }
 
 assert.match(source,
-  /Clipboard is empty"\s*;?\s*root\.statusText=root\.errorText/,
-  "clipboard read errors must keep statusText aligned with errorText")
-assert.match(source,
-  /wl-copy is required to copy received text"\s*;?\s*root\.statusText=root\.errorText/,
-  "clipboard write errors must keep statusText aligned with errorText")
+  /function failWith\(message\)\s*\{\s*viewState="error";\s*errorText=message;\s*statusText=errorText\s*\}/,
+  "failWith must keep statusText aligned with errorText for every failure that reaches it")
+for (const [failure, description] of [
+  ["Clipboard is empty", "clipboard read"],
+  ["wl-paste is required to read the clipboard", "missing wl-paste"],
+  ["wl-copy is required to copy received text", "clipboard write"],
+  ["The file chooser could not be started", "missing file chooser"],
+  ["The file chooser did not open", "file chooser fault"],
+]) {
+  assert.match(source, new RegExp(`failWith\\("${failure.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\)`),
+    `${description} errors must be raised through failWith`)
+}
 
 console.log("panel state tests passed")

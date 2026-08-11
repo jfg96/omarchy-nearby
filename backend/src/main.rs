@@ -492,6 +492,7 @@ async fn start_active_discovery(
 async fn send_payload(
     transfer_id: String,
     identity: DeviceInfo,
+    certificate: TlsCertificate,
     target: DeviceInfo,
     paths: Vec<String>,
     text: Option<String>,
@@ -501,10 +502,15 @@ async fn send_payload(
     if target.ip.as_deref().unwrap_or("").is_empty() {
         return Err(anyhow!("device disappeared"));
     }
+    // LocalSend peers request a client certificate during the TLS handshake, so
+    // an outgoing transfer has to present the same identity the receiver and the
+    // HTTP discovery probes already use. Connecting without one is refused with
+    // a `certificate required` alert before the first request is answered.
     let client = if target.protocol == Protocol::Https {
-        LocalSendClient::with_trust_policy(
+        LocalSendClient::with_trust_policy_and_identity(
             identity,
             TlsTrustPolicy::new([target.fingerprint.clone()]),
+            &certificate,
         )?
     } else {
         LocalSendClient::new(identity)
@@ -868,8 +874,8 @@ async fn main() -> Result<()> {
                     Command::SendFiles { transfer_id,device,paths,pin } => {
                         if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Another transfer is already active"}));continue;}
                         let (tx,rx)=oneshot::channel(); outgoing=Some(OutgoingControl{id:transfer_id.clone(),cancel:tx});
-                        let (identity,done)=(identity.clone(),out_done_tx.clone()); tokio::spawn(async move {
-                            let event=match send_payload(transfer_id.clone(),identity,device,paths,None,pin,rx).await {
+                        let (identity,certificate,done)=(identity.clone(),certificate.clone(),out_done_tx.clone()); tokio::spawn(async move {
+                            let event=match send_payload(transfer_id.clone(),identity,certificate,device,paths,None,pin,rx).await {
                                 Ok(SendPayloadOutcome::Finished)=>None,
                                 Ok(SendPayloadOutcome::PinRequired)=>Some(json!({"event":"outgoing_pin_required","transferId":transfer_id})),
                                 Ok(SendPayloadOutcome::InvalidPin)=>Some(json!({"event":"outgoing_invalid_pin","transferId":transfer_id})),
@@ -881,8 +887,8 @@ async fn main() -> Result<()> {
                     Command::SendText { transfer_id,device,text,pin } => {
                         if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Another transfer is already active"}));continue;}
                         let (tx,rx)=oneshot::channel(); outgoing=Some(OutgoingControl{id:transfer_id.clone(),cancel:tx});
-                        let (identity,done)=(identity.clone(),out_done_tx.clone()); tokio::spawn(async move {
-                            let event=match send_payload(transfer_id.clone(),identity,device,vec![],Some(text),pin,rx).await {
+                        let (identity,certificate,done)=(identity.clone(),certificate.clone(),out_done_tx.clone()); tokio::spawn(async move {
+                            let event=match send_payload(transfer_id.clone(),identity,certificate,device,vec![],Some(text),pin,rx).await {
                                 Ok(SendPayloadOutcome::Finished)=>None,
                                 Ok(SendPayloadOutcome::PinRequired)=>Some(json!({"event":"outgoing_pin_required","transferId":transfer_id})),
                                 Ok(SendPayloadOutcome::InvalidPin)=>Some(json!({"event":"outgoing_invalid_pin","transferId":transfer_id})),
@@ -1019,11 +1025,13 @@ mod tests {
         target.ip = Some("127.0.0.1".into());
         target.fingerprint = "pin-test-target".into();
         let identity = DeviceInfo::new("Nearby test".into(), 53317, Protocol::Http);
+        let certificate = generate_tls_certificate().unwrap();
 
         let (cancel_tx, cancel_rx) = oneshot::channel();
         let missing = send_payload(
             "pin-missing".into(),
             identity.clone(),
+            certificate.clone(),
             target.clone(),
             vec![],
             Some("hello".into()),
@@ -1039,6 +1047,7 @@ mod tests {
         let invalid = send_payload(
             "pin-invalid".into(),
             identity.clone(),
+            certificate.clone(),
             target.clone(),
             vec![],
             Some("hello".into()),
@@ -1054,6 +1063,7 @@ mod tests {
         let accepted = send_payload(
             "pin-valid".into(),
             identity,
+            certificate,
             target,
             vec![],
             Some("hello".into()),
@@ -1067,6 +1077,127 @@ mod tests {
 
         server.stop();
         tokio::fs::remove_dir_all(directory).await.unwrap();
+    }
+
+    /// Accepts every client certificate and records that one arrived at all.
+    /// Rejecting is `rustls`' job: a client that presents nothing never reaches
+    /// this verifier, so the flag alone distinguishes the two.
+    #[derive(Debug)]
+    struct RecordingClientVerifier {
+        presented: Arc<std::sync::atomic::AtomicBool>,
+        algorithms: rustls::crypto::WebPkiSupportedAlgorithms,
+    }
+
+    impl rustls::server::danger::ClientCertVerifier for RecordingClientVerifier {
+        fn root_hint_subjects(&self) -> &[rustls::DistinguishedName] {
+            &[]
+        }
+
+        fn verify_client_cert(
+            &self,
+            _end_entity: &rustls::pki_types::CertificateDer<'_>,
+            _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+            _now: rustls::pki_types::UnixTime,
+        ) -> std::result::Result<rustls::server::danger::ClientCertVerified, rustls::Error>
+        {
+            self.presented
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok(rustls::server::danger::ClientCertVerified::assertion())
+        }
+
+        fn verify_tls12_signature(
+            &self,
+            message: &[u8],
+            cert: &rustls::pki_types::CertificateDer<'_>,
+            dss: &rustls::DigitallySignedStruct,
+        ) -> std::result::Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error>
+        {
+            rustls::crypto::verify_tls12_signature(message, cert, dss, &self.algorithms)
+        }
+
+        fn verify_tls13_signature(
+            &self,
+            message: &[u8],
+            cert: &rustls::pki_types::CertificateDer<'_>,
+            dss: &rustls::DigitallySignedStruct,
+        ) -> std::result::Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error>
+        {
+            rustls::crypto::verify_tls13_signature(message, cert, dss, &self.algorithms)
+        }
+
+        fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+            self.algorithms.supported_schemes()
+        }
+    }
+
+    #[tokio::test]
+    async fn outgoing_https_transfer_presents_a_client_certificate() {
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let presented = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let receiver_certificate = generate_tls_certificate().unwrap();
+        let key = rustls_pemfile::private_key(&mut std::io::Cursor::new(
+            receiver_certificate.key_pem.as_bytes(),
+        ))
+        .unwrap()
+        .unwrap();
+        let config = rustls::ServerConfig::builder_with_provider(provider.clone())
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_client_cert_verifier(Arc::new(RecordingClientVerifier {
+                presented: presented.clone(),
+                algorithms: provider.signature_verification_algorithms,
+            }))
+            .with_single_cert(
+                vec![rustls::pki_types::CertificateDer::from(
+                    receiver_certificate.cert_der.clone(),
+                )],
+                key,
+            )
+            .unwrap();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(config));
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                let acceptor = acceptor.clone();
+                // Finish the handshake, then hang up. The peer only has to be
+                // real enough to demand a certificate; answering the request
+                // would test the receiver, which is not what is at stake here.
+                tokio::spawn(async move {
+                    let _ = acceptor.accept(stream).await;
+                });
+            }
+        });
+
+        let mut target = DeviceInfo::new("Mutual TLS".into(), port, Protocol::Https);
+        target.ip = Some("127.0.0.1".into());
+        target.fingerprint = receiver_certificate.fingerprint.clone();
+        let identity = DeviceInfo::new("Nearby test".into(), 53317, Protocol::Https);
+        let certificate = generate_tls_certificate().unwrap();
+
+        let (cancel_tx, cancel_rx) = oneshot::channel();
+        let _ = tokio::time::timeout(
+            Duration::from_secs(20),
+            send_payload(
+                "mutual-tls".into(),
+                identity,
+                certificate,
+                target,
+                vec![],
+                Some("hello".into()),
+                None,
+                cancel_rx,
+            ),
+        )
+        .await;
+        drop(cancel_tx);
+
+        assert!(
+            presented.load(std::sync::atomic::Ordering::SeqCst),
+            "an outgoing HTTPS transfer must present a client certificate, \
+             or a LocalSend peer aborts the handshake with `certificate required`"
+        );
     }
 
     #[test]
