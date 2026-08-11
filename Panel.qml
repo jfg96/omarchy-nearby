@@ -221,19 +221,21 @@ Panel {
     errorText = terminalState === "error" ? message : ""
     if (completed) progress = 1
   }
+  function finishText() { incomingText=""; incomingTextPending=false; viewState="nearby"; selectedIndex=0; startDiscovery() }
   function moveCursor(dx, dy) {
     cursorActive = true
     if (viewState === "nearby") {
       if (dy !== 0) selectedIndex = Math.max(-1, Math.min(devices.length, selectedIndex + dy))
       return
     }
-    var count = viewState === "target" ? 2 : (viewState === "incoming" ? 2 : 1)
+    var count = viewState === "target" ? 2 : ((viewState === "incoming" || viewState === "text") ? 2 : 1)
     if (count > 0 && dy !== 0) selectedIndex = Math.max(0, Math.min(count - 1, selectedIndex + dy))
   }
   function activateCursor() {
     if (viewState === "nearby") selectedIndex < 0 ? toggleReceiver() : (selectedIndex === devices.length ? forceFullDiscovery() : chooseDevice(selectedIndex))
     else if (viewState === "target") selectedIndex === 0 ? selectFiles() : sendClipboard()
     else if (viewState === "incoming") selectedIndex === 0 ? declineIncoming() : acceptIncoming()
+    else if (viewState === "text") { if(selectedIndex===0)clipboardWriter.running=true; else finishText() }
     else if (viewState === "sending") send({command:"cancel_outgoing",transfer_id:outgoingTransferId})
     else if (viewState === "success" || viewState === "error") { viewState="nearby"; selectedIndex=0 }
   }
@@ -490,7 +492,10 @@ Panel {
           visible: root.viewState==="text"; width:parent.width; spacing:Style.space(8)
           PanelSectionHeader { text:"RECEIVED TEXT"; foreground:root.foreground; fontFamily:root.fontFamily }
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incomingText; wrapMode:Text.Wrap; maximumLineCount:6; elide:Text.ElideRight; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
-          Button { text:"Copy"; iconText:"󰆏"; bordered:true; foreground:root.foreground; onClicked:{clipboardWriter.running=true} }
+          Row { width:parent.width; spacing:Style.space(8)
+            Button { width:(parent.width-parent.spacing)/2; text:"Copy"; iconText:"󰆏"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:{clipboardWriter.running=true} }
+            Button { width:(parent.width-parent.spacing)/2; text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onClicked:root.finishText() }
+          }
         }
       }
     }
@@ -502,6 +507,6 @@ Panel {
     running: false
     stdinEnabled: true
     onStarted: { write(root.incomingText); closeStdin() }
-    onExited: function(code) { if(code===0){root.viewState="success";root.statusText="Received"} else {root.viewState="error";root.errorText="wl-copy is required to copy received text"} }
+    onExited: function(code) { if(root.viewState!=="text")return; if(code===0){root.viewState="success";root.statusText="Received"} else {root.viewState="error";root.errorText="wl-copy is required to copy received text"} }
   }
 }

@@ -29,9 +29,9 @@ function extractFunction(name) {
 }
 
 const functionNames = [
-  "send", "persistReceiverEnabled", "stopDiscovery", "clearPendingOutgoing", "dispatchPendingOutgoing",
+  "send", "persistReceiverEnabled", "startDiscovery", "stopDiscovery", "clearPendingOutgoing", "dispatchPendingOutgoing",
   "beginOutgoing", "retryWithPin", "showPinPrompt", "cancelPin",
-  "acceptIncoming", "declineIncoming", "finishIncoming", "finishOutgoing", "finishReceiverShutdown", "handleBackendExit", "handleEvent"
+  "acceptIncoming", "declineIncoming", "finishIncoming", "finishOutgoing", "finishText", "finishReceiverShutdown", "activateCursor", "handleBackendExit", "handleEvent"
 ]
 
 function panel(initial = {}) {
@@ -44,6 +44,7 @@ function panel(initial = {}) {
     backend: {running: true, write: line => sent.push(JSON.parse(line))},
     pinInput: {text: "", forceActiveFocus: () => {}},
     keyCatcher: {forceActiveFocus: () => {}},
+    clipboardWriter: {running: false},
     backendRestart: {attempts: 0, interval: 0, restart: () => {}},
     receiverShutdownFallback: {stop: () => {}},
     settings: {},
@@ -346,6 +347,17 @@ function incoming(requestId, sender = requestId) {
   assert.equal(state.viewState, "text", "cancelling PIN must reveal already received deferred text")
   assert.equal(state.incomingText, "keep this")
   assert.equal(state.incomingTextPending, false)
+}
+
+{
+  const state = panel()
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "clipboard"})
+  assert.equal(state.viewState, "text")
+  state.selectedIndex = 1
+  state.activateCursor()
+  assert.equal(state.viewState, "nearby", "received text must have an exit independent of wl-copy completion")
+  assert.match(source, /onExited: function\(code\) \{ if\(root\.viewState!=="text"\)return;/,
+    "late wl-copy completion must not reopen a text result after the user exits")
 }
 
 console.log("panel state tests passed")
