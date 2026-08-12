@@ -12,6 +12,7 @@ Nearby vendors a modified copy of `localsend-rs` as a Rust library dependency.
 The vendored crate's own `THIRD_PARTY_NOTICES.md` is retained. The vendored copy
 contains local changes used by Nearby; it should not be assumed to be identical
 to an upstream release or commit unless a future release explicitly records one.
+See `VENDORED_LOCALSEND_RS.md` for the local patch and maintenance record.
 
 ## LocalSend protocol
 

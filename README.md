@@ -101,7 +101,8 @@ Quickshell UI (Panel.qml)
 ```
 
 The Rust helper vendors a modified `localsend-rs` library. See
-`THIRD_PARTY_NOTICES.md` for attribution and licensing information.
+`THIRD_PARTY_NOTICES.md` for attribution and licensing information, and
+`VENDORED_LOCALSEND_RS.md` for the local patch and maintenance record.
 
 ## Discovery model
 
