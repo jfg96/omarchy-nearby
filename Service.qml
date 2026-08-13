@@ -146,7 +146,15 @@ Item {
   // receiver on or off. There is no second copy of the state to keep in step.
   function persistReceiverEnabled(enabled) {
     if (!shell) return
-    shell.updateEntryInline(moduleEntryId, Object.assign({}, pluginSettings, { receiverEnabled: enabled }))
+    var settings = Object.assign({}, pluginSettings, { receiverEnabled: enabled })
+    if (Model.hasStringBarEntry(shell.shellConfig, moduleEntryId)
+        && typeof shell.mutateShellConfig === "function") {
+      shell.mutateShellConfig(function(config) {
+        Model.promoteStringBarEntry(config, moduleEntryId, settings)
+      })
+      return
+    }
+    shell.updateEntryInline(moduleEntryId, settings)
   }
   function toggleReceiver() {
     if (shutdownPending) return

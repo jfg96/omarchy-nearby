@@ -48,6 +48,33 @@ assert.deepEqual(Model.barEntry(layoutDefault, "oma.nearby"), {id:"oma.nearby", 
 assert.equal(Model.receiverEnabledIn(Model.barEntry(layoutDefault, "oma.nearby")), true,
   "an entry with no receiver setting means on, the way it always has")
 
+// Quattro accepts a widget id directly in a bar layout and normalizes it to an
+// object entry. Reading shell.json directly must preserve those same semantics.
+const layoutString = {version:1, bar:{layout:{right:["oma.nearby"]}}, plugins:[]}
+assert.deepEqual(Model.barEntry(layoutString, "oma.nearby"), {id:"oma.nearby", settings:{}},
+  "a matching string-form bar entry must be recognized as configured")
+assert.equal(Model.receiverEnabledIn(Model.barEntry(layoutString, "oma.nearby")), true,
+  "a string-form entry with no receiver setting must use the default-on behavior")
+for (const region of ["left", "center", "right"]) {
+  const config = {version:1, bar:{layout:{left:[], center:[], right:[]}}, plugins:[]}
+  config.bar.layout[region] = ["oma.nearby"]
+  assert.deepEqual(Model.barEntry(config, "oma.nearby"), {id:"oma.nearby", settings:{}},
+    `a string-form entry in bar.layout.${region} must be recognized`)
+}
+const promotedLayout = {
+  version:1,
+  bar:{layout:{left:[], center:[], right:["other.before", "oma.nearby", {id:"other.after", x:1}]}},
+  plugins:[],
+}
+assert.equal(Model.hasStringBarEntry(promotedLayout, "oma.nearby"), true)
+assert.equal(Model.promoteStringBarEntry(promotedLayout, "oma.nearby", {receiverEnabled:false}), true)
+assert.deepEqual(promotedLayout.bar.layout.right,
+  ["other.before", {id:"oma.nearby", receiverEnabled:false}, {id:"other.after", x:1}],
+  "promoting a string entry must preserve its region, slot, and neighboring entries")
+assert.equal(Model.hasStringBarEntry(promotedLayout, "oma.nearby"), false)
+assert.equal(Model.promoteStringBarEntry(promotedLayout, "oma.nearby", {receiverEnabled:true}), false,
+  "promotion must not append or duplicate an entry that is already object-form")
+
 assert.equal(Model.barEntry(layoutDefault, "other.plugin"), null)
 assert.equal(Model.barEntry({version:1, bar:{layout:{right:[]}}, plugins:[]}, "oma.nearby"), null)
 assert.equal(Model.barEntry(null, "oma.nearby"), null)
@@ -60,7 +87,9 @@ assert.equal(Model.receiverEnabledIn(null), false,
 // Non-widget plugin entries live in plugins[] instead of the bar layout.
 assert.deepEqual(Model.barEntry({version:1, plugins:[{id:"oma.nearby",receiverEnabled:false}]}, "oma.nearby"),
   {id:"oma.nearby", settings:{receiverEnabled:false}})
-// Malformed entries must not throw or match.
-assert.equal(Model.barEntry({version:1, bar:{layout:{right:[null,"oma.nearby",42]}}}, "oma.nearby"), null)
+// Malformed entries must not throw or match. String entries are valid only in
+// the bar layout; Quattro's top-level plugins[] lookup requires object entries.
+assert.equal(Model.barEntry({version:1, bar:{layout:{right:[null,"other.plugin",42]}}}, "oma.nearby"), null)
+assert.equal(Model.barEntry({version:1, plugins:["oma.nearby"]}, "oma.nearby"), null)
 
 console.log("Model tests passed")

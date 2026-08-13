@@ -95,16 +95,16 @@ function viewAfterOutgoing(hasPendingIncoming, terminalState) {
 function barEntry(config, pluginId) {
   var id = String(pluginId || "")
   if (!config || typeof config !== "object" || id === "") return null
-  var groups = []
   var layout = config.bar && typeof config.bar === "object" ? config.bar.layout : null
   var regions = ["left", "center", "right"]
   for (var r = 0; r < regions.length; r++) {
-    if (layout && Array.isArray(layout[regions[r]])) groups.push(layout[regions[r]])
-  }
-  if (Array.isArray(config.plugins)) groups.push(config.plugins)
-  for (var g = 0; g < groups.length; g++) {
-    for (var e = 0; e < groups[g].length; e++) {
-      var entry = groups[g][e]
+    var entries = layout && Array.isArray(layout[regions[r]]) ? layout[regions[r]] : []
+    for (var e = 0; e < entries.length; e++) {
+      var entry = entries[e]
+      if (typeof entry === "string") {
+        if (entry === id) return { id: id, settings: {} }
+        continue
+      }
       if (!entry || typeof entry !== "object") continue
       if (String(entry.id || "") !== id) continue
       var settings = {}
@@ -112,7 +112,49 @@ function barEntry(config, pluginId) {
       return { id: String(entry.id), settings: settings }
     }
   }
+  var plugins = Array.isArray(config.plugins) ? config.plugins : []
+  for (var p = 0; p < plugins.length; p++) {
+    var plugin = plugins[p]
+    if (!plugin || typeof plugin !== "object" || String(plugin.id || "") !== id) continue
+    var pluginSettings = {}
+    for (var pluginKey in plugin) if (pluginKey !== "id") pluginSettings[pluginKey] = plugin[pluginKey]
+    return { id: String(plugin.id), settings: pluginSettings }
+  }
   return null
+}
+
+// Quattro accepts a bare id in bar.layout, but its inline-settings writer can
+// only attach settings to object entries. Promote a matching string in place
+// before writing the first setting; top-level plugins[] does not accept this
+// form in the host and is deliberately excluded.
+function hasStringBarEntry(config, pluginId) {
+  var id = String(pluginId || "")
+  var layout = config && config.bar && typeof config.bar === "object" ? config.bar.layout : null
+  if (!layout || id === "") return false
+  var regions = ["left", "center", "right"]
+  for (var r = 0; r < regions.length; r++) {
+    var entries = Array.isArray(layout[regions[r]]) ? layout[regions[r]] : []
+    for (var e = 0; e < entries.length; e++) if (entries[e] === id) return true
+  }
+  return false
+}
+
+function promoteStringBarEntry(config, pluginId, settings) {
+  var id = String(pluginId || "")
+  var layout = config && config.bar && typeof config.bar === "object" ? config.bar.layout : null
+  if (!layout || id === "") return false
+  var regions = ["left", "center", "right"]
+  for (var r = 0; r < regions.length; r++) {
+    var entries = Array.isArray(layout[regions[r]]) ? layout[regions[r]] : []
+    for (var e = 0; e < entries.length; e++) {
+      if (entries[e] !== id) continue
+      var promoted = { id: id }
+      for (var key in settings) if (key !== "id") promoted[key] = settings[key]
+      entries[e] = promoted
+      return true
+    }
+  }
+  return false
 }
 
 // Receiving is on unless the entry says otherwise, and off until the entry
@@ -136,4 +178,4 @@ function manifestVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, barEntry, receiverEnabledIn, helperVersionMatches, manifestVersion }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, helperVersionMatches, manifestVersion }

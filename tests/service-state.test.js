@@ -531,6 +531,55 @@ function incoming(requestId, sender = requestId) {
     "persisting the receiver must not drop unrelated inline settings")
 }
 
+{
+  // Quattro accepts string-form entries in bar.layout, but its existing
+  // updateEntryInline() only matches objects through entry.id. Persisting from
+  // a string must therefore promote that exact slot to object form rather than
+  // silently leaving the authoritative receiver state on.
+  const config = {
+    version: 1,
+    bar: {layout: {right: ["other.before", "oma.nearby", {id: "other.after", x: 1}]}},
+    plugins: [],
+  }
+  const shell = {
+    shellConfig: config,
+    updateEntryInline(id, settings) {
+      const entries = this.shellConfig.bar.layout.right
+      const index = entries.findIndex(entry => entry && entry.id === id)
+      if (index < 0) return false
+      entries[index] = {id, ...settings}
+      return true
+    },
+    mutateShellConfig(mutator) {
+      const copy = JSON.parse(JSON.stringify(this.shellConfig))
+      mutator(copy)
+      this.shellConfig = copy
+    },
+  }
+  const state = engine({
+    shell,
+    moduleEntryId: "oma.nearby",
+    pluginSettings: {},
+  })
+
+  state.persistReceiverEnabled(false)
+  assert.deepEqual(shell.shellConfig.bar.layout.right,
+    ["other.before", {id: "oma.nearby", receiverEnabled: false}, {id: "other.after", x: 1}],
+    "persisting off must promote the matching string in place without changing its neighbors")
+  const offEntry = Model.barEntry(shell.shellConfig, "oma.nearby")
+  assert.equal(Model.receiverEnabledIn(offEntry), false)
+  assert.equal(backendEligible({receiverConfigured: true, receiverEnabled: false, pluginVersion: "1.0.6-dev"}), false)
+
+  state.pluginSettings = offEntry.settings
+  state.persistReceiverEnabled(true)
+  const onEntry = Model.barEntry(shell.shellConfig, "oma.nearby")
+  assert.equal(Model.receiverEnabledIn(onEntry), true)
+  assert.equal(backendEligible({receiverConfigured: true, receiverEnabled: true, pluginVersion: "1.0.6-dev"}), true)
+  assert.equal(shell.shellConfig.bar.layout.right.filter(entry =>
+    entry === "oma.nearby" || (entry && entry.id === "oma.nearby")).length, 1,
+    "promoting and toggling a string-form entry must not create a duplicate")
+}
+
 assert.match(source,
   /function failWith\(message\)\s*\{\s*viewState="error";\s*errorText=message;\s*statusText=errorText\s*\}/,
   "failWith must keep statusText aligned with errorText for every failure that reaches it")
