@@ -35,4 +35,32 @@ assert.equal(Model.manifestVersion('{"id":"oma.nearby","version":"1.0.2"}', "oma
 assert.equal(Model.manifestVersion('{"id":"other.plugin","version":"1.0.2"}', "oma.nearby"), "")
 assert.equal(Model.manifestVersion('{"id":"oma.nearby"}', "oma.nearby"), "")
 assert.equal(Model.manifestVersion("not json", "oma.nearby"), "")
+// The service reads its own entry out of shell.json. An absent entry is a
+// config that has not been applied yet, which is why it is null rather than an
+// empty settings object: the receiver stays off until the entry is seen, so a
+// persisted off is never briefly treated as on.
+const layoutOff = {version:1, bar:{layout:{left:[{id:"omarchy.menu"}], center:[], right:[{id:"b.omadoro"},{id:"oma.nearby",receiverEnabled:false}]}}, plugins:[]}
+assert.deepEqual(Model.barEntry(layoutOff, "oma.nearby"), {id:"oma.nearby", settings:{receiverEnabled:false}})
+assert.equal(Model.receiverEnabledIn(Model.barEntry(layoutOff, "oma.nearby")), false)
+
+const layoutDefault = {version:1, bar:{layout:{right:[{id:"oma.nearby"}]}}, plugins:[]}
+assert.deepEqual(Model.barEntry(layoutDefault, "oma.nearby"), {id:"oma.nearby", settings:{}})
+assert.equal(Model.receiverEnabledIn(Model.barEntry(layoutDefault, "oma.nearby")), true,
+  "an entry with no receiver setting means on, the way it always has")
+
+assert.equal(Model.barEntry(layoutDefault, "other.plugin"), null)
+assert.equal(Model.barEntry({version:1, bar:{layout:{right:[]}}, plugins:[]}, "oma.nearby"), null)
+assert.equal(Model.barEntry(null, "oma.nearby"), null)
+assert.equal(Model.barEntry(undefined, "oma.nearby"), null)
+assert.equal(Model.barEntry({}, "oma.nearby"), null)
+assert.equal(Model.barEntry(layoutDefault, ""), null)
+assert.equal(Model.receiverEnabledIn(null), false,
+  "no entry means the receiver is not eligible to run yet, not that it defaults to on")
+
+// Non-widget plugin entries live in plugins[] instead of the bar layout.
+assert.deepEqual(Model.barEntry({version:1, plugins:[{id:"oma.nearby",receiverEnabled:false}]}, "oma.nearby"),
+  {id:"oma.nearby", settings:{receiverEnabled:false}})
+// Malformed entries must not throw or match.
+assert.equal(Model.barEntry({version:1, bar:{layout:{right:[null,"oma.nearby",42]}}}, "oma.nearby"), null)
+
 console.log("Model tests passed")

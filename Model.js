@@ -81,6 +81,47 @@ function viewAfterOutgoing(hasPendingIncoming, terminalState) {
   return hasPendingIncoming ? "incoming" : terminalState
 }
 
+// The plugin's own entry in shell.json, or null when it is not there yet.
+//
+// The service reads its settings from the shell config rather than waiting for
+// a bar widget to hand them over. Widgets are built once per monitor and get
+// their `settings` injected a tick after they are created, so a widget cannot
+// report the persisted state at the moment it starts up, and several widgets
+// reporting the same state is redundant rather than authoritative.
+//
+// Null means "shell.json has not been applied yet", not "no settings": the
+// shell only keeps this plugin loaded while the entry exists, so an absent
+// entry is a config that has not arrived rather than one that says nothing.
+function barEntry(config, pluginId) {
+  var id = String(pluginId || "")
+  if (!config || typeof config !== "object" || id === "") return null
+  var groups = []
+  var layout = config.bar && typeof config.bar === "object" ? config.bar.layout : null
+  var regions = ["left", "center", "right"]
+  for (var r = 0; r < regions.length; r++) {
+    if (layout && Array.isArray(layout[regions[r]])) groups.push(layout[regions[r]])
+  }
+  if (Array.isArray(config.plugins)) groups.push(config.plugins)
+  for (var g = 0; g < groups.length; g++) {
+    for (var e = 0; e < groups[g].length; e++) {
+      var entry = groups[g][e]
+      if (!entry || typeof entry !== "object") continue
+      if (String(entry.id || "") !== id) continue
+      var settings = {}
+      for (var key in entry) if (key !== "id") settings[key] = entry[key]
+      return { id: String(entry.id), settings: settings }
+    }
+  }
+  return null
+}
+
+// Receiving is on unless the entry says otherwise, and off until the entry
+// exists at all, so a persisted "off" cannot be missed while the config is
+// still loading.
+function receiverEnabledIn(entry) {
+  return !!entry && entry.settings.receiverEnabled !== false
+}
+
 function helperVersionMatches(pluginVersion, helperVersion) {
   return String(pluginVersion || "") !== "" && String(pluginVersion) === String(helperVersion || "")
 }
@@ -95,4 +136,4 @@ function manifestVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, helperVersionMatches, manifestVersion }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, barEntry, receiverEnabledIn, helperVersionMatches, manifestVersion }

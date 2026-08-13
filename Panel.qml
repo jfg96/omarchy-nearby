@@ -75,12 +75,7 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  // Settings arrive per widget; the engine keeps the copy it persists against.
-  function pushSettings() {
-    if (engine && typeof engine.configure === "function") engine.configure(moduleName, settings)
-  }
-  onSettingsChanged: pushSettings()
-  Component.onCompleted: { pushSettings(); syncOpenState() }
+  Component.onCompleted: syncOpenState()
 
   // Discovery follows the popup and there is one popup per monitor, so the
   // engine counts open views instead of tracking a single flag.
@@ -90,7 +85,7 @@ Panel {
     if (opened) engine.viewOpened()
     else engine.viewClosed()
   }
-  onEngineChanged: { viewRegistered = false; pushSettings(); syncOpenState() }
+  onEngineChanged: { viewRegistered = false; syncOpenState() }
   Component.onDestruction: if (engine && viewRegistered) engine.viewClosed()
 
   Connections {

@@ -57,8 +57,21 @@ function extractFunction(name) {
   throw new Error(`Unterminated ${name}`)
 }
 
+// The eligibility rule is a binding, not a function, so it is pulled out of
+// the source and evaluated directly. That is what covers the startup window:
+// checking state after the fact would pass even if the helper had already
+// bound the port.
+function backendEligible(state) {
+  const match = source.match(/id: backend[\s\S]*?\n\s*running:\s*([^\n]+)/)
+  assert.notEqual(match, null, "Service.qml must bind the helper's running state")
+  const expression = match[1].trim()
+  assert.match(expression, /receiverConfigured/,
+    "eligibility must depend on having read the config, not only on the receiver switch")
+  return vm.runInNewContext(`(${expression})`, {root: state})
+}
+
 const functionNames = [
-  "configure", "viewOpened", "viewClosed",
+  "viewOpened", "viewClosed",
   "send", "persistReceiverEnabled", "toggleReceiver", "finishReceiverShutdown",
   "startDiscovery", "forceFullDiscovery", "stopDiscovery", "chooseDevice", "clearTarget",
   "failWith", "cancelOutgoing", "noteTextCopied",
@@ -452,22 +465,70 @@ function incoming(requestId, sender = requestId) {
 }
 
 {
-  const state = engine({receiverConfigured: false, receiverEnabled: true})
-  state.configure("oma.nearby", {receiverEnabled: false})
-  assert.equal(state.receiverEnabled, false, "a persisted off switch must survive a restart")
-  state.configure("oma.nearby", {receiverEnabled: false})
-  assert.equal(state.moduleEntryId, "oma.nearby")
+  // The startup window itself: the service exists before shell.json has been
+  // applied, so eligibility to run has to be false then, not merely corrected
+  // afterwards. Evaluating the binding is the only way to cover the window --
+  // checking receiverEnabled after the fact would pass even if the helper had
+  // already bound the port.
+  assert.equal(backendEligible({receiverConfigured: false, receiverEnabled: true, pluginVersion: "1.0.6-dev"}), false,
+    "the helper must not be eligible to start before shell.json has been read")
+  assert.equal(backendEligible({receiverConfigured: true, receiverEnabled: false, pluginVersion: "1.0.6-dev"}), false,
+    "a persisted receiverEnabled: false must keep the helper stopped")
+  assert.equal(backendEligible({receiverConfigured: true, receiverEnabled: true, pluginVersion: ""}), false,
+    "the helper must not start before its version is known")
+  assert.equal(backendEligible({receiverConfigured: true, receiverEnabled: true, pluginVersion: "1.0.6-dev"}), true)
 }
 
 {
-  // Every monitor's widget pushes the same settings, so configure has to be
-  // idempotent rather than clobbering a live receiver state.
-  const state = engine({receiverConfigured: false, receiverEnabled: true})
-  state.configure("oma.nearby", {receiverEnabled: true})
-  state.receiverEnabled = false
-  state.configure("oma.nearby", {receiverEnabled: true})
-  assert.equal(state.receiverEnabled, false,
-    "a second view configuring the engine must not revive a receiver the user turned off")
+  // Replaying the real startup order: the config arrives after the service is
+  // built, and a persisted off must never pass through an eligible state.
+  const off = {version: 1, bar: {layout: {right: [{id: "oma.nearby", receiverEnabled: false}]}}, plugins: []}
+  const observed = []
+  for (const config of [null, {version: 1, bar: {layout: {right: []}}, plugins: []}, off]) {
+    const entry = Model.barEntry(config, "oma.nearby")
+    observed.push(backendEligible({
+      receiverConfigured: entry !== null,
+      receiverEnabled: Model.receiverEnabledIn(entry),
+      pluginVersion: "1.0.6-dev",
+    }))
+  }
+  assert.deepEqual(observed, [false, false, false],
+    "a persisted off receiver must not become eligible at any point during startup")
+}
+
+{
+  // The persisted value and the effective value are one value, so they cannot
+  // diverge: there is nothing to synchronize and no snapshot to go stale.
+  const config = {version: 1, bar: {layout: {right: [{id: "oma.nearby", receiverEnabled: false}]}}, plugins: []}
+  const state = engine({shell: {shellConfig: config, updateEntryInline: () => true}})
+  const entry = Model.barEntry(config, "oma.nearby")
+  assert.equal(Model.receiverEnabledIn(entry), false)
+  assert.deepEqual(entry.settings, {receiverEnabled: false})
+  assert.equal(entry.id, "oma.nearby")
+  // Turning the receiver on writes the entry rather than a second copy of the
+  // state, so a later read of the config is what makes it effective.
+  const writes = []
+  // Objects built inside the vm realm carry that realm's prototype, so they
+  // are compared by value.
+  state.shell = {shellConfig: config, updateEntryInline: (id, settings) => { writes.push([id, JSON.parse(JSON.stringify(settings))]); return true }}
+  state.persistReceiverEnabled(true)
+  assert.deepEqual(writes, [["oma.nearby", {receiverEnabled: true}]],
+    "toggling must persist the entry, which is the only place the state lives")
+}
+
+{
+  // Other keys on the entry survive a receiver toggle.
+  const config = {version: 1, bar: {layout: {right: [{id: "oma.nearby", tooltip: "keep me"}]}}, plugins: []}
+  const entry = Model.barEntry(config, "oma.nearby")
+  const writes = []
+  const state = engine({
+    pluginSettings: entry.settings,
+    moduleEntryId: entry.id,
+    shell: {shellConfig: config, updateEntryInline: (id, settings) => { writes.push(JSON.parse(JSON.stringify(settings))); return true }},
+  })
+  state.persistReceiverEnabled(false)
+  assert.deepEqual(writes, [{tooltip: "keep me", receiverEnabled: false}],
+    "persisting the receiver must not drop unrelated inline settings")
 }
 
 assert.match(source,

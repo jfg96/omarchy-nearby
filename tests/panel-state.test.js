@@ -86,7 +86,7 @@ function extractFunction(name) {
 }
 
 const functionNames = [
-  "pushSettings", "syncOpenState", "toggleReceiver", "startDiscovery", "forceFullDiscovery",
+  "syncOpenState", "toggleReceiver", "startDiscovery", "forceFullDiscovery",
   "chooseDevice", "acceptIncoming", "declineIncoming", "finishText", "finishTerminal",
   "cancelOutgoing", "cancelPin", "retryWithPin", "failWith", "noteTextCopied", "beginOutgoing",
   "goBack", "selectFiles", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
@@ -114,7 +114,6 @@ function stubEngine() {
     failWith: record("failWith"),
     noteTextCopied: record("noteTextCopied"),
     beginOutgoing: record("beginOutgoing"),
-    configure: record("configure"),
     viewOpened: record("viewOpened"),
     viewClosed: record("viewClosed"),
   }
@@ -262,10 +261,15 @@ function callNames(state) {
 }
 
 {
-  const state = panel({settings: {receiverEnabled: false}})
-  state.pushSettings()
-  assert.deepEqual(state.engine.calls.at(-1), ["configure", "oma.nearby", {receiverEnabled: false}],
-    "each view hands its entry settings to the engine, which owns what is persisted")
+  // The widget must not be the source of persisted settings. The bar injects
+  // `settings` a tick after the widget is built (Bar.qml: onActiveItemChanged
+  // -> Qt.callLater(injectProps)), so the first value a widget could report is
+  // the default, not the persisted one -- which is how a persisted
+  // receiverEnabled: false used to be replaced by the default on every start.
+  assert.equal(source.includes("configure("), false,
+    "the widget must not push settings into the engine; the engine reads shell.json")
+  assert.equal(/onSettingsChanged/.test(source), false,
+    "reacting to injected settings would reintroduce the widget as a config source")
 }
 
 {
@@ -277,7 +281,6 @@ function callNames(state) {
   state.retryWithPin()
   state.failWith("boom")
   state.noteTextCopied()
-  state.pushSettings()
   state.syncOpenState()
   assert.ok(true, "view actions without an engine must not throw")
 }

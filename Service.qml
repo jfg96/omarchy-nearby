@@ -32,15 +32,25 @@ Item {
     ? metadataSourceDir
     : (Quickshell.env("HOME") || "") + "/.config/omarchy/plugins/" + manifestPluginId
 
-  // The bar entry a widget was configured from. Settings persist against this
-  // id, which the host may have replaced with an instance id.
-  property string moduleEntryId: manifestPluginId
-  property var pluginSettings: ({})
-  property bool receiverConfigured: false
+  // Settings come from shell.json, not from the widgets.
+  //
+  // A widget cannot be the source here. The bar builds one per monitor and
+  // injects `settings` a tick after the widget is created, so the first thing
+  // a widget can report is the default rather than the persisted value, and
+  // the rest are copies of the same entry. Reading the entry directly means
+  // the persisted state and the effective state are the same value, so they
+  // cannot drift apart, and `receiverConfigured` is a fact about the config
+  // rather than about which widget spoke first.
+  readonly property var configEntry: shell && shell.shellConfig
+    ? Model.barEntry(shell.shellConfig, manifestPluginId)
+    : null
+  readonly property bool receiverConfigured: configEntry !== null
+  readonly property string moduleEntryId: configEntry ? configEntry.id : manifestPluginId
+  readonly property var pluginSettings: configEntry ? configEntry.settings : ({})
+  readonly property bool receiverEnabled: Model.receiverEnabledIn(configEntry)
 
   property string pluginVersion: ""
   property bool backendReady: false
-  property bool receiverEnabled: true
   property bool discoveryActive: false
   property var devices: []
   property var selectedDevice: null
@@ -118,13 +128,6 @@ Item {
     function status(): string { return JSON.stringify({enabled:root.receiverEnabled,ready:root.backendReady,running:backend.running,devices:root.devices.length}) }
   }
 
-  function configure(entryId, settings) {
-    if (String(entryId || "") !== "") moduleEntryId = String(entryId)
-    pluginSettings = settings || {}
-    if (receiverConfigured) return
-    receiverConfigured = true
-    receiverEnabled = pluginSettings.receiverEnabled !== false
-  }
   function viewOpened() {
     openViewCount++
     if (openViewCount !== 1) return
@@ -139,10 +142,11 @@ Item {
     if (!backend.running) return
     backend.write(JSON.stringify(command) + "\n")
   }
+  // receiverEnabled follows the entry, so writing the entry is what turns the
+  // receiver on or off. There is no second copy of the state to keep in step.
   function persistReceiverEnabled(enabled) {
-    receiverEnabled = enabled
-    pluginSettings = Object.assign({}, pluginSettings, { receiverEnabled: enabled })
-    if (shell) shell.updateEntryInline(moduleEntryId, pluginSettings)
+    if (!shell) return
+    shell.updateEntryInline(moduleEntryId, Object.assign({}, pluginSettings, { receiverEnabled: enabled }))
   }
   function toggleReceiver() {
     if (shutdownPending) return
@@ -332,7 +336,10 @@ Item {
     id: backend
     property bool launched: false
     command: [root.pluginDir + "/bin/omarchy-nearby-helper"]
-    running: root.receiverEnabled && root.pluginVersion !== ""
+    // Not eligible to start until shell.json has been read. Defaulting to on
+    // before then would let the helper bind the LocalSend port and announce
+    // itself on the network for a user who had turned the receiver off.
+    running: root.receiverConfigured && root.receiverEnabled && root.pluginVersion !== ""
     stdinEnabled: true
     stdout: SplitParser { onRead: function(line) { root.handleEvent(Model.parseLine(line)) } }
     stderr: SplitParser { onRead: function(line) { console.warn("nearby backend", line) } }
