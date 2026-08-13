@@ -149,6 +149,7 @@ Item {
     var enable = !receiverEnabled
     backendRestart.stop()
     if (enable) {
+      backendRestart.attempts = 0
       persistReceiverEnabled(true)
       errorText = ""
       statusText = "Starting receiver…"
@@ -259,13 +260,20 @@ Item {
     if (!receiverEnabled) { statusText="Turned off"; errorText=""; return }
     if (backendVersionMismatch) return
     if (!backendAcceptedThisRun) {
-      errorText="Nearby backend could not start. Run the Nearby installer again or build it with ./build.sh."
+      // The helper ran and left before announcing itself. It reports the
+      // reason on stderr; the one a user can act on is a port already taken by
+      // another LocalSend receiver. Retry on the same bounded schedule as a
+      // receiver that dropped later, so a port that frees up is picked back up
+      // and a port that never does stops after four attempts.
+      errorText = backendRestart.attempts < 4
+        ? "Nearby receiver could not start. Retrying…"
+        : "Nearby receiver could not start. Another LocalSend app may be holding port 53317."
       statusText=errorText
-      return
+    } else {
+      errorText=code===0 ? "Receiver stopped" : "Receiver unavailable"
+      statusText=errorText
+      if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; errorText="Nearby backend stopped during transfer"; statusText=errorText }
     }
-    errorText=code===0 ? "Receiver stopped" : "Receiver unavailable"
-    statusText=errorText
-    if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; errorText="Nearby backend stopped during transfer"; statusText=errorText }
     if (backendRestart.attempts < 4) { backendRestart.attempts++; backendRestart.interval=Math.min(30000,1000*Math.pow(2,backendRestart.attempts-1)); backendRestart.restart() }
   }
   function handleEvent(event) {
@@ -322,14 +330,31 @@ Item {
 
   Process {
     id: backend
+    property bool launched: false
     command: [root.pluginDir + "/bin/omarchy-nearby-helper"]
     running: root.receiverEnabled && root.pluginVersion !== ""
     stdinEnabled: true
     stdout: SplitParser { onRead: function(line) { root.handleEvent(Model.parseLine(line)) } }
     stderr: SplitParser { onRead: function(line) { console.warn("nearby backend", line) } }
     onStarted: {
+      backend.launched=true
       root.backendAcceptedThisRun=false
       root.backendVersionMismatch=false
+    }
+    // A helper that is missing rather than failing never reaches onExited:
+    // Quickshell returns running to false without an exit code, the same way
+    // the file chooser and clipboard readers report a command that never ran.
+    // This is the case reinstalling actually fixes.
+    onRunningChanged: {
+      if (running) { backend.launched=false; return }
+      if (backend.launched) return
+      // `running` is a binding, so it also drops when the receiver is turned
+      // off or the manifest version goes away. Only a helper we still want
+      // running counts as one that failed to launch.
+      if (!root.receiverEnabled || root.pluginVersion === "") return
+      root.backendReady=false
+      root.errorText="Nearby helper is missing. Run the Nearby installer again or build it with ./build.sh."
+      root.statusText=root.errorText
     }
     onExited: function(code) { root.handleBackendExit(code) }
   }

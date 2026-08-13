@@ -10,6 +10,13 @@
   `service` entry point that the shell loads once, and each bar widget is a
   view onto it. The IPC target was registered once per monitor for the same
   reason, and the shell kept only the first registration.
+- Retry a helper that exits before it is ready, on the same bounded schedule
+  used for one that stops later. A port conflict skipped the retries entirely
+  and reported a permanent failure on the first exit.
+- Say what actually failed when the receiver cannot start. A taken port now
+  names port 53317 rather than advising a reinstall, which never frees it, and
+  the reinstall advice moved to the case it fixes: a helper binary that is
+  missing and never launches at all.
 
 ## 1.0.5
 

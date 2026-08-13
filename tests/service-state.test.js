@@ -26,6 +26,14 @@ for (const method of ["summon", "hide", "toggle"]) {
     `${method} must route through the shell rather than a fixed widget instance`)
 }
 
+// A helper that is missing never reaches onExited: Quickshell drops `running`
+// without an exit code, the same way the file chooser reports a missing
+// command. That is the failure reinstalling actually fixes.
+assert.match(source, /onRunningChanged:\s*\{[\s\S]*?if \(backend\.launched\) return/,
+  "a helper that never launched must be reported from onRunningChanged")
+assert.match(source, /Run the Nearby installer again or build it with \.\/build\.sh\./,
+  "the reinstall hint belongs to the missing-helper case")
+
 function extractFunction(name) {
   const marker = `function ${name}`
   const start = source.indexOf(marker)
@@ -386,6 +394,33 @@ function incoming(requestId, sender = requestId) {
   assert.equal(state.incoming, null)
   assert.equal(state.activeIncomingSession, "")
   assert.equal(state.viewState, "error", "helper exit must not leave an empty incoming view")
+}
+
+{
+  // A helper that exits before announcing itself is the port-conflict case.
+  // It used to report a permanent failure and skip the retry schedule, so a
+  // port that freed up was never picked back up.
+  const restarts = []
+  const state = engine({
+    backendAcceptedThisRun: false,
+    backendRestart: {attempts: 0, interval: 0, restart() { restarts.push(this.attempts) }, stop: () => {}},
+  })
+  state.handleBackendExit(1)
+  assert.equal(state.backendRestart.attempts, 1,
+    "a helper that never became ready must still be retried")
+  assert.deepEqual(restarts, [1])
+  assert.doesNotMatch(state.errorText, /installer|build\.sh/,
+    "a helper that ran and exited is not fixed by reinstalling the plugin")
+}
+
+{
+  const state = engine({
+    backendAcceptedThisRun: false,
+    backendRestart: {attempts: 4, interval: 0, restart: () => { throw new Error("must not retry") }, stop: () => {}},
+  })
+  state.handleBackendExit(1)
+  assert.match(state.errorText, /53317/,
+    "a port conflict that outlasts the retry schedule must name the port it lost")
 }
 
 {
