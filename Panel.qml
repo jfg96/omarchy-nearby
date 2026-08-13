@@ -8,70 +8,50 @@ import "Model.js" as Model
 Panel {
   id: root
   moduleName: "oma.nearby"
-  ipcTarget: "oma.nearby"
+  // The `oma.nearby` IPC target belongs to the service, which exists once. A
+  // widget registering it would register it once per monitor.
   manageIpc: false
 
   // The host may replace moduleName with an instance id. Keep the manifest id
   // stable for registry lookups and filesystem paths.
   readonly property string manifestPluginId: "oma.nearby"
-  readonly property var manifestMetadata: bar && bar.shell
-    ? bar.shell.barWidgetRegistry.metadataFor(manifestPluginId)
+
+  // The bar builds one of these per monitor, so this file owns no helper, no
+  // transfer state, and no IPC target. All of that lives in the `service`
+  // entry point, which the shell loads exactly once; everything below is a
+  // view onto it plus this popup's own cursor. See Service.qml.
+  readonly property var engine: bar && bar.shell && typeof bar.shell.serviceFor === "function"
+    ? bar.shell.serviceFor(manifestPluginId)
     : null
-  readonly property string metadataSourceDir: manifestMetadata
-    ? String(manifestMetadata.sourceDir || "")
-    : ""
-  readonly property string pluginDir: metadataSourceDir !== ""
-    ? metadataSourceDir
-    : (Quickshell.env("HOME") || "") + "/.config/omarchy/plugins/" + manifestPluginId
-  property string pluginVersion: ""
+
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.4)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-  property bool backendReady: false
-  property bool receiverEnabled: setting("receiverEnabled", true) !== false
-  property bool discoveryActive: false
-  property var devices: []
-  property var selectedDevice: null
-  property string viewState: "nearby"
-  property string statusText: "Starting receiver…"
-  property string errorText: ""
+
+  // Engine state, read under the names the popup already used. A view with no
+  // engine says so rather than rendering an empty panel.
+  readonly property bool backendReady: engine ? engine.backendReady : false
+  readonly property bool receiverEnabled: engine ? engine.receiverEnabled : false
+  readonly property bool discoveryActive: engine ? engine.discoveryActive : false
+  readonly property var devices: engine ? engine.devices : []
+  readonly property var selectedDevice: engine ? engine.selectedDevice : null
+  readonly property string viewState: engine ? engine.viewState : "nearby"
+  readonly property string statusText: engine ? engine.statusText : "Nearby engine is not loaded."
+  readonly property string errorText: engine ? engine.errorText : "Nearby engine is not loaded."
+  readonly property var incomingQueue: engine ? engine.incomingQueue : []
+  readonly property var incoming: engine ? engine.incoming : null
+  readonly property string incomingText: engine ? engine.incomingText : ""
+  readonly property real progress: engine ? engine.progress : 0
+  readonly property string transferName: engine ? engine.transferName : ""
+  readonly property string transferPeer: engine ? engine.transferPeer : ""
+  readonly property string pinError: engine ? engine.pinError : ""
+
+  // Cursor and popup focus are per monitor, so they stay here.
   property int selectedIndex: 0
   property bool cursorActive: false
-  property var incomingQueue: []
-  readonly property var incoming: Model.currentIncoming(incomingQueue)
-  property string incomingText: ""
-  property bool incomingTextPending: false
-  property string lastReceivedPath: ""
-  property real progress: 0
-  property string transferName: ""
-  property string transferPeer: ""
-  property string activeIncomingSession: ""
-  property string outgoingTransferId: ""
-  property var pendingOutgoing: null
-  property string pinError: ""
-  property int transferSequence: 0
   property int nearbyPhraseIndex: 0
-  property bool shutdownPending: false
-  property bool backendAcceptedThisRun: false
-  property bool backendVersionMismatch: false
-
-  FileView {
-    path: root.pluginDir + "/manifest.json"
-    printErrors: false
-    onLoaded: {
-      root.pluginVersion = Model.manifestVersion(text(), root.manifestPluginId)
-      if (root.pluginVersion === "") {
-        root.errorText = "Nearby manifest version unavailable."
-        root.statusText = root.errorText
-      }
-    }
-    onLoadFailed: function(error) {
-      root.pluginVersion = ""
-      root.errorText = "Nearby manifest version unavailable."
-      root.statusText = root.errorText
-    }
-  }
+  property bool viewRegistered: false
 
   readonly property var nearbyPhrases: [
     "Looking nearby",
@@ -95,136 +75,54 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  IpcHandler {
-    target: root.ipcTarget
-    function open(): string { root.open(); return "ok" }
-    function close(): string { root.close(); return "ok" }
-    function toggle(): string { root.toggle(); return "ok" }
-    function receiverOn(): string { if (!root.receiverEnabled) root.toggleReceiver(); return "ok" }
-    function receiverOff(): string { if (root.receiverEnabled) root.toggleReceiver(); return "ok" }
-    function receiverToggle(): string { root.toggleReceiver(); return "ok" }
-    function status(): string { return JSON.stringify({enabled:root.receiverEnabled,ready:root.backendReady,running:backend.running,devices:root.devices.length}) }
+  // Settings arrive per widget; the engine keeps the copy it persists against.
+  function pushSettings() {
+    if (engine && typeof engine.configure === "function") engine.configure(moduleName, settings)
+  }
+  onSettingsChanged: pushSettings()
+  Component.onCompleted: { pushSettings(); syncOpenState() }
+
+  // Discovery follows the popup and there is one popup per monitor, so the
+  // engine counts open views instead of tracking a single flag.
+  function syncOpenState() {
+    if (!engine || opened === viewRegistered) return
+    viewRegistered = opened
+    if (opened) engine.viewOpened()
+    else engine.viewClosed()
+  }
+  onEngineChanged: { viewRegistered = false; pushSettings(); syncOpenState() }
+  Component.onDestruction: if (engine && viewRegistered) engine.viewClosed()
+
+  Connections {
+    target: root.engine
+    function onCursorRequested(index) { root.selectedIndex = index }
+    function onPinCleared() { pinInput.text = "" }
+    function onPinFocusRequested() { if (root.opened) Qt.callLater(function(){ pinInput.forceActiveFocus() }) }
+    function onFocusRestoreRequested() { if (root.opened) Qt.callLater(function(){ keyCatcher.forceActiveFocus() }) }
   }
 
-  function send(command) {
-    if (!backend.running) return
-    backend.write(JSON.stringify(command) + "\n")
-  }
-  function persistReceiverEnabled(enabled) {
-    receiverEnabled = enabled
-    settings = Object.assign({}, settings, { receiverEnabled: enabled })
-    if (bar && bar.shell) bar.shell.updateEntryInline(moduleName, settings)
-  }
-  function toggleReceiver() {
-    if (shutdownPending) return
-    var enable = !receiverEnabled
-    backendRestart.stop()
-    if (enable) {
-      persistReceiverEnabled(true)
-      errorText = ""
-      statusText = "Starting receiver…"
-    } else {
-      stopDiscovery()
-      shutdownPending = true
-      send({command:"shutdown"})
-      receiverShutdownFallback.restart()
-    }
-  }
-  function finishReceiverShutdown() {
-    receiverShutdownFallback.stop()
-    shutdownPending = false
-    persistReceiverEnabled(false)
-    backendReady = false
-    devices = []
-    selectedDevice = null
-    incomingQueue = []
-    incomingTextPending = false
-    activeIncomingSession = ""
-    clearPendingOutgoing()
-    viewState = "nearby"
-    statusText = "Turned off"
-    errorText = ""
-  }
-  function startDiscovery() { discoveryActive = true; errorText = ""; statusText = devices.length ? "Ready" : "Looking nearby…"; send({command:"discovery_start"}) }
-  function forceFullDiscovery() { discoveryActive = true; errorText = ""; statusText = "Scanning local network…"; send({command:"discovery_start",force_full:true}) }
-  function stopDiscovery() { discoveryActive = false; send({command:"discovery_stop"}) }
-  function chooseDevice(index) { if (index >= 0 && index < devices.length) { selectedDevice = devices[index]; viewState = "target"; selectedIndex = 0 } }
-  function goBack() { if (viewState === "pin") cancelPin(); else if (viewState === "target") { viewState = "nearby"; selectedDevice = null; selectedIndex = 0 } else close() }
-  function failWith(message) { viewState="error"; errorText=message; statusText=errorText }
+  function toggleReceiver() { if (engine) engine.toggleReceiver() }
+  function startDiscovery() { if (engine) engine.startDiscovery() }
+  function forceFullDiscovery() { if (engine) engine.forceFullDiscovery() }
+  function chooseDevice(index) { if (engine) engine.chooseDevice(index) }
+  function acceptIncoming() { if (engine) engine.acceptIncoming() }
+  function declineIncoming() { if (engine) engine.declineIncoming() }
+  function finishText() { if (engine) engine.finishText() }
+  function finishTerminal() { if (engine) engine.finishTerminal() }
+  function cancelOutgoing() { if (engine) engine.cancelOutgoing() }
+  function cancelPin() { if (engine) engine.cancelPin() }
+  function retryWithPin() { if (engine) engine.retryWithPin(String(pinInput.text || "")) }
+  function failWith(message) { if (engine) engine.failWith(message) }
+  function noteTextCopied() { if (engine) engine.noteTextCopied() }
+  function beginOutgoing(pending) { if (engine) engine.beginOutgoing(pending) }
+  function goBack() { if (viewState === "pin") cancelPin(); else if (viewState === "target") { if (engine) engine.clearTarget() } else close() }
+
+  // The chooser and the clipboard belong to the monitor the user acted on, so
+  // they stay with the view and hand their result to the engine.
   function selectFiles() { if (!selectedDevice || picker.running) return; picker.launched=false; picker.running = true }
   function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.launched=false; clipboard.running = true }
   function copyReceivedText() { clipboardWriter.launched=false; clipboardWriter.running=true }
-  function clearPendingOutgoing() { pendingOutgoing=null; outgoingTransferId=""; pinError=""; pinInput.text="" }
-  function dispatchPendingOutgoing(pin) {
-    if (!pendingOutgoing) return
-    transferSequence++
-    outgoingTransferId="out-"+Date.now()+"-"+transferSequence
-    var command=Model.outgoingCommand(pendingOutgoing,outgoingTransferId,pin)
-    if (!command) { clearPendingOutgoing(); viewState="error"; errorText="Transfer failed"; return }
-    pinInput.text=""
-    pinError=""
-    send(command)
-  }
-  function beginOutgoing(pending) { if(pendingOutgoing||!backend.running)return; pendingOutgoing=pending; dispatchPendingOutgoing(null) }
-  function retryWithPin() {
-    if (outgoingTransferId !== "") return
-    var pin=String(pinInput.text || "")
-    if (pin === "") { pinError="Enter the receiver PIN"; pinInput.forceActiveFocus(); return }
-    dispatchPendingOutgoing(pin)
-  }
-  function showPinPrompt(message) {
-    outgoingTransferId=""
-    viewState="pin"
-    pinError=message
-    statusText="PIN required"
-    Qt.callLater(function(){pinInput.forceActiveFocus()})
-  }
-  function cancelPin() { if(outgoingTransferId!=="")send({command:"cancel_outgoing",transfer_id:outgoingTransferId}); clearPendingOutgoing(); if(incoming){viewState="incoming";selectedIndex=1}else if(incomingTextPending){incomingTextPending=false;viewState="text";statusText="Text received";selectedIndex=0}else{viewState=selectedDevice?"target":"nearby";selectedIndex=0} Qt.callLater(function(){keyCatcher.forceActiveFocus()}) }
-  function acceptIncoming() { if (!incoming) return; send({command:"accept",request_id:incoming.requestId}); viewState="receiving"; transferPeer=incoming.sender; transferName=Model.incomingSummary(incoming.files); progress=0 }
-  function declineIncoming() {
-    if (!incoming) return
-    var requestId = incoming.requestId
-    send({command:"decline",request_id:requestId})
-    incomingQueue = Model.removeIncoming(incomingQueue, requestId)
-    if (!incoming&&incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received" }
-    else { viewState = incoming ? "incoming" : "nearby"; statusText = incoming ? "Incoming transfer" : "Declined" }
-    selectedIndex = incoming ? 1 : 0
-  }
-  function finishIncoming(terminalState, message, completed) {
-    activeIncomingSession = ""
-    if (pendingOutgoing) return
-    if (incoming) {
-      viewState = "incoming"
-      selectedIndex = 1
-      statusText = "Incoming transfer"
-      errorText = ""
-      progress = 0
-      return
-    }
-    if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received"; errorText=""; progress=0; return }
-    viewState = terminalState
-    statusText = message
-    errorText = terminalState === "error" ? message : ""
-    if (completed) progress = 1
-  }
-  function finishOutgoing(terminalState, message, completed) {
-    clearPendingOutgoing()
-    if (incoming) {
-      viewState = Model.viewAfterOutgoing(true, terminalState)
-      selectedIndex = 1
-      statusText = "Incoming transfer"
-      errorText = ""
-      progress = 0
-      return
-    }
-    if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received"; errorText=""; progress=0; return }
-    viewState = Model.viewAfterOutgoing(false, terminalState)
-    statusText = message
-    errorText = terminalState === "error" ? message : ""
-    if (completed) progress = 1
-  }
-  function finishText() { incomingText=""; incomingTextPending=false; viewState="nearby"; selectedIndex=0; startDiscovery() }
-  function finishTerminal() { viewState="nearby"; selectedIndex=0; startDiscovery() }
+
   function moveCursor(dx, dy) {
     cursorActive = true
     if (viewState === "nearby") {
@@ -239,99 +137,17 @@ Panel {
     else if (viewState === "target") selectedIndex === 0 ? selectFiles() : sendClipboard()
     else if (viewState === "incoming") selectedIndex === 0 ? declineIncoming() : acceptIncoming()
     else if (viewState === "text") { if(selectedIndex===0)copyReceivedText(); else finishText() }
-    else if (viewState === "sending") send({command:"cancel_outgoing",transfer_id:outgoingTransferId})
+    else if (viewState === "sending") cancelOutgoing()
     else if (viewState === "success" || viewState === "error") finishTerminal()
-  }
-  function handleBackendExit(code) {
-    backendReady=false; discoveryActive=false; incomingQueue=[]; incomingTextPending=false; activeIncomingSession=""; clearPendingOutgoing()
-    if (shutdownPending) { finishReceiverShutdown(); return }
-    if (!receiverEnabled) { statusText="Turned off"; errorText=""; return }
-    if (backendVersionMismatch) return
-    if (!backendAcceptedThisRun) {
-      errorText="Nearby backend could not start. Run the Nearby installer again or build it with ./build.sh."
-      statusText=errorText
-      return
-    }
-    errorText=code===0 ? "Receiver stopped" : "Receiver unavailable"
-    statusText=errorText
-    if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; errorText="Nearby backend stopped during transfer"; statusText=errorText }
-    if (backendRestart.attempts < 4) { backendRestart.attempts++; backendRestart.interval=Math.min(30000,1000*Math.pow(2,backendRestart.attempts-1)); backendRestart.restart() }
-  }
-  function handleEvent(event) {
-    if (!event || !event.event) return
-    if (backendVersionMismatch && event.event !== "ready") return
-    if (event.event === "ready") {
-      if (!Model.helperVersionMatches(pluginVersion, event.helperVersion)) {
-        backendReady=false
-        backendVersionMismatch=true
-        errorText="Nearby backend version mismatch. Run the Nearby installer again."
-        statusText=errorText
-        send({command:"shutdown"})
-        return
-      }
-      backendAcceptedThisRun=true; backendReady=true; backendVersionMismatch=false; backendRestart.attempts=0; statusText="Ready to receive"; errorText=""; if(opened&&viewState==="nearby")startDiscovery()
-    }
-    else if (event.event === "peer_snapshot") { devices=Model.snapshotDevices(event.devices); statusText=devices.length ? "Ready" : "Looking nearby…" }
-    else if (event.event === "device") { devices=Model.upsertDevice(devices,event.device); statusText=devices.length ? "Ready" : "Looking nearby…" }
-    else if (event.event === "discovery_started") discoveryActive=true
-    else if (event.event === "discovery_stopped") discoveryActive=false
-    else if (event.event === "incoming_request") {
-      incomingQueue=Model.enqueueIncoming(incomingQueue,event); if(!incomingTextPending)incomingText=""; if (viewState!=="sending" && viewState!=="receiving" && viewState!=="pin") { viewState="incoming"; selectedIndex=1 }
-      Quickshell.execDetached(["notify-send","-a","Nearby","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
-    }
-    else if (event.event === "incoming_text") {
-      incomingText=String(event.text || ""); transferPeer=String(event.sender || ""); incomingTextPending=pendingOutgoing!==null; if (!pendingOutgoing) { viewState="text"; stopDiscovery() }
-      Quickshell.execDetached(["notify-send","-a","Nearby","Text received","From "+String(event.sender || "")])
-    }
-    else if (event.event === "incoming_accepted") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
-    else if (event.event === "incoming_expired") {
-      var expiredWasCurrent=incoming&&incoming.requestId===event.requestId
-      incomingQueue=Model.removeIncoming(incomingQueue,event.requestId)
-      if (expiredWasCurrent&&(viewState==="incoming"||(viewState==="receiving"&&activeIncomingSession===""))) {
-        if (incoming) { statusText="Incoming transfer"; selectedIndex=1 }
-        else if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received"; errorText="" }
-        else { viewState="error"; errorText="Transfer request expired"; statusText=errorText }
-      }
-    }
-    else if (event.event === "incoming_progress") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(pendingOutgoing)return; viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0 }
-    else if (event.event === "file_received") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
-    else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success","Received",true) }
-    else if (event.event === "incoming_cancelled") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error","Transfer cancelled",false) }
-    else if (event.event === "incoming_failed") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",String(event.message||"Transfer failed"),false) }
-    else if (event.event === "incoming_declined") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
-    else if (event.event === "outgoing_preparing") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; transferName=String(event.name); transferPeer=String(event.target); progress=0; stopDiscovery() }
-    else if (event.event === "outgoing_progress") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; progress=event.total>0 ? event.bytes/event.total : 0 }
-    else if (event.event === "outgoing_done") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("success", "Sent", true) }
-    else if (event.event === "outgoing_cancelled") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", "Transfer cancelled", false) }
-    else if (event.event === "outgoing_pin_required") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt("") }
-    else if (event.event === "outgoing_invalid_pin") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt("Incorrect PIN") }
-    else if (event.event === "outgoing_failed") { if(event.transferId && String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", String(event.message||"Transfer failed"), false) }
-    else if (event.event === "error") { viewState="error"; errorText=String(event.message||"Transfer failed"); statusText=errorText }
   }
 
   onOpenedChanged: {
     if (opened) {
       cursorActive=false; selectedIndex=-1; nearbyPhraseIndex=0
-      if (viewState === "nearby" && receiverEnabled && backendReady) startDiscovery()
-      Qt.callLater(function(){ if (viewState==="pin") pinInput.forceActiveFocus(); else keyCatcher.forceActiveFocus() })
-    } else { stopDiscovery() }
+      syncOpenState()
+      Qt.callLater(function(){ if (root.viewState==="pin") pinInput.forceActiveFocus(); else keyCatcher.forceActiveFocus() })
+    } else { syncOpenState() }
   }
-
-  Process {
-    id: backend
-    command: [root.pluginDir + "/bin/omarchy-nearby-helper"]
-    running: root.receiverEnabled && root.pluginVersion !== ""
-    stdinEnabled: true
-    stdout: SplitParser { onRead: function(line) { root.handleEvent(Model.parseLine(line)) } }
-    stderr: SplitParser { onRead: function(line) { console.warn("nearby backend", line) } }
-    onStarted: {
-      root.backendAcceptedThisRun=false
-      root.backendVersionMismatch=false
-    }
-    onExited: function(code) { root.handleBackendExit(code) }
-  }
-  Timer { id: backendRestart; property int attempts: 0; interval: 1000; repeat: false; onTriggered: if (root.receiverEnabled && !backend.running) backend.running=true }
-  Timer { id: receiverShutdownFallback; interval: 250; repeat: false; onTriggered: root.finishReceiverShutdown() }
 
   Timer {
     id: nearbyPhraseTimer
@@ -493,7 +309,7 @@ Panel {
           Text { width:parent.width; textFormat:Text.PlainText; text:root.transferName; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true; elide:Text.ElideMiddle }
           Rectangle { width:parent.width; height:Style.space(4); radius:height/2; color:Qt.darker(root.foreground,2.2); Rectangle { width:parent.width*Math.max(0,Math.min(1,root.progress)); height:parent.height; radius:height/2; color:root.foreground; Behavior on width { NumberAnimation { duration:120 } } } }
           Text { text:Math.round(root.progress*100)+"% · "+(root.viewState==="sending"?"to ":"from ")+root.transferPeer; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
-          Button { visible:root.viewState==="sending"; text:"Cancel"; bordered:true; foreground:root.urgent; hasCursor:root.cursorActive; onClicked:root.send({command:"cancel_outgoing",transfer_id:root.outgoingTransferId}) }
+          Button { visible:root.viewState==="sending"; text:"Cancel"; bordered:true; foreground:root.urgent; hasCursor:root.cursorActive; onClicked:root.cancelOutgoing() }
         }
 
         Column {
@@ -524,6 +340,6 @@ Panel {
     stdinEnabled: true
     onStarted: { clipboardWriter.launched=true; write(root.incomingText); stdinEnabled=false }
     onRunningChanged: if (!running && !clipboardWriter.launched && root.viewState==="text") root.failWith("wl-copy is required to copy received text")
-    onExited: function(code) { stdinEnabled=true; if(root.viewState!=="text")return; if(code===0){root.viewState="success";root.statusText="Received"} else root.failWith("wl-copy is required to copy received text") }
+    onExited: function(code) { stdinEnabled=true; if(root.viewState!=="text")return; if(code===0){root.noteTextCopied()} else root.failWith("wl-copy is required to copy received text") }
   }
 }

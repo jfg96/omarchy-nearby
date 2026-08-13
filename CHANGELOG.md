@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Run one helper per shell session instead of one per monitor. The bar builds a
+  widget for every screen, so on a multi-monitor setup each extra copy started
+  its own helper, lost the race for the LocalSend port, and reported "Nearby
+  backend could not start" while the first copy held the port and worked. The
+  helper, the transfer state, and the `oma.nearby` IPC target now live in a
+  `service` entry point that the shell loads once, and each bar widget is a
+  view onto it. The IPC target was registered once per monitor for the same
+  reason, and the shell kept only the first registration.
+
 ## 1.0.5
 
 - Present the Nearby TLS identity when sending. LocalSend peers ask for a client

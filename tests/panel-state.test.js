@@ -5,11 +5,39 @@ const Model = require("../Model.js")
 
 const source = fs.readFileSync(require.resolve("../Panel.qml"), "utf8")
 
+// The bar builds one widget per monitor (Variants over Quickshell.screens).
+// Anything there can only be one of belongs to the service, which the shell
+// loads once. When the widget owned the helper, the second monitor's copy lost
+// the race for the LocalSend port and reported a receiver that could not
+// start while the first copy was holding it.
+assert.equal(source.includes("omarchy-nearby-helper"), false,
+  "the widget must not spawn the helper: one would be started per monitor")
+assert.equal(source.includes("IpcHandler"), false,
+  "the widget must not register an IPC target: one handler would be registered per monitor")
+assert.match(source, /bar\.shell\.serviceFor\(manifestPluginId\)/,
+  "the widget must read its state from the single service instance")
+assert.match(source, /manageIpc:\s*false/,
+  "the base panel's IPC handler must stay off so the service owns the target")
+for (const owned of ["backendRestart", "receiverShutdownFallback", "handleEvent(", "handleBackendExit("]) {
+  assert.equal(source.includes(owned), false,
+    `${owned} is engine state and must not be duplicated per monitor`)
+}
+
+// Cursor position and popup focus are genuinely per monitor and stay here.
+assert.match(source, /onCursorRequested\(index\)\s*\{\s*root\.selectedIndex = index\s*\}/,
+  "the engine asks each view to move its own cursor rather than holding one")
+assert.match(source, /onOpenedChanged[\s\S]*?if \(root\.viewState==="pin"\) pinInput\.forceActiveFocus\(\)/,
+  "reopening a pending PIN prompt must restore focus to its input")
+assert.match(source, /Component\.onDestruction:\s*if \(engine && viewRegistered\) engine\.viewClosed\(\)/,
+  "a view torn down while open must release its claim on discovery")
+
 assert.equal(source.includes("closeStdin"), false, "Quickshell Process does not expose closeStdin")
 assert.match(source, /onStarted:\s*\{[^}]*write\(root\.incomingText\);\s*stdinEnabled=false\s*\}/,
   "clipboard writer must close stdin after writing so wl-copy can finish")
 assert.match(source, /onExited:\s*function\(code\)\s*\{\s*stdinEnabled=true;/,
   "clipboard writer must re-enable stdin for the next copy")
+assert.match(source, /onExited: function\(code\) \{ stdinEnabled=true; if\(root\.viewState!=="text"\)return;/,
+  "late wl-copy completion must not reopen a text result after the user exits")
 
 assert.equal(source.includes("zenity"), false,
   "files are chosen with omarchy-file-select, which Omarchy ships, rather than zenity")
@@ -21,6 +49,17 @@ for (const launcher of ["picker", "clipboard", "clipboardWriter"]) {
   assert.match(source, new RegExp(`onRunningChanged:\\s*if\\s*\\(!running && !${launcher}\\.launched`),
     `${launcher} must report a command that never launched, which Quickshell signals by ` +
     "returning running to false without an exit code")
+}
+
+for (const [failure, description] of [
+  ["Clipboard is empty", "clipboard read"],
+  ["wl-paste is required to read the clipboard", "missing wl-paste"],
+  ["wl-copy is required to copy received text", "clipboard write"],
+  ["The file chooser could not be started", "missing file chooser"],
+  ["The file chooser did not open", "file chooser fault"],
+]) {
+  assert.match(source, new RegExp(`failWith\\("${failure.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\)`),
+    `${description} errors must be raised through failWith`)
 }
 
 function extractFunction(name) {
@@ -47,357 +86,200 @@ function extractFunction(name) {
 }
 
 const functionNames = [
-  "send", "persistReceiverEnabled", "startDiscovery", "stopDiscovery", "clearPendingOutgoing", "dispatchPendingOutgoing",
-  "beginOutgoing", "retryWithPin", "showPinPrompt", "cancelPin",
-  "acceptIncoming", "declineIncoming", "finishIncoming", "finishOutgoing", "finishText", "finishTerminal", "finishReceiverShutdown", "activateCursor", "handleBackendExit", "handleEvent"
+  "pushSettings", "syncOpenState", "toggleReceiver", "startDiscovery", "forceFullDiscovery",
+  "chooseDevice", "acceptIncoming", "declineIncoming", "finishText", "finishTerminal",
+  "cancelOutgoing", "cancelPin", "retryWithPin", "failWith", "noteTextCopied", "beginOutgoing",
+  "goBack", "selectFiles", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
 ]
 
+// Every call the view makes has to land on the shared engine, so the stub
+// records rather than implements.
+function stubEngine() {
+  const calls = []
+  const record = name => (...args) => { calls.push([name, ...args]); return undefined }
+  return {
+    calls,
+    toggleReceiver: record("toggleReceiver"),
+    startDiscovery: record("startDiscovery"),
+    forceFullDiscovery: record("forceFullDiscovery"),
+    chooseDevice: record("chooseDevice"),
+    clearTarget: record("clearTarget"),
+    acceptIncoming: record("acceptIncoming"),
+    declineIncoming: record("declineIncoming"),
+    finishText: record("finishText"),
+    finishTerminal: record("finishTerminal"),
+    cancelOutgoing: record("cancelOutgoing"),
+    cancelPin: record("cancelPin"),
+    retryWithPin: record("retryWithPin"),
+    failWith: record("failWith"),
+    noteTextCopied: record("noteTextCopied"),
+    beginOutgoing: record("beginOutgoing"),
+    configure: record("configure"),
+    viewOpened: record("viewOpened"),
+    viewClosed: record("viewClosed"),
+  }
+}
+
 function panel(initial = {}) {
-  const sent = []
+  const closes = []
+  const engine = initial.engine === undefined ? stubEngine() : initial.engine
   const context = {
     Model,
-    Date: {now: () => 1000},
     Qt: {callLater: callback => callback()},
-    Quickshell: {execDetached: () => {}},
-    backend: {running: true, write: line => sent.push(JSON.parse(line))},
+    engine,
+    picker: {running: false, launched: false},
+    clipboard: {running: false, launched: false},
+    clipboardWriter: {running: false, launched: false},
     pinInput: {text: "", forceActiveFocus: () => {}},
     keyCatcher: {forceActiveFocus: () => {}},
-    clipboardWriter: {running: false},
-    backendRestart: {attempts: 0, interval: 0, restart: () => {}},
-    receiverShutdownFallback: {stop: () => {}},
-    settings: {},
-    bar: null,
+    close: () => closes.push(true),
     moduleName: "oma.nearby",
-    shutdownPending: false,
-    pluginVersion: "1.0.4",
-    backendVersionMismatch: false,
-    backendReady: true,
-    backendAcceptedThisRun: true,
+    settings: {},
     opened: true,
-    receiverEnabled: true,
-    discoveryActive: false,
+    viewRegistered: false,
+    selectedIndex: 0,
+    cursorActive: false,
     devices: [],
     selectedDevice: {fingerprint: "phone", alias: "Phone"},
     viewState: "target",
-    statusText: "",
-    errorText: "",
-    selectedIndex: 0,
-    cursorActive: false,
-    incomingQueue: [],
-    incomingText: "",
-    incomingTextPending: false,
-    lastReceivedPath: "",
-    progress: 0,
-    transferName: "",
-    transferPeer: "",
-    activeIncomingSession: "",
-    outgoingTransferId: "",
-    pendingOutgoing: null,
-    pinError: "",
-    transferSequence: 0,
     ...initial,
   }
-  Object.defineProperty(context, "incoming", {get() { return Model.currentIncoming(context.incomingQueue) }})
+  context.engine = engine
   vm.createContext(context)
   vm.runInContext(functionNames.map(extractFunction).join("\n"), context)
-  context.sent = sent
+  context.closes = closes
   return context
 }
 
-function incoming(requestId, sender = requestId) {
-  return {event: "incoming_request", requestId, sender, files: [{name: `${requestId}.txt`}], total: 1}
+function callNames(state) {
+  return state.engine.calls.map(call => call[0])
 }
 
 {
-  const state = panel()
-  state.handleEvent(incoming("a"))
-  state.handleEvent(incoming("b"))
-  state.declineIncoming()
-  assert.deepEqual(state.incomingQueue.map(item => item.requestId), ["b"])
-  assert.equal(state.incoming.requestId, "b")
-  assert.equal(state.viewState, "incoming")
-}
-
-{
-  const state = panel()
-  state.handleEvent(incoming("a"))
-  state.handleEvent(incoming("b"))
-  state.handleEvent({event: "incoming_expired", requestId: "a"})
-  assert.equal(state.incoming.requestId, "b")
-  assert.equal(state.viewState, "incoming")
-  state.handleEvent({event: "incoming_expired", requestId: "unknown"})
-  assert.equal(state.incoming.requestId, "b")
-}
-
-{
-  const state = panel()
-  state.handleEvent(incoming("a"))
-  state.acceptIncoming()
-  assert.equal(state.viewState, "receiving")
-  state.handleEvent({event: "incoming_expired", requestId: "a"})
-  assert.notEqual(state.viewState, "receiving",
-    "an expired approval must not leave the UI waiting for a receive session that cannot start")
-  assert.equal(state.activeIncomingSession, "")
-}
-
-{
-  const state = panel()
-  state.handleEvent(incoming("a"))
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "one"})
-  const transferId = state.outgoingTransferId
-  state.handleEvent({event: "outgoing_preparing", transferId, name: "message.txt", target: "Phone"})
-  state.handleEvent({event: "outgoing_done", transferId})
-  assert.equal(state.incoming.requestId, "a")
-  assert.equal(state.viewState, "incoming")
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "original"})
-  const firstId = state.outgoingTransferId
-  state.handleEvent({event: "outgoing_pin_required", transferId: firstId})
-  state.handleEvent(incoming("a"))
-  state.pinInput.text = "000000"
-  state.retryWithPin()
-  const retryId = state.outgoingTransferId
-  state.handleEvent({event: "outgoing_invalid_pin", transferId: retryId})
-  state.handleEvent(incoming("b"))
-  state.pinInput.text = "123456"
-  state.retryWithPin()
-  assert.equal(state.sent.at(-1).text, "original")
-  assert.equal(state.sent.at(-1).pin, "123456")
-  assert.deepEqual(state.incomingQueue.map(item => item.requestId), ["a", "b"])
-  state.handleEvent({event: "incoming_expired", requestId: "a"})
-  assert.equal(state.viewState, "pin")
-  assert.equal(state.pendingOutgoing.text, "original")
-  assert.equal(state.incoming.requestId, "b")
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "only once"})
-  state.handleEvent({event: "outgoing_pin_required", transferId: state.outgoingTransferId})
-  state.pinInput.text = "123456"
-  state.retryWithPin()
-  state.pinInput.text = "123456"
-  state.retryWithPin()
-  assert.equal(state.sent.filter(command => command.pin === "123456").length, 1,
-    "a repeated submit while a PIN retry is active must not dispatch a duplicate")
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "cancel retry"})
-  state.handleEvent({event: "outgoing_pin_required", transferId: state.outgoingTransferId})
-  state.pinInput.text = "123456"
-  state.retryWithPin()
-  const retryId = state.outgoingTransferId
-  state.cancelPin()
-  assert.deepEqual(state.sent.filter(command => command.command === "cancel_outgoing"),
-    [{command: "cancel_outgoing", transfer_id: retryId}],
-    "leaving PIN while its retry is in flight must cancel that helper transfer exactly once")
-  assert.equal(state.pendingOutgoing, null)
-  assert.equal(state.outgoingTransferId, "")
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "keep me"})
-  state.handleEvent({event: "outgoing_pin_required", transferId: state.outgoingTransferId})
-  const pending = state.pendingOutgoing
-  assert.match(source, /onOpenedChanged[\s\S]*?else\s*\{\s*stopDiscovery\(\)\s*\}/,
-    "closing the popup must only stop discovery, leaving a PIN retry pending")
-  assert.match(source, /onOpenedChanged[\s\S]*?if \(viewState==="pin"\) pinInput\.forceActiveFocus\(\)/,
-    "reopening a pending PIN prompt must restore focus to its input")
-  assert.equal(state.pendingOutgoing, pending)
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "pending"})
-  const transferId = state.outgoingTransferId
-  state.handleEvent({event: "outgoing_pin_required", transferId})
-  state.handleEvent({event: "incoming_cancelled", sessionId: "unknown"})
-  state.handleEvent({event: "incoming_failed", sessionId: "unknown", message: "late"})
-  assert.equal(state.viewState, "pin")
-  assert.equal(state.pendingOutgoing.text, "pending")
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "outgoing"})
-  const transferId = state.outgoingTransferId
-  state.handleEvent({event: "outgoing_preparing", transferId, name: "message.txt", target: "Phone"})
-  state.handleEvent({event: "incoming_cancelled", sessionId: "unknown"})
-  assert.equal(state.viewState, "sending")
-  assert.equal(state.outgoingTransferId, transferId)
-  state.handleEvent({event: "outgoing_done", transferId: "old"})
-  assert.equal(state.outgoingTransferId, transferId)
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "outgoing"})
-  const transferId = state.outgoingTransferId
-  state.handleEvent({event: "outgoing_pin_required", transferId})
-  state.handleEvent({event: "incoming_text", sessionId: "incoming-text", sender: "Alice", text: "hello"})
-  assert.equal(state.viewState, "pin", "incoming text must not hide an unrelated PIN prompt")
-  assert.ok(state.pendingOutgoing)
-  state.handleEvent({event: "outgoing_done", transferId: "old"})
-  assert.equal(state.viewState, "pin")
-  state.pinInput.text = "123456"
-  state.retryWithPin()
-  const retryId = state.outgoingTransferId
-  state.handleEvent({event: "outgoing_done", transferId: retryId})
-  assert.equal(state.viewState, "text", "deferred incoming text must become accessible after outgoing completion")
-  assert.equal(state.incomingText, "hello")
-}
-
-{
-  const state = panel({viewState: "receiving"})
-  state.handleEvent({event: "incoming_cancelled", sessionId: "session-a"})
-  assert.equal(state.viewState, "error")
-  assert.equal(state.activeIncomingSession, "")
-  state.handleEvent({event: "incoming_done", sessionId: "session-a"})
-  assert.equal(state.viewState, "error", "late terminal events must not resurrect a completed session")
-}
-
-{
-  const state = panel({viewState: "receiving"})
-  state.handleEvent({event: "incoming_progress", sessionId: "a", name: "a.txt", sender: "Alice", bytes: 1, total: 2})
-  state.handleEvent({event: "incoming_cancelled", sessionId: "a"})
-  state.handleEvent({event: "incoming_progress", sessionId: "a", name: "a.txt", sender: "Alice", bytes: 2, total: 2})
-  assert.equal(state.activeIncomingSession, "", "late progress must not resurrect cancelled incoming A")
-  assert.equal(state.viewState, "error")
-}
-
-{
-  const state = panel({viewState: "receiving"})
-  state.handleEvent({event: "incoming_progress", sessionId: "b", name: "b.txt", sender: "Bob", bytes: 1, total: 2})
-  state.handleEvent({event: "incoming_progress", sessionId: "a", name: "a.txt", sender: "Alice", bytes: 2, total: 2})
-  assert.equal(state.activeIncomingSession, "b")
-  assert.equal(state.transferName, "b.txt")
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "outgoing"})
-  const transferId = state.outgoingTransferId
-  state.handleEvent({event: "incoming_text", sender: "Alice", text: "deferred"})
-  state.handleEvent(incoming("files"))
-  state.handleEvent({event: "outgoing_done", transferId})
-  assert.equal(state.viewState, "incoming")
-  state.declineIncoming()
-  assert.equal(state.viewState, "text", "deferred text must follow the last queued file request")
-  assert.equal(state.incomingText, "deferred")
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "first"})
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "duplicate"})
-  assert.equal(state.sent.filter(command => command.command === "send_text").length, 1,
-    "a second begin before helper confirmation must not replace the active outgoing")
-  assert.equal(state.pendingOutgoing.text, "first")
-}
-
-{
-  const state = panel({backend: {running: false, write: () => { throw new Error("must not write") }}})
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "offline"})
-  assert.equal(state.pendingOutgoing, null, "backend downtime must not create a pending outgoing phantom")
-  assert.equal(state.outgoingTransferId, "")
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "first"})
-  const first = state.sent.at(-1)
-  state.handleEvent({event: "outgoing_done", transferId: first.transfer_id})
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "second"})
-  const second = state.sent.at(-1)
-  assert.notEqual(first.transfer_id, second.transfer_id)
-  assert.equal(first.text, "first")
-  assert.equal(second.text, "second")
-}
-
-{
-  const state = panel()
-  state.handleEvent(incoming("a"))
-  state.handleEvent(incoming("b"))
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "pending"})
-  state.handleEvent({event: "outgoing_pin_required", transferId: state.outgoingTransferId})
-  state.activeIncomingSession = "session-a"
-  state.finishReceiverShutdown()
-  assert.equal(state.incomingQueue.length, 0)
-  assert.equal(state.incoming, null)
-  assert.equal(state.activeIncomingSession, "")
-  assert.equal(state.pendingOutgoing, null)
-  assert.equal(state.outgoingTransferId, "")
-  assert.equal(state.viewState, "nearby")
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "pending"})
-  state.handleEvent({event: "outgoing_pin_required", transferId: state.outgoingTransferId})
-  state.handleBackendExit(1)
-  assert.equal(state.pendingOutgoing, null)
-  assert.equal(state.outgoingTransferId, "")
-  assert.equal(state.viewState, "error")
-  assert.match(state.errorText, /stopped|unavailable/i)
-}
-
-{
-  const state = panel()
-  state.handleEvent(incoming("a"))
-  state.handleBackendExit(1)
-  assert.equal(state.incoming, null)
-  assert.equal(state.activeIncomingSession, "")
-  assert.equal(state.viewState, "error", "helper exit must not leave an empty incoming view")
-}
-
-{
-  const state = panel()
-  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "outgoing"})
-  state.handleEvent({event: "outgoing_pin_required", transferId: state.outgoingTransferId})
-  state.handleEvent({event: "incoming_text", sender: "Alice", text: "keep this"})
-  state.cancelPin()
-  assert.equal(state.viewState, "text", "cancelling PIN must reveal already received deferred text")
-  assert.equal(state.incomingText, "keep this")
-  assert.equal(state.incomingTextPending, false)
-}
-
-{
-  const state = panel()
-  state.handleEvent({event: "incoming_text", sender: "Alice", text: "clipboard"})
-  assert.equal(state.viewState, "text")
-  state.selectedIndex = 1
+  const state = panel({viewState: "nearby", devices: [{alias: "A"}, {alias: "B"}], selectedIndex: 0})
   state.activateCursor()
-  assert.equal(state.viewState, "nearby", "received text must have an exit independent of wl-copy completion")
-  assert.match(source, /onExited: function\(code\) \{ stdinEnabled=true; if\(root\.viewState!=="text"\)return;/,
-    "late wl-copy completion must not reopen a text result after the user exits")
+  assert.deepEqual(state.engine.calls.at(-1), ["chooseDevice", 0])
+  state.selectedIndex = 2
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "forceFullDiscovery",
+    "the entry past the last device is the rescan action")
+  state.selectedIndex = -1
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "toggleReceiver",
+    "the cursor above the list is the receiver switch")
 }
 
 {
-  const keyboard = panel({viewState: "success", discoveryActive: false})
-  keyboard.activateCursor()
-  assert.equal(keyboard.viewState, "nearby")
-  assert.equal(keyboard.discoveryActive, true, "keyboard Done must restart discovery like the visual button")
-  assert.equal(keyboard.sent.at(-1).command, "discovery_start")
+  const state = panel({viewState: "incoming", selectedIndex: 1})
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "acceptIncoming")
+  state.selectedIndex = 0
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "declineIncoming")
 }
 
-assert.match(source,
-  /function failWith\(message\)\s*\{\s*viewState="error";\s*errorText=message;\s*statusText=errorText\s*\}/,
-  "failWith must keep statusText aligned with errorText for every failure that reaches it")
-for (const [failure, description] of [
-  ["Clipboard is empty", "clipboard read"],
-  ["wl-paste is required to read the clipboard", "missing wl-paste"],
-  ["wl-copy is required to copy received text", "clipboard write"],
-  ["The file chooser could not be started", "missing file chooser"],
-  ["The file chooser did not open", "file chooser fault"],
-]) {
-  assert.match(source, new RegExp(`failWith\\("${failure.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\)`),
-    `${description} errors must be raised through failWith`)
+{
+  const state = panel({viewState: "sending"})
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "cancelOutgoing")
+}
+
+{
+  const state = panel({viewState: "success"})
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "finishTerminal",
+    "keyboard Done must reach the engine the same way the visual button does")
+}
+
+{
+  const state = panel({viewState: "text", selectedIndex: 1})
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "finishText",
+    "received text must have an exit independent of wl-copy completion")
+}
+
+{
+  const state = panel({viewState: "nearby", devices: [{alias: "A"}, {alias: "B"}], selectedIndex: 0})
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 1)
+  state.moveCursor(0, 5)
+  assert.equal(state.selectedIndex, 2, "the cursor stops on the rescan entry past the last device")
+  state.moveCursor(0, -9)
+  assert.equal(state.selectedIndex, -1, "the cursor stops on the receiver switch above the list")
+  assert.equal(state.engine.calls.length, 0, "moving a cursor is local to one monitor")
+}
+
+{
+  const state = panel({viewState: "target"})
+  state.goBack()
+  assert.equal(callNames(state).at(-1), "clearTarget")
+  const pin = panel({viewState: "pin"})
+  pin.goBack()
+  assert.equal(callNames(pin).at(-1), "cancelPin")
+  const nearby = panel({viewState: "nearby"})
+  nearby.goBack()
+  assert.equal(nearby.closes.length, 1, "back from the root view closes this monitor's popup")
+  assert.equal(nearby.engine.calls.length, 0)
+}
+
+{
+  const state = panel()
+  state.pinInput.text = "123456"
+  state.retryWithPin()
+  assert.deepEqual(state.engine.calls.at(-1), ["retryWithPin", "123456"],
+    "the PIN is read from this monitor's field and handed to the shared engine")
+}
+
+{
+  const state = panel({selectedDevice: null})
+  state.selectFiles()
+  state.sendClipboard()
+  assert.equal(state.picker.running, false, "no chooser without a target device")
+  assert.equal(state.clipboard.running, false, "no clipboard read without a target device")
+  const ready = panel()
+  ready.selectFiles()
+  assert.equal(ready.picker.running, true)
+  ready.sendClipboard()
+  assert.equal(ready.clipboard.running, true)
+}
+
+{
+  const state = panel({picker: {running: true, launched: true}})
+  state.selectFiles()
+  assert.equal(state.picker.launched, true, "a chooser already open must not be relaunched")
+}
+
+{
+  // Discovery is engine state shared by every monitor, so a view registers and
+  // releases its claim exactly once.
+  const state = panel({opened: true, viewRegistered: false})
+  state.syncOpenState()
+  state.syncOpenState()
+  assert.deepEqual(callNames(state), ["viewOpened"], "an open view claims discovery once")
+  state.opened = false
+  state.syncOpenState()
+  assert.deepEqual(callNames(state), ["viewOpened", "viewClosed"])
+}
+
+{
+  const state = panel({settings: {receiverEnabled: false}})
+  state.pushSettings()
+  assert.deepEqual(state.engine.calls.at(-1), ["configure", "oma.nearby", {receiverEnabled: false}],
+    "each view hands its entry settings to the engine, which owns what is persisted")
+}
+
+{
+  // A widget can outlive its engine across a plugin reload; it must degrade
+  // rather than throw into the shell.
+  const state = panel({engine: null, viewState: "target"})
+  state.toggleReceiver()
+  state.goBack()
+  state.retryWithPin()
+  state.failWith("boom")
+  state.noteTextCopied()
+  state.pushSettings()
+  state.syncOpenState()
+  assert.ok(true, "view actions without an engine must not throw")
 }
 
 console.log("panel state tests passed")
