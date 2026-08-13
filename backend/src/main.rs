@@ -25,6 +25,21 @@ const MULTICAST_GRACE: Duration = Duration::from_secs(1);
 const CACHED_PROBE_CONCURRENCY: usize = 5;
 const MAX_SUBNET_ADDRESSES: u32 = 1024;
 const STALE_PARTIAL_AGE: Duration = Duration::from_secs(24 * 60 * 60);
+const NEARBY_PORT: u16 = 53317;
+
+/// True when a failure was caused by the LocalSend port already being bound.
+///
+/// The bind failure surfaces as an `io::Error` several layers down, so the
+/// whole chain is searched rather than only the error we were handed. Callers
+/// use this to tell a port that is taken, which the user can act on, from a
+/// receiver that failed for any other reason.
+fn caused_by_port_in_use(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|io| io.kind() == std::io::ErrorKind::AddrInUse)
+    })
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "command", rename_all = "snake_case")]
@@ -744,16 +759,30 @@ async fn main() -> Result<()> {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "Omarchy".into());
     let certificate = load_identity(&home).context("TLS identity unavailable")?;
-    let (server, mut events) = LocalSendServer::builder()
+    let started = LocalSendServer::builder()
         .alias(alias)
-        .port(53317)
+        .port(NEARBY_PORT)
         .save_dir(&canonical_download)
         .protocol(Protocol::Https)
         .tls_certificate(certificate.clone())
         .auto_accept(false)
         .build()
-        .await
-        .context("receiver could not start")?;
+        .await;
+    let (server, mut events) = match started {
+        Ok(started) => started,
+        Err(error) => {
+            let error = anyhow::Error::new(error);
+            // A taken port is the one startup failure with an obvious remedy,
+            // so it is worth saying out loud. Reinstalling the plugin, which a
+            // generic failure used to suggest, never frees it.
+            if caused_by_port_in_use(&error) {
+                return Err(error.context(format!(
+                    "receiver could not start: port {NEARBY_PORT} is already in use by another LocalSend receiver"
+                )));
+            }
+            return Err(error.context("receiver could not start"));
+        }
+    };
     let identity = server.device().clone();
     let registry = Arc::new(Mutex::new(HashMap::<String, Peer>::new()));
     let (peer_tx, mut peer_rx) = mpsc::unbounded_channel::<DeviceInfo>();
@@ -917,6 +946,24 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn port_in_use_is_recognized_through_the_error_chain() {
+        // The bind failure reaches us wrapped, the way LocalSendServer::build
+        // reports it, so detection has to search past the outermost error.
+        let bind = std::io::Error::new(std::io::ErrorKind::AddrInUse, "Address already in use");
+        let wrapped = anyhow::Error::new(bind).context("IO error");
+        assert!(caused_by_port_in_use(&wrapped));
+    }
+
+    #[test]
+    fn other_failures_are_not_reported_as_a_port_conflict() {
+        let denied = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
+        let wrapped = anyhow::Error::new(denied).context("IO error");
+        assert!(!caused_by_port_in_use(&wrapped));
+        assert!(!caused_by_port_in_use(&anyhow!("TLS identity unavailable")));
+    }
+
     #[test]
     fn peer_registry_keeps_valid_and_expires_stale() {
         let d = DeviceInfo::new("Phone".into(), 53317, Protocol::Http);

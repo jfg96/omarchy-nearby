@@ -86,7 +86,11 @@ that are older than 24 hours.
 ## Architecture
 
 ```text
-Quickshell UI (Panel.qml)
+Bar widget (Panel.qml)      one per monitor, view only
+        │
+        │  reads state, calls methods
+        ▼
+Nearby engine (Service.qml) one per shell session
         │
         ├── Model.js
         │
@@ -99,6 +103,12 @@ Quickshell UI (Panel.qml)
                  ▼
         LocalSend-compatible LAN peer
 ```
+
+The bar builds one widget per screen, while the helper binds a single
+LocalSend port and the `oma.nearby` IPC target can only be registered once. The
+engine is therefore a `service` entry point, which the shell loads once per
+session, and every bar widget is a view onto it holding nothing but its own
+cursor and popup.
 
 The Rust helper vendors a modified `localsend-rs` library. See
 `THIRD_PARTY_NOTICES.md` for attribution and licensing information, and
@@ -185,6 +195,8 @@ Frontend model tests:
 
 ```sh
 node tests/model.test.js
+node tests/panel-state.test.js
+node tests/service-state.test.js
 ```
 
 Backend tests:

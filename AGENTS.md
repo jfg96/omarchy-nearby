@@ -6,7 +6,11 @@ minimal and do not mix unrelated refactors into bug fixes.
 
 ## Architecture and compatibility
 
+- `Service.qml` owns the helper process, the transfer state machine, and the
+  `oma.nearby` IPC target. The shell loads a `service` kind once per session.
 - `Panel.qml` and `Model.js` implement the Quickshell UI and its state model.
+  The bar builds one `Panel.qml` per monitor, so it must stay a view: anything
+  there can only be one of belongs in `Service.qml`.
 - `backend/` contains the Rust helper. `backend/vendor/localsend-rs/` is a
   locally modified dependency and has its own independently runnable tests.
 - Preserve compatibility with Omarchy Quattro and the LocalSend protocol.
@@ -27,6 +31,7 @@ complete supported suite when practical:
 ```sh
 node tests/model.test.js
 node tests/panel-state.test.js
+node tests/service-state.test.js
 cargo fmt --manifest-path backend/Cargo.toml --all -- --check
 cargo check --locked --manifest-path backend/Cargo.toml
 cargo test --locked --manifest-path backend/Cargo.toml

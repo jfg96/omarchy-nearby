@@ -81,6 +81,89 @@ function viewAfterOutgoing(hasPendingIncoming, terminalState) {
   return hasPendingIncoming ? "incoming" : terminalState
 }
 
+// The plugin's own entry in shell.json, or null when it is not there yet.
+//
+// The service reads its settings from the shell config rather than waiting for
+// a bar widget to hand them over. Widgets are built once per monitor and get
+// their `settings` injected a tick after they are created, so a widget cannot
+// report the persisted state at the moment it starts up, and several widgets
+// reporting the same state is redundant rather than authoritative.
+//
+// Null means "shell.json has not been applied yet", not "no settings": the
+// shell only keeps this plugin loaded while the entry exists, so an absent
+// entry is a config that has not arrived rather than one that says nothing.
+function barEntry(config, pluginId) {
+  var id = String(pluginId || "")
+  if (!config || typeof config !== "object" || id === "") return null
+  var layout = config.bar && typeof config.bar === "object" ? config.bar.layout : null
+  var regions = ["left", "center", "right"]
+  for (var r = 0; r < regions.length; r++) {
+    var entries = layout && Array.isArray(layout[regions[r]]) ? layout[regions[r]] : []
+    for (var e = 0; e < entries.length; e++) {
+      var entry = entries[e]
+      if (typeof entry === "string") {
+        if (entry === id) return { id: id, settings: {} }
+        continue
+      }
+      if (!entry || typeof entry !== "object") continue
+      if (String(entry.id || "") !== id) continue
+      var settings = {}
+      for (var key in entry) if (key !== "id") settings[key] = entry[key]
+      return { id: String(entry.id), settings: settings }
+    }
+  }
+  var plugins = Array.isArray(config.plugins) ? config.plugins : []
+  for (var p = 0; p < plugins.length; p++) {
+    var plugin = plugins[p]
+    if (!plugin || typeof plugin !== "object" || String(plugin.id || "") !== id) continue
+    var pluginSettings = {}
+    for (var pluginKey in plugin) if (pluginKey !== "id") pluginSettings[pluginKey] = plugin[pluginKey]
+    return { id: String(plugin.id), settings: pluginSettings }
+  }
+  return null
+}
+
+// Quattro accepts a bare id in bar.layout, but its inline-settings writer can
+// only attach settings to object entries. Promote a matching string in place
+// before writing the first setting; top-level plugins[] does not accept this
+// form in the host and is deliberately excluded.
+function hasStringBarEntry(config, pluginId) {
+  var id = String(pluginId || "")
+  var layout = config && config.bar && typeof config.bar === "object" ? config.bar.layout : null
+  if (!layout || id === "") return false
+  var regions = ["left", "center", "right"]
+  for (var r = 0; r < regions.length; r++) {
+    var entries = Array.isArray(layout[regions[r]]) ? layout[regions[r]] : []
+    for (var e = 0; e < entries.length; e++) if (entries[e] === id) return true
+  }
+  return false
+}
+
+function promoteStringBarEntry(config, pluginId, settings) {
+  var id = String(pluginId || "")
+  var layout = config && config.bar && typeof config.bar === "object" ? config.bar.layout : null
+  if (!layout || id === "") return false
+  var regions = ["left", "center", "right"]
+  for (var r = 0; r < regions.length; r++) {
+    var entries = Array.isArray(layout[regions[r]]) ? layout[regions[r]] : []
+    for (var e = 0; e < entries.length; e++) {
+      if (entries[e] !== id) continue
+      var promoted = { id: id }
+      for (var key in settings) if (key !== "id") promoted[key] = settings[key]
+      entries[e] = promoted
+      return true
+    }
+  }
+  return false
+}
+
+// Receiving is on unless the entry says otherwise, and off until the entry
+// exists at all, so a persisted "off" cannot be missed while the config is
+// still loading.
+function receiverEnabledIn(entry) {
+  return !!entry && entry.settings.receiverEnabled !== false
+}
+
 function helperVersionMatches(pluginVersion, helperVersion) {
   return String(pluginVersion || "") !== "" && String(pluginVersion) === String(helperVersion || "")
 }
@@ -95,4 +178,4 @@ function manifestVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, helperVersionMatches, manifestVersion }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, helperVersionMatches, manifestVersion }

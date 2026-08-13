@@ -8,6 +8,8 @@ Run:
 cargo test --manifest-path backend/Cargo.toml
 cargo test --manifest-path backend/vendor/localsend-rs/Cargo.toml --features https
 node tests/model.test.js
+node tests/panel-state.test.js
+node tests/service-state.test.js
 ```
 
 The suites cover peer registry retention/expiry, command correlation, request decisions,
