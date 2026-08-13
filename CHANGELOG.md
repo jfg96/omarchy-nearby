@@ -10,6 +10,14 @@
   `service` entry point that the shell loads once, and each bar widget is a
   view onto it. The IPC target was registered once per monitor for the same
   reason, and the shell kept only the first registration.
+- Keep a receiver the user turned off turned off. The setting is now read from
+  `shell.json` rather than pushed in by a bar widget. Widgets are built once per
+  monitor and receive their settings a tick after they are created, so the first
+  value one could report was the default rather than the persisted entry, and a
+  persisted `receiverEnabled: false` was replaced by the default on every start:
+  the helper ran, bound port 53317 and announced itself on the network. Reading
+  the entry directly also means the persisted setting and the effective setting
+  are the same value and cannot drift apart.
 - Retry a helper that exits before it is ready, on the same bounded schedule
   used for one that stops later. A port conflict skipped the retries entirely
   and reported a permanent failure on the first exit.
