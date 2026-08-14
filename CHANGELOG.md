@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Report a confirmed local port conflict from a structured helper event instead
+  of treating every failure before receiver startup as port 53317 being busy.
 - Run one helper per shell session instead of one per monitor. The bar builds a
   widget for every screen, so on a multi-monitor setup each extra copy started
   its own helper, lost the race for the LocalSend port, and reported "Nearby

@@ -73,6 +73,8 @@ Item {
   property bool shutdownPending: false
   property bool backendAcceptedThisRun: false
   property bool backendVersionMismatch: false
+  property string backendStartupFailureCode: ""
+  property int backendStartupFailurePort: 0
 
   // Discovery follows the popup, and the popup exists once per monitor, so
   // openness is a count rather than a flag: discovery runs while any view is
@@ -272,14 +274,18 @@ Item {
     if (!receiverEnabled) { statusText="Turned off"; errorText=""; return }
     if (backendVersionMismatch) return
     if (!backendAcceptedThisRun) {
-      // The helper ran and left before announcing itself. It reports the
-      // reason on stderr; the one a user can act on is a port already taken by
-      // another LocalSend receiver. Retry on the same bounded schedule as a
-      // receiver that dropped later, so a port that frees up is picked back up
-      // and a port that never does stops after four attempts.
-      errorText = backendRestart.attempts < 4
-        ? "Nearby receiver could not start. Retrying…"
-        : "Nearby receiver could not start. Another LocalSend app may be holding port 53317."
+      // An early exit alone does not identify its cause. The helper reports a
+      // confirmed bind conflict as a structured event before it exits; all
+      // other pre-ready failures remain generic. Both keep the existing
+      // bounded retry schedule so a transient conflict can recover.
+      if (backendRestart.attempts < 4) {
+        errorText = "Nearby receiver could not start. Retrying…"
+      } else if (backendStartupFailureCode === "receiver_port_in_use") {
+        var port = backendStartupFailurePort > 0 ? backendStartupFailurePort : 53317
+        errorText = "LocalSend receiver port " + port + " is already in use. Another LocalSend receiver on this computer may be running. Quit it and enable Nearby again."
+      } else {
+        errorText = "Nearby receiver could not start."
+      }
       statusText=errorText
     } else {
       errorText=code===0 ? "Receiver stopped" : "Receiver unavailable"
@@ -291,7 +297,11 @@ Item {
   function handleEvent(event) {
     if (!event || !event.event) return
     if (backendVersionMismatch && event.event !== "ready") return
-    if (event.event === "ready") {
+    if (event.event === "startup_failed") {
+      backendStartupFailureCode=String(event.code || "")
+      backendStartupFailurePort=Number(event.port) || 0
+    }
+    else if (event.event === "ready") {
       if (!Model.helperVersionMatches(pluginVersion, event.helperVersion)) {
         backendReady=false
         backendVersionMismatch=true
@@ -355,6 +365,8 @@ Item {
       backend.launched=true
       root.backendAcceptedThisRun=false
       root.backendVersionMismatch=false
+      root.backendStartupFailureCode=""
+      root.backendStartupFailurePort=0
     }
     // A helper that is missing rather than failing never reaches onExited:
     // Quickshell returns running to false without an exit code, the same way

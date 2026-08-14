@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::future::Future;
+use std::io::Write;
 use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -38,6 +39,16 @@ fn caused_by_port_in_use(error: &anyhow::Error) -> bool {
         cause
             .downcast_ref::<std::io::Error>()
             .is_some_and(|io| io.kind() == std::io::ErrorKind::AddrInUse)
+    })
+}
+
+fn startup_failure_event(error: &anyhow::Error) -> Option<Value> {
+    caused_by_port_in_use(error).then(|| {
+        json!({
+            "event": "startup_failed",
+            "code": "receiver_port_in_use",
+            "port": NEARBY_PORT,
+        })
     })
 }
 
@@ -775,7 +786,11 @@ async fn main() -> Result<()> {
             // A taken port is the one startup failure with an obvious remedy,
             // so it is worth saying out loud. Reinstalling the plugin, which a
             // generic failure used to suggest, never frees it.
-            if caused_by_port_in_use(&error) {
+            if let Some(event) = startup_failure_event(&error) {
+                emit(event);
+                if let Err(flush_error) = std::io::stdout().flush() {
+                    eprintln!("could not flush startup failure event: {flush_error}");
+                }
                 return Err(error.context(format!(
                     "receiver could not start: port {NEARBY_PORT} is already in use by another LocalSend receiver"
                 )));
@@ -962,6 +977,27 @@ mod tests {
         let wrapped = anyhow::Error::new(denied).context("IO error");
         assert!(!caused_by_port_in_use(&wrapped));
         assert!(!caused_by_port_in_use(&anyhow!("TLS identity unavailable")));
+    }
+
+    #[test]
+    fn port_in_use_has_a_structured_startup_failure_event() {
+        let bind = std::io::Error::new(std::io::ErrorKind::AddrInUse, "localized message");
+        let wrapped = anyhow::Error::new(bind).context("receiver could not start");
+        assert_eq!(
+            startup_failure_event(&wrapped),
+            Some(json!({
+                "event": "startup_failed",
+                "code": "receiver_port_in_use",
+                "port": 53317,
+            }))
+        );
+    }
+
+    #[test]
+    fn generic_startup_failure_has_no_port_event() {
+        let denied = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
+        let wrapped = anyhow::Error::new(denied).context("receiver could not start");
+        assert_eq!(startup_failure_event(&wrapped), None);
     }
 
     #[test]
