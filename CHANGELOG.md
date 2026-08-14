@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Keep the helper's running state bound to the receiver setting across startup
+  retries, so toggling Nearby off and on can recover after a port conflict.
+
 ## 1.0.6
 
 - Report a confirmed local port conflict from a structured helper event instead

@@ -35,6 +35,10 @@ assert.match(source, /Run the Nearby installer again or build it with \.\/build\
   "the reinstall hint belongs to the missing-helper case")
 assert.match(source, /onStarted:\s*\{[\s\S]*?backendStartupFailureCode=""[\s\S]*?backendStartupFailurePort=0/,
   "each helper attempt must discard a stale startup cause before it runs")
+assert.match(source, /id: backendRestart[\s\S]*?onTriggered:[^\n]*bindBackendRunning\(\)/,
+  "the retry timer must restore the Process.running binding")
+assert.doesNotMatch(source, /backend\.running\s*=\s*true/,
+  "a plain retry assignment would permanently remove the Process.running binding")
 
 function extractFunction(name) {
   const marker = `function ${name}`
@@ -74,7 +78,7 @@ function backendEligible(state) {
 
 const functionNames = [
   "viewOpened", "viewClosed",
-  "send", "persistReceiverEnabled", "toggleReceiver", "finishReceiverShutdown",
+  "send", "bindBackendRunning", "persistReceiverEnabled", "toggleReceiver", "finishReceiverShutdown",
   "startDiscovery", "forceFullDiscovery", "stopDiscovery", "chooseDevice", "clearTarget",
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
@@ -91,6 +95,7 @@ function engine(initial = {}) {
     Model,
     Date: {now: () => 1000},
     Quickshell: {execDetached: () => {}},
+    Qt: {binding: callback => ({callback})},
     backend: {running: true, write: line => sent.push(JSON.parse(line))},
     backendRestart: {attempts: 0, interval: 0, restart: () => {}, stop: () => {}},
     receiverShutdownFallback: {stop: () => {}, restart: () => {}},
@@ -140,6 +145,22 @@ function engine(initial = {}) {
   context.cursors = cursors
   context.signals = signals
   return context
+}
+
+{
+  // A retry must reinstall the declarative Process.running binding. Assigning
+  // a plain true removes it, so a later OFF -> ON toggle cannot start the
+  // helper after a port conflict has exhausted the retry budget.
+  const state = engine({backend: {running: false, write: () => {}}})
+  state.root = state
+  state.bindBackendRunning()
+  assert.equal(typeof state.backend.running.callback, "function")
+  assert.equal(state.backend.running.callback(), true)
+  state.receiverEnabled = false
+  assert.equal(state.backend.running.callback(), false)
+  state.receiverEnabled = true
+  assert.equal(state.backend.running.callback(), true,
+    "the restored binding must make OFF -> ON eligible to start again")
 }
 
 function incoming(requestId, sender = requestId) {
