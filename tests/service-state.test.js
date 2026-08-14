@@ -33,6 +33,8 @@ assert.match(source, /onRunningChanged:\s*\{[\s\S]*?if \(backend\.launched\) ret
   "a helper that never launched must be reported from onRunningChanged")
 assert.match(source, /Run the Nearby installer again or build it with \.\/build\.sh\./,
   "the reinstall hint belongs to the missing-helper case")
+assert.match(source, /onStarted:\s*\{[\s\S]*?backendStartupFailureCode=""[\s\S]*?backendStartupFailurePort=0/,
+  "each helper attempt must discard a stale startup cause before it runs")
 
 function extractFunction(name) {
   const marker = `function ${name}`
@@ -106,6 +108,8 @@ function engine(initial = {}) {
     shutdownPending: false,
     pluginVersion: "1.0.4",
     backendVersionMismatch: false,
+    backendStartupFailureCode: "",
+    backendStartupFailurePort: 0,
     backendReady: true,
     backendAcceptedThisRun: true,
     receiverEnabled: true,
@@ -410,9 +414,9 @@ function incoming(requestId, sender = requestId) {
 }
 
 {
-  // A helper that exits before announcing itself is the port-conflict case.
-  // It used to report a permanent failure and skip the retry schedule, so a
-  // port that freed up was never picked back up.
+  // A helper that exits before announcing itself still uses the bounded retry
+  // schedule. Its cause is independent: an early exit is not, by itself,
+  // evidence that the LocalSend port is occupied.
   const restarts = []
   const state = engine({
     backendAcceptedThisRun: false,
@@ -432,8 +436,38 @@ function incoming(requestId, sender = requestId) {
     backendRestart: {attempts: 4, interval: 0, restart: () => { throw new Error("must not retry") }, stop: () => {}},
   })
   state.handleBackendExit(1)
+  assert.match(state.errorText, /could not start/i)
+  assert.doesNotMatch(state.errorText, /53317|LocalSend/i,
+    "an unknown pre-ready failure must remain generic")
+}
+
+{
+  const restarts = []
+  const state = engine({
+    backendAcceptedThisRun: false,
+    backendRestart: {attempts: 0, interval: 0, restart() { restarts.push(this.attempts) }, stop: () => {}},
+  })
+  state.handleEvent({event: "startup_failed", code: "receiver_port_in_use", port: 53317})
+  assert.equal(state.backendStartupFailureCode, "receiver_port_in_use")
+  assert.equal(state.backendStartupFailurePort, 53317)
+  state.handleBackendExit(1)
+  assert.equal(state.backendRestart.attempts, 1,
+    "a confirmed port conflict must preserve bounded retries")
+  assert.deepEqual(restarts, [1])
+}
+
+{
+  const state = engine({
+    backendAcceptedThisRun: false,
+    backendRestart: {attempts: 4, interval: 0, restart: () => { throw new Error("must not retry") }, stop: () => {}},
+  })
+  state.handleEvent({event: "startup_failed", code: "receiver_port_in_use", port: 53317})
+  state.handleBackendExit(1)
   assert.match(state.errorText, /53317/,
-    "a port conflict that outlasts the retry schedule must name the port it lost")
+    "a confirmed port conflict that outlasts retries must name the port")
+  assert.match(state.errorText, /another LocalSend receiver/i)
+  assert.match(state.errorText, /quit it|close it/i,
+    "the final message must tell the user how to release the port")
 }
 
 {
