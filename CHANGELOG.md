@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.6
 
 - Report a confirmed local port conflict from a structured helper event instead
   of treating every failure before receiver startup as port 53317 being busy.
