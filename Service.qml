@@ -144,6 +144,14 @@ Item {
     if (!backend.running) return
     backend.write(JSON.stringify(command) + "\n")
   }
+  function bindBackendRunning() {
+    // Assigning a plain `true` here removes the declarative binding from
+    // Process.running. Reinstall the binding instead so receiver OFF -> ON can
+    // still start the helper after the retry budget has been exhausted.
+    backend.running = Qt.binding(function() {
+      return root.receiverConfigured && root.receiverEnabled && root.pluginVersion !== ""
+    })
+  }
   // receiverEnabled follows the entry, so writing the entry is what turns the
   // receiver on or off. There is no second copy of the state to keep in step.
   function persistReceiverEnabled(enabled) {
@@ -385,6 +393,6 @@ Item {
     }
     onExited: function(code) { root.handleBackendExit(code) }
   }
-  Timer { id: backendRestart; property int attempts: 0; interval: 1000; repeat: false; onTriggered: if (root.receiverEnabled && !backend.running) backend.running=true }
+  Timer { id: backendRestart; property int attempts: 0; interval: 1000; repeat: false; onTriggered: if (root.receiverEnabled && !backend.running) root.bindBackendRunning() }
   Timer { id: receiverShutdownFallback; interval: 250; repeat: false; onTriggered: root.finishReceiverShutdown() }
 }
