@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.7
 
 - Keep the helper's running state bound to the receiver setting across startup
   retries, so toggling Nearby off and on can recover after a port conflict.
