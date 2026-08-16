@@ -27,6 +27,11 @@ const CACHED_PROBE_CONCURRENCY: usize = 5;
 const MAX_SUBNET_ADDRESSES: u32 = 1024;
 const STALE_PARTIAL_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 const NEARBY_PORT: u16 = 53317;
+const MAX_OUTGOING_PIN_BYTES: usize = 4096;
+
+fn valid_outgoing_pin(pin: Option<&str>) -> bool {
+    pin.is_none_or(|value| !value.is_empty() && value.len() <= MAX_OUTGOING_PIN_BYTES)
+}
 
 /// True when a failure was caused by the LocalSend port already being bound.
 ///
@@ -917,6 +922,7 @@ async fn main() -> Result<()> {
                     Command::Decline { request_id } => { let ok=pending.lock().unwrap().remove(&request_id).is_some_and(|req|req.decline()); emit(if ok {json!({"event":"incoming_declined","requestId":request_id})} else {json!({"event":"incoming_expired","requestId":request_id})}); },
                     Command::SendFiles { transfer_id,device,paths,pin } => {
                         if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Another transfer is already active"}));continue;}
+                        if !valid_outgoing_pin(pin.as_deref()){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Invalid receiver PIN"}));continue;}
                         let (tx,rx)=oneshot::channel(); outgoing=Some(OutgoingControl{id:transfer_id.clone(),cancel:tx});
                         let (identity,certificate,done)=(identity.clone(),certificate.clone(),out_done_tx.clone()); tokio::spawn(async move {
                             let event=match send_payload(transfer_id.clone(),identity,certificate,device,paths,None,pin,rx).await {
@@ -930,6 +936,7 @@ async fn main() -> Result<()> {
                     }
                     Command::SendText { transfer_id,device,text,pin } => {
                         if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Another transfer is already active"}));continue;}
+                        if !valid_outgoing_pin(pin.as_deref()){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Invalid receiver PIN"}));continue;}
                         let (tx,rx)=oneshot::channel(); outgoing=Some(OutgoingControl{id:transfer_id.clone(),cancel:tx});
                         let (identity,certificate,done)=(identity.clone(),certificate.clone(),out_done_tx.clone()); tokio::spawn(async move {
                             let event=match send_payload(transfer_id.clone(),identity,certificate,device,vec![],Some(text),pin,rx).await {
@@ -998,6 +1005,22 @@ mod tests {
         let denied = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
         let wrapped = anyhow::Error::new(denied).context("receiver could not start");
         assert_eq!(startup_failure_event(&wrapped), None);
+    }
+
+    #[test]
+    fn outgoing_pin_validation_accepts_general_text_with_a_defensive_byte_limit() {
+        assert!(valid_outgoing_pin(None));
+        assert!(valid_outgoing_pin(Some("a+b & # % contraseña")));
+        assert!(!valid_outgoing_pin(Some("")));
+        assert!(valid_outgoing_pin(Some(
+            &"x".repeat(MAX_OUTGOING_PIN_BYTES)
+        )));
+        assert!(!valid_outgoing_pin(Some(
+            &"x".repeat(MAX_OUTGOING_PIN_BYTES + 1)
+        )));
+        assert!(!valid_outgoing_pin(Some(
+            &"ñ".repeat(MAX_OUTGOING_PIN_BYTES / 2 + 1)
+        )));
     }
 
     #[test]

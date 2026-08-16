@@ -24,6 +24,8 @@ const pendingText = {kind:"text",device:phone,text:"hello"}
 assert.equal(Model.outgoingCommand(null, "out-1", null), null)
 assert.deepEqual(Model.outgoingCommand(pendingFiles, "out-1", null), {command:"send_files",transfer_id:"out-1",device:phone,paths:["/tmp/a","/tmp/b"]})
 assert.deepEqual(Model.outgoingCommand(pendingText, "out-2", "123456"), {command:"send_text",transfer_id:"out-2",device:phone,text:"hello",pin:"123456"})
+assert.deepEqual(Model.outgoingCommand(pendingText, "out-3", "a+b & # % contraseña"),
+  {command:"send_text",transfer_id:"out-3",device:phone,text:"hello",pin:"a+b & # % contraseña"})
 assert.equal(Object.hasOwn(pendingText, "pin"), false)
 assert.equal(Model.viewAfterOutgoing(true, "success"), "incoming")
 assert.equal(Model.viewAfterOutgoing(false, "error"), "error")

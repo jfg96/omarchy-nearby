@@ -18,6 +18,12 @@ assert.match(source, /bar\.shell\.serviceFor\(manifestPluginId\)/,
   "the widget must read its state from the single service instance")
 assert.match(source, /manageIpc:\s*false/,
   "the base panel's IPC handler must stay off so the service owns the target")
+assert.equal(source.includes("Qt.ImhDigitsOnly"), false,
+  "the outgoing PIN prompt must accept the same text values as LocalSend")
+assert.equal(source.includes("RegularExpressionValidator { regularExpression: /[0-9]*/ }"), false,
+  "the outgoing PIN prompt must not silently reject non-numeric PINs")
+assert.doesNotMatch(source, /id:\s*pinInput[^\n]*maximumLength:\s*32/,
+  "the outgoing PIN prompt must not retain its old 32-character limit")
 for (const owned of ["backendRestart", "receiverShutdownFallback", "handleEvent(", "handleBackendExit("]) {
   assert.equal(source.includes(owned), false,
     `${owned} is engine state and must not be duplicated per monitor`)

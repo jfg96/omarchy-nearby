@@ -274,9 +274,7 @@ Panel {
           PanelSectionHeader { text:"RECEIVER PIN"; foreground:root.foreground; fontFamily:root.fontFamily }
           Text { width:parent.width; text:"This receiver requires a PIN"; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           TextField {
-            id: pinInput; width:parent.width; password:true; placeholderText:"PIN"; maximumLength:32; foreground:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body
-            inputMethodHints: Qt.ImhDigitsOnly
-            validator: RegularExpressionValidator { regularExpression: /[0-9]*/ }
+            id: pinInput; width:parent.width; password:true; placeholderText:"PIN"; foreground:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body
             onAccepted: root.retryWithPin()
             Keys.onPressed: function(event) { if(event.key===Qt.Key_Escape){root.cancelPin();event.accepted=true} }
           }
