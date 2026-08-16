@@ -21,6 +21,8 @@ use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
 
+mod settings;
+
 const PEER_TTL: Duration = Duration::from_secs(90);
 const MULTICAST_GRACE: Duration = Duration::from_secs(1);
 const CACHED_PROBE_CONCURRENCY: usize = 5;
@@ -88,6 +90,10 @@ enum Command {
     CancelOutgoing {
         transfer_id: String,
     },
+    SetIncomingPin {
+        pin: String,
+    },
+    DisableIncomingPin,
     Shutdown,
 }
 
@@ -724,10 +730,7 @@ async fn cleanup_stale_partial_files(directory: &Path, minimum_age: Duration) ->
 }
 
 fn load_identity(home: &Path) -> Result<TlsCertificate> {
-    let state_dir = std::env::var("XDG_STATE_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| home.join(".local/state"))
-        .join("omarchy-nearby");
+    let state_dir = settings::state_dir(home);
     std::fs::create_dir_all(&state_dir)?;
     let path = state_dir.join("identity.json");
     if let Ok(data) = std::fs::read(&path) {
@@ -755,9 +758,44 @@ fn load_identity(home: &Path) -> Result<TlsCertificate> {
     Ok(cert)
 }
 
+async fn update_incoming_pin(
+    server: &mut LocalSendServer,
+    settings_path: &Path,
+    current: &mut settings::Settings,
+    pin: Option<String>,
+) -> Result<()> {
+    let next = settings::updated(current, pin)?;
+    let previous_pin = current.incoming_pin.clone();
+    server.set_pin(next.incoming_pin.clone()).await?;
+    if let Err(error) = settings::save(settings_path, &next) {
+        server
+            .set_pin(previous_pin)
+            .await
+            .context("could not restore previous live PIN state")?;
+        return Err(error);
+    }
+    *current = next;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let home = PathBuf::from(std::env::var("HOME").context("HOME is not set")?);
+    let state_dir = settings::state_dir(&home);
+    let settings_path = state_dir.join("settings.json");
+    let mut receiver_settings = match settings::ensure_private_state_dir(&state_dir)
+        .and_then(|_| settings::load(&settings_path))
+    {
+        Ok(settings) => settings,
+        Err(error) => {
+            emit(json!({
+                "event": "startup_failed",
+                "code": "receiver_security_settings_invalid",
+            }));
+            let _ = std::io::stdout().flush();
+            return Err(error.context("receiver security settings unavailable"));
+        }
+    };
     let download_dir = xdg_download_dir(&home);
     tokio::fs::create_dir_all(&download_dir)
         .await
@@ -775,16 +813,18 @@ async fn main() -> Result<()> {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "Omarchy".into());
     let certificate = load_identity(&home).context("TLS identity unavailable")?;
-    let started = LocalSendServer::builder()
+    let mut builder = LocalSendServer::builder()
         .alias(alias)
         .port(NEARBY_PORT)
         .save_dir(&canonical_download)
         .protocol(Protocol::Https)
         .tls_certificate(certificate.clone())
-        .auto_accept(false)
-        .build()
-        .await;
-    let (server, mut events) = match started {
+        .auto_accept(false);
+    if let Some(pin) = receiver_settings.incoming_pin.clone() {
+        builder = builder.pin(pin);
+    }
+    let started = builder.build().await;
+    let (mut server, mut events) = match started {
         Ok(started) => started,
         Err(error) => {
             let error = anyhow::Error::new(error);
@@ -819,6 +859,7 @@ async fn main() -> Result<()> {
     emit(
         json!({"event":"ready","helperVersion":env!("CARGO_PKG_VERSION"),"alias":identity.alias,"directory":canonical_download,"port":server.port(),"fingerprint":identity.fingerprint}),
     );
+    emit(json!({"event":"incoming_pin_state","enabled":receiver_settings.incoming_pin.is_some()}));
     let pending = Arc::new(Mutex::new(HashMap::<String, PendingRequest>::new()));
     let pending_events = pending.clone();
     let peer_events = peer_tx.clone();
@@ -949,6 +990,18 @@ async fn main() -> Result<()> {
                         });
                     }
                     Command::CancelOutgoing { transfer_id } => if outgoing.as_ref().is_some_and(|o|o.id==transfer_id) { if let Some(control)=outgoing.take(){let _=control.cancel.send(());} },
+                    Command::SetIncomingPin { pin } => {
+                        match update_incoming_pin(&mut server,&settings_path,&mut receiver_settings,Some(pin)).await {
+                            Ok(())=>emit(json!({"event":"incoming_pin_state","enabled":true})),
+                            Err(_)=>emit(json!({"event":"incoming_pin_update_failed","message":"Unable to update incoming PIN"})),
+                        }
+                    },
+                    Command::DisableIncomingPin => {
+                        match update_incoming_pin(&mut server,&settings_path,&mut receiver_settings,None).await {
+                            Ok(())=>emit(json!({"event":"incoming_pin_state","enabled":false})),
+                            Err(_)=>emit(json!({"event":"incoming_pin_update_failed","message":"Unable to update incoming PIN"})),
+                        }
+                    },
                     Command::Shutdown => break,
                 }
             }
@@ -1095,6 +1148,149 @@ mod tests {
             serde_json::from_str::<Command>(with_pin).unwrap(),
             Command::SendText { pin: Some(pin), .. } if pin == "123456"
         ));
+    }
+
+    #[test]
+    fn incoming_pin_commands_have_distinct_set_and_disable_operations() {
+        assert!(matches!(
+            serde_json::from_str::<Command>(
+                r#"{"command":"set_incoming_pin","pin":"Abc-123"}"#
+            )
+            .unwrap(),
+            Command::SetIncomingPin { pin } if pin == "Abc-123"
+        ));
+        assert!(matches!(
+            serde_json::from_str::<Command>(r#"{"command":"disable_incoming_pin"}"#).unwrap(),
+            Command::DisableIncomingPin
+        ));
+    }
+
+    #[tokio::test]
+    async fn incoming_pin_update_persists_and_changes_the_running_server() {
+        let directory = std::env::temp_dir().join(format!(
+            "omarchy-nearby-live-pin-test-{}-{}",
+            std::process::id(),
+            FileId::new().as_str()
+        ));
+        let save_directory = directory.join("downloads");
+        tokio::fs::create_dir_all(&save_directory).await.unwrap();
+        let settings_path = directory.join("state/settings.json");
+        let (mut server, _events) = LocalSendServer::builder()
+            .alias("Live PIN")
+            .port(0)
+            .save_dir(&save_directory)
+            .protocol(Protocol::Http)
+            .auto_accept(true)
+            .build()
+            .await
+            .unwrap();
+        let mut current = settings::Settings::default();
+        update_incoming_pin(
+            &mut server,
+            &settings_path,
+            &mut current,
+            Some("Safe-1".to_string()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            settings::load(&settings_path)
+                .unwrap()
+                .incoming_pin
+                .as_deref(),
+            Some("Safe-1")
+        );
+
+        let mut target = DeviceInfo::new("Live PIN".into(), server.port(), Protocol::Http);
+        target.ip = Some("127.0.0.1".into());
+        let client = LocalSendClient::new(DeviceInfo::new("Sender".into(), 53317, Protocol::Http));
+        assert!(matches!(
+            client.prepare_upload(&target, HashMap::new(), None).await,
+            Err(LocalSendError::InvalidPin)
+        ));
+        assert!(
+            client
+                .prepare_upload(&target, HashMap::new(), Some("Safe-1"))
+                .await
+                .is_ok()
+        );
+
+        update_incoming_pin(&mut server, &settings_path, &mut current, None)
+            .await
+            .unwrap();
+        assert!(
+            client
+                .prepare_upload(&target, HashMap::new(), None)
+                .await
+                .is_ok()
+        );
+        assert!(
+            settings::load(&settings_path)
+                .unwrap()
+                .incoming_pin
+                .is_none()
+        );
+
+        server.stop();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn persistence_failure_restores_the_previous_live_pin() {
+        let directory = std::env::temp_dir().join(format!(
+            "omarchy-nearby-pin-rollback-test-{}-{}",
+            std::process::id(),
+            FileId::new().as_str()
+        ));
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let blocker = directory.join("not-a-directory");
+        tokio::fs::write(&blocker, b"block").await.unwrap();
+        let impossible_path = blocker.join("settings.json");
+        let save_directory = directory.join("downloads");
+        tokio::fs::create_dir_all(&save_directory).await.unwrap();
+        let (mut server, _events) = LocalSendServer::builder()
+            .alias("Rollback PIN")
+            .port(0)
+            .save_dir(&save_directory)
+            .protocol(Protocol::Http)
+            .pin("Old-1")
+            .auto_accept(true)
+            .build()
+            .await
+            .unwrap();
+        let mut current =
+            settings::updated(&settings::Settings::default(), Some("Old-1".to_string())).unwrap();
+
+        assert!(
+            update_incoming_pin(
+                &mut server,
+                &impossible_path,
+                &mut current,
+                Some("New-1".to_string())
+            )
+            .await
+            .is_err()
+        );
+        assert_eq!(current.incoming_pin.as_deref(), Some("Old-1"));
+
+        let mut target = DeviceInfo::new("Rollback PIN".into(), server.port(), Protocol::Http);
+        target.ip = Some("127.0.0.1".into());
+        let client = LocalSendClient::new(DeviceInfo::new("Sender".into(), 53317, Protocol::Http));
+        assert!(
+            client
+                .prepare_upload(&target, HashMap::new(), Some("Old-1"))
+                .await
+                .is_ok()
+        );
+        assert!(matches!(
+            client
+                .prepare_upload(&target, HashMap::new(), Some("New-1"))
+                .await,
+            Err(LocalSendError::InvalidPin)
+        ));
+
+        server.stop();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[test]
