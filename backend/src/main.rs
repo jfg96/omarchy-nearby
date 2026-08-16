@@ -765,14 +765,15 @@ async fn update_incoming_pin(
     pin: Option<String>,
 ) -> Result<()> {
     let next = settings::updated(current, pin)?;
-    let previous_pin = current.incoming_pin.clone();
-    server.set_pin(next.incoming_pin.clone()).await?;
-    if let Err(error) = settings::save(settings_path, &next) {
-        server
-            .set_pin(previous_pin)
-            .await
-            .context("could not restore previous live PIN state")?;
-        return Err(error);
+    let previous = current.clone();
+    settings::save(settings_path, &next)?;
+    if let Err(live_error) = server.set_pin(next.incoming_pin.clone()).await {
+        if let Err(rollback_error) = settings::save(settings_path, &previous) {
+            return Err(anyhow!(
+                "could not apply live PIN state ({live_error}); could not restore persisted PIN state: {rollback_error:#}"
+            ));
+        }
+        return Err(live_error.into());
     }
     *current = next;
     Ok(())
@@ -1291,9 +1292,70 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn persistence_failure_restores_the_previous_live_pin() {
+    async fn persistence_failure_preserves_the_previous_lockout() {
         let directory = std::env::temp_dir().join(format!(
             "omarchy-nearby-pin-rollback-test-{}-{}",
+            std::process::id(),
+            FileId::new().as_str()
+        ));
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let blocker = directory.join("not-a-directory");
+        tokio::fs::write(&blocker, b"block").await.unwrap();
+        let impossible_path = blocker.join("settings.json");
+        let save_directory = directory.join("downloads");
+        tokio::fs::create_dir_all(&save_directory).await.unwrap();
+        let (mut server, _events) = LocalSendServer::builder()
+            .alias("Rollback PIN")
+            .port(0)
+            .save_dir(&save_directory)
+            .protocol(Protocol::Http)
+            .pin("Old-1")
+            .auto_accept(true)
+            .build()
+            .await
+            .unwrap();
+        let mut current =
+            settings::updated(&settings::Settings::default(), Some("Old-1".to_string())).unwrap();
+
+        let mut target = DeviceInfo::new("Rollback PIN".into(), server.port(), Protocol::Http);
+        target.ip = Some("127.0.0.1".into());
+        let client = LocalSendClient::new(DeviceInfo::new("Sender".into(), 53317, Protocol::Http));
+        for _ in 0..3 {
+            assert!(matches!(
+                client
+                    .prepare_upload(&target, HashMap::new(), Some("wrong"))
+                    .await,
+                Err(LocalSendError::InvalidPin)
+            ));
+        }
+        assert!(matches!(
+            client
+                .prepare_upload(&target, HashMap::new(), Some("Old-1"))
+                .await,
+            Err(LocalSendError::RateLimited)
+        ));
+
+        assert!(
+            update_incoming_pin(&mut server, &impossible_path, &mut current, None)
+                .await
+                .is_err()
+        );
+        assert_eq!(current.incoming_pin.as_deref(), Some("Old-1"));
+        assert!(matches!(
+            client
+                .prepare_upload(&target, HashMap::new(), Some("Old-1"))
+                .await,
+            Err(LocalSendError::RateLimited)
+        ));
+
+        server.stop();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn persistence_failure_preserves_the_previous_live_pin() {
+        let directory = std::env::temp_dir().join(format!(
+            "omarchy-nearby-pin-credential-test-{}-{}",
             std::process::id(),
             FileId::new().as_str()
         ));
