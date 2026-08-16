@@ -103,6 +103,22 @@ impl LocalSendServer {
         self.auto_accept.load(Ordering::Relaxed)
     }
 
+    /// Change receiver-side PIN protection without restarting the listener.
+    /// The new value applies to future authentication checks and resets all
+    /// failure counters associated with the previous credential.
+    pub async fn set_pin(&mut self, pin: Option<String>) -> crate::Result<()> {
+        let state = self
+            .state
+            .as_ref()
+            .ok_or_else(|| crate::error::LocalSendError::invalid_state("Server is not running"))?;
+        {
+            let mut state = state.write().await;
+            state.pin_gate.set_pin(pin.clone());
+        }
+        self.pin = pin;
+        Ok(())
+    }
+
     #[cfg(feature = "https")]
     pub fn set_tls_certificate(&mut self, cert: crate::crypto::TlsCertificate) {
         self.tls_cert = Some(cert);

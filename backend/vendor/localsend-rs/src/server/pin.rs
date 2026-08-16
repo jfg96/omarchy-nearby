@@ -50,6 +50,11 @@ impl PinGate {
             None => PinVerdict::Unauthorized,
         }
     }
+
+    pub fn set_pin(&mut self, pin: Option<String>) {
+        self.pin = pin;
+        self.failures.clear();
+    }
 }
 
 /// Length-leaking-free comparison without extra deps.
@@ -128,5 +133,23 @@ mod tests {
 
         assert_eq!(g.failures.len(), FAILURE_CACHE_CAPACITY);
         assert!(g.failures.peek(&first).is_none());
+    }
+
+    #[test]
+    fn changing_or_disabling_pin_clears_failure_state() {
+        let mut g = PinGate::new(Some("old".to_string()));
+        for _ in 0..MAX_FAILURES {
+            assert_eq!(g.check(Some("bad"), PEER), PinVerdict::Unauthorized);
+        }
+        assert_eq!(g.check(Some("old"), PEER), PinVerdict::LockedOut);
+
+        g.set_pin(Some("new".to_string()));
+        assert_eq!(g.check(Some("old"), PEER), PinVerdict::Unauthorized);
+        assert_eq!(g.check(Some("new"), PEER), PinVerdict::Ok);
+
+        g.check(Some("bad"), PEER);
+        g.set_pin(None);
+        assert_eq!(g.check(None, PEER), PinVerdict::Ok);
+        assert!(g.failures.is_empty());
     }
 }

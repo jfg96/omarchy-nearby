@@ -84,3 +84,72 @@ async fn correct_pin_passes() {
     assert!(body["sessionId"].is_string());
     assert!(body["files"]["f1"].is_string());
 }
+
+#[tokio::test]
+async fn live_pin_changes_apply_without_restart_and_clear_lockout() {
+    let save = tempfile::tempdir().unwrap();
+    let (mut server, _events) = LocalSendServer::builder()
+        .alias("Live PIN")
+        .port(0)
+        .save_dir(save.path())
+        .protocol(Protocol::Http)
+        .auto_accept(true)
+        .build()
+        .await
+        .unwrap();
+    let port = server.port();
+    common::wait_for_http_info(port).await;
+    let base = format!("http://127.0.0.1:{port}/api/localsend/v2/prepare-upload");
+    let http = reqwest::Client::new();
+    let empty = json!({
+        "info": minimal_prepare_body()["info"].clone(),
+        "files": {}
+    });
+
+    let status = http.post(&base).json(&empty).send().await.unwrap().status();
+    assert_eq!(status, 204);
+
+    server.set_pin(Some("old".to_string())).await.unwrap();
+    let status = http.post(&base).json(&empty).send().await.unwrap().status();
+    assert_eq!(status, 401);
+    for _ in 0..3 {
+        let status = http
+            .post(format!("{base}?pin=bad"))
+            .json(&empty)
+            .send()
+            .await
+            .unwrap()
+            .status();
+        assert_eq!(status, 401);
+    }
+    let status = http
+        .post(format!("{base}?pin=old"))
+        .json(&empty)
+        .send()
+        .await
+        .unwrap()
+        .status();
+    assert_eq!(status, 429);
+
+    server.set_pin(Some("new".to_string())).await.unwrap();
+    let status = http
+        .post(format!("{base}?pin=old"))
+        .json(&empty)
+        .send()
+        .await
+        .unwrap()
+        .status();
+    assert_eq!(status, 401);
+    let status = http
+        .post(format!("{base}?pin=new"))
+        .json(&empty)
+        .send()
+        .await
+        .unwrap()
+        .status();
+    assert_eq!(status, 204);
+
+    server.set_pin(None).await.unwrap();
+    let status = http.post(&base).json(&empty).send().await.unwrap().status();
+    assert_eq!(status, 204);
+}
