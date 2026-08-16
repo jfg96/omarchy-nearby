@@ -16,7 +16,10 @@ The suites cover peer registry retention/expiry, command correlation, request de
 cancel/completed/failed event separation, truncated and checksum-mismatched uploads,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
-an upload is still active.
+an upload is still active. Incoming-PIN coverage includes secure startup,
+atomic persistence and rollback, exact `401`/`429` behavior, bounded per-IP
+failure state, text/file authorization before events, live PIN changes and an
+already authorized upload continuing after a change.
 
 ## Manual interoperability matrix
 
@@ -54,6 +57,23 @@ non-guest LAN. Confirm TCP and UDP 53317 are allowed.
    TCP/UDP 53317 listener or helper process.
 10. Test aliases, filenames and text containing `<b>`, quotes, `$()`, newlines and emoji.
     They must render literally and must not execute commands or markup.
+11. Enable Nearby incoming PIN `123456`. From official LocalSend, verify missing
+    and incorrect PINs do not surface a request, while the correct PIN reaches
+    the normal Accept/Decline flow for both text and files.
+12. Repeat with incoming PIN `Abc-_.~09`, then change it while discovery remains
+    active. The old value must fail, the new value must work and the receiver
+    must keep the same listening port.
+13. Begin and accept a file transfer, change the incoming PIN while it is in
+    progress and confirm that the transfer completes byte-for-byte.
+14. Restart Nearby and confirm the saved PIN is required on the first request.
+    Disable it and confirm a subsequent request no longer prompts for a PIN.
+15. Configure official LocalSend receiver PINs containing a space, Unicode and
+    each of `+`, `&`, `#` and `%`; verify Nearby can send text and files using
+    each exact value.
+
+Before releasing v1.1.0, record the exact Android and iOS LocalSend versions
+used for steps 11–15 here. These real-device checks are not considered complete
+until those versions and results are written down.
 
 The protocol's current main branch identifies itself as v2.2. Nearby remains wire-compatible
 with v2.1 and also returns v2.2's `422` for a declared SHA-256 mismatch. Discovery fingerprints

@@ -1177,7 +1177,7 @@ dependencies = [
 
 [[package]]
 name = "omarchy-nearby-helper"
-version = "1.0.7"
+version = "1.1.0-dev"
 dependencies = [
  "anyhow",
  "localsend-rs",
