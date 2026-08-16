@@ -209,8 +209,8 @@ Item {
   function chooseDevice(index) { if (index >= 0 && index < devices.length) { selectedDevice = devices[index]; viewState = "target"; cursorRequested(0) } }
   function clearTarget() { viewState = "nearby"; selectedDevice = null; cursorRequested(0) }
   function openIncomingPinSettings() { if(!backendReady)return; incomingPinError=""; viewState="incoming_pin_settings"; cursorRequested(0) }
-  function beginIncomingPinEdit() { if(incomingPinUpdating)return; incomingPinError=""; viewState="incoming_pin_edit"; incomingPinCleared(); incomingPinFocusRequested() }
-  function requestDisableIncomingPin() { if(incomingPinUpdating||!incomingPinEnabled)return; incomingPinError=""; viewState="incoming_pin_disable"; cursorRequested(0) }
+  function beginIncomingPinEdit() { if(incomingPinUpdating||!backendReady)return; incomingPinError=""; viewState="incoming_pin_edit"; incomingPinCleared(); incomingPinFocusRequested() }
+  function requestDisableIncomingPin() { if(incomingPinUpdating||!backendReady||!incomingPinEnabled)return; incomingPinError=""; viewState="incoming_pin_disable"; cursorRequested(0) }
   function cancelIncomingPinSettings() {
     if(incomingPinUpdating)return
     incomingPinError=""; incomingPinCleared()
@@ -218,14 +218,14 @@ Item {
     else{viewState="nearby";cursorRequested(0);focusRestoreRequested()}
   }
   function submitIncomingPin(pin) {
-    if(incomingPinUpdating)return
+    if(incomingPinUpdating||!backendReady)return
     var entered=String(pin || "")
     if(!/^[A-Za-z0-9._~-]{1,64}$/.test(entered)){incomingPinError="Use 1–64 letters, numbers, dot, underscore, tilde or hyphen";incomingPinFocusRequested();return}
     incomingPinUpdating=true; pendingIncomingPinEnabled=true; incomingPinError=""
     send({command:"set_incoming_pin",pin:entered})
   }
   function confirmDisableIncomingPin() {
-    if(incomingPinUpdating||!incomingPinEnabled)return
+    if(incomingPinUpdating||!backendReady||!incomingPinEnabled)return
     incomingPinUpdating=true; pendingIncomingPinEnabled=false; incomingPinError=""
     send({command:"disable_incoming_pin"})
   }
@@ -327,7 +327,8 @@ Item {
     } else {
       errorText=code===0 ? "Receiver stopped" : "Receiver unavailable"
       statusText=errorText
-      if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; errorText="Nearby backend stopped during transfer"; statusText=errorText }
+      if (viewState.indexOf("incoming_pin_")===0) { viewState="error"; errorText="Nearby backend stopped while updating receiver security"; statusText=errorText }
+      else if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; errorText="Nearby backend stopped during transfer"; statusText=errorText }
     }
     if (backendStartupFailureCode !== "receiver_security_settings_invalid" && backendRestart.attempts < 4) { backendRestart.attempts++; backendRestart.interval=Math.min(30000,1000*Math.pow(2,backendRestart.attempts-1)); backendRestart.restart() }
   }

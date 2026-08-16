@@ -219,6 +219,22 @@ function incoming(requestId, sender = requestId) {
 }
 
 {
+  const state = engine({
+    backendReady: false,
+    viewState: "incoming_pin_settings",
+    incomingPinEnabled: true,
+  })
+  state.beginIncomingPinEdit()
+  state.requestDisableIncomingPin()
+  state.submitIncomingPin("Safe-1")
+  state.confirmDisableIncomingPin()
+  assert.equal(state.viewState, "incoming_pin_settings")
+  assert.equal(state.incomingPinUpdating, false)
+  assert.equal(state.sent.length, 0,
+    "receiver security controls must not queue an update while the helper is unavailable")
+}
+
+{
   const state = engine({viewState: "incoming_pin_edit"})
   const before = state.signals.incomingPinCleared
   state.handleEvent(incoming("authenticated"))
@@ -511,6 +527,14 @@ function incoming(requestId, sender = requestId) {
   assert.equal(state.incoming, null)
   assert.equal(state.activeIncomingSession, "")
   assert.equal(state.viewState, "error", "helper exit must not leave an empty incoming view")
+}
+
+{
+  const state = engine({viewState: "incoming_pin_edit"})
+  state.handleBackendExit(1)
+  assert.equal(state.viewState, "error",
+    "helper exit must not leave receiver security controls connected to nothing")
+  assert.match(state.errorText, /receiver security/i)
 }
 
 {
