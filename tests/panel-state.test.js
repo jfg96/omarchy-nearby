@@ -34,6 +34,8 @@ assert.match(source, /onCursorRequested\(index\)\s*\{\s*root\.selectedIndex = in
   "the engine asks each view to move its own cursor rather than holding one")
 assert.match(source, /onOpenedChanged[\s\S]*?if \(root\.viewState==="pin"\) pinInput\.forceActiveFocus\(\)/,
   "reopening a pending PIN prompt must restore focus to its input")
+assert.match(source, /onOpenedChanged:[\s\S]*?else \{ clearSecretInputs\(\); syncOpenState\(\) \}/,
+  "closing a popup must clear locally retained PIN values")
 assert.match(source, /Component\.onDestruction:\s*if \(engine && viewRegistered\) engine\.viewClosed\(\)/,
   "a view torn down while open must release its claim on discovery")
 assert.match(source, /viewState === "incoming_pin_settings"\) return incomingPinEnabled \? "Protection enabled" : "Protection disabled"/,
@@ -107,6 +109,7 @@ const functionNames = [
   "cancelOutgoing", "cancelPin", "retryWithPin", "failWith", "noteTextCopied", "beginOutgoing",
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
+  "clearSecretInputs",
   "goBack", "selectFiles", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
 ]
 
@@ -308,6 +311,15 @@ function callNames(state) {
   state.retryWithPin()
   assert.deepEqual(state.engine.calls.at(-1), ["retryWithPin", "123456"],
     "the PIN is read from this monitor's field and handed to the shared engine")
+}
+
+{
+  const state = panel()
+  state.pinInput.text = "outgoing-secret"
+  state.incomingPinInput.text = "incoming-secret"
+  state.clearSecretInputs()
+  assert.equal(state.pinInput.text, "")
+  assert.equal(state.incomingPinInput.text, "")
 }
 
 {

@@ -121,6 +121,7 @@ Panel {
   function cancelIncomingPinSettings() { if (engine) engine.cancelIncomingPinSettings() }
   function submitIncomingPin() { if (engine) engine.submitIncomingPin(String(incomingPinInput.text || "")) }
   function confirmDisableIncomingPin() { if (engine) engine.confirmDisableIncomingPin() }
+  function clearSecretInputs() { pinInput.text = ""; incomingPinInput.text = "" }
   function failWith(message) { if (engine) engine.failWith(message) }
   function noteTextCopied() { if (engine) engine.noteTextCopied() }
   function beginOutgoing(pending) { if (engine) engine.beginOutgoing(pending) }
@@ -170,7 +171,7 @@ Panel {
       cursorActive=false; selectedIndex=-1; nearbyPhraseIndex=0
       syncOpenState()
       Qt.callLater(function(){ if (root.viewState==="pin") pinInput.forceActiveFocus(); else if(root.viewState==="incoming_pin_edit")incomingPinInput.forceActiveFocus(); else keyCatcher.forceActiveFocus() })
-    } else { syncOpenState() }
+    } else { clearSecretInputs(); syncOpenState() }
   }
 
   Timer {
