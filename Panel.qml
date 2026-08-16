@@ -46,6 +46,9 @@ Panel {
   readonly property string transferName: engine ? engine.transferName : ""
   readonly property string transferPeer: engine ? engine.transferPeer : ""
   readonly property string pinError: engine ? engine.pinError : ""
+  readonly property bool incomingPinEnabled: engine ? engine.incomingPinEnabled : false
+  readonly property bool incomingPinUpdating: engine ? engine.incomingPinUpdating : false
+  readonly property string incomingPinError: engine ? engine.incomingPinError : ""
 
   // Cursor and popup focus are per monitor, so they stay here.
   property int selectedIndex: 0
@@ -93,6 +96,8 @@ Panel {
     function onCursorRequested(index) { root.selectedIndex = index }
     function onPinCleared() { pinInput.text = "" }
     function onPinFocusRequested() { if (root.opened) Qt.callLater(function(){ pinInput.forceActiveFocus() }) }
+    function onIncomingPinCleared() { incomingPinInput.text = "" }
+    function onIncomingPinFocusRequested() { if (root.opened) Qt.callLater(function(){ incomingPinInput.forceActiveFocus() }) }
     function onFocusRestoreRequested() { if (root.opened) Qt.callLater(function(){ keyCatcher.forceActiveFocus() }) }
   }
 
@@ -107,10 +112,16 @@ Panel {
   function cancelOutgoing() { if (engine) engine.cancelOutgoing() }
   function cancelPin() { if (engine) engine.cancelPin() }
   function retryWithPin() { if (engine) engine.retryWithPin(String(pinInput.text || "")) }
+  function openIncomingPinSettings() { if (engine) engine.openIncomingPinSettings() }
+  function beginIncomingPinEdit() { if (engine) engine.beginIncomingPinEdit() }
+  function requestDisableIncomingPin() { if (engine) engine.requestDisableIncomingPin() }
+  function cancelIncomingPinSettings() { if (engine) engine.cancelIncomingPinSettings() }
+  function submitIncomingPin() { if (engine) engine.submitIncomingPin(String(incomingPinInput.text || "")) }
+  function confirmDisableIncomingPin() { if (engine) engine.confirmDisableIncomingPin() }
   function failWith(message) { if (engine) engine.failWith(message) }
   function noteTextCopied() { if (engine) engine.noteTextCopied() }
   function beginOutgoing(pending) { if (engine) engine.beginOutgoing(pending) }
-  function goBack() { if (viewState === "pin") cancelPin(); else if (viewState === "target") { if (engine) engine.clearTarget() } else close() }
+  function goBack() { if (viewState === "pin") cancelPin(); else if (viewState.indexOf("incoming_pin_")===0) cancelIncomingPinSettings(); else if (viewState === "target") { if (engine) engine.clearTarget() } else close() }
 
   // The chooser and the clipboard belong to the monitor the user acted on, so
   // they stay with the view and hand their result to the engine.
@@ -121,17 +132,20 @@ Panel {
   function moveCursor(dx, dy) {
     cursorActive = true
     if (viewState === "nearby") {
-      if (dy !== 0) selectedIndex = Math.max(-1, Math.min(devices.length, selectedIndex + dy))
+      var lastNearbyIndex=receiverEnabled&&backendReady ? devices.length+1 : Math.max(-1,devices.length-1)
+      if (dy !== 0) selectedIndex = Math.max(-1, Math.min(lastNearbyIndex, selectedIndex + dy))
       return
     }
-    var count = viewState === "target" ? 2 : ((viewState === "incoming" || viewState === "text") ? 2 : 1)
+    var count = viewState === "target" ? 2 : ((viewState === "incoming" || viewState === "text" || viewState === "incoming_pin_disable") ? 2 : (viewState === "incoming_pin_settings" ? (incomingPinEnabled ? 2 : 1) : 1))
     if (count > 0 && dy !== 0) selectedIndex = Math.max(0, Math.min(count - 1, selectedIndex + dy))
   }
   function activateCursor() {
-    if (viewState === "nearby") selectedIndex < 0 ? toggleReceiver() : (selectedIndex === devices.length ? forceFullDiscovery() : chooseDevice(selectedIndex))
+    if (viewState === "nearby") selectedIndex < 0 ? toggleReceiver() : (selectedIndex === devices.length ? forceFullDiscovery() : (selectedIndex === devices.length+1 ? openIncomingPinSettings() : chooseDevice(selectedIndex)))
     else if (viewState === "target") selectedIndex === 0 ? selectFiles() : sendClipboard()
     else if (viewState === "incoming") selectedIndex === 0 ? declineIncoming() : acceptIncoming()
     else if (viewState === "text") { if(selectedIndex===0)copyReceivedText(); else finishText() }
+    else if (viewState === "incoming_pin_settings") incomingPinEnabled ? (selectedIndex===0?beginIncomingPinEdit():requestDisableIncomingPin()) : beginIncomingPinEdit()
+    else if (viewState === "incoming_pin_disable") selectedIndex===0 ? cancelIncomingPinSettings() : confirmDisableIncomingPin()
     else if (viewState === "sending") cancelOutgoing()
     else if (viewState === "success" || viewState === "error") finishTerminal()
   }
@@ -140,7 +154,7 @@ Panel {
     if (opened) {
       cursorActive=false; selectedIndex=-1; nearbyPhraseIndex=0
       syncOpenState()
-      Qt.callLater(function(){ if (root.viewState==="pin") pinInput.forceActiveFocus(); else keyCatcher.forceActiveFocus() })
+      Qt.callLater(function(){ if (root.viewState==="pin") pinInput.forceActiveFocus(); else if(root.viewState==="incoming_pin_edit")incomingPinInput.forceActiveFocus(); else keyCatcher.forceActiveFocus() })
     } else { syncOpenState() }
   }
 
@@ -223,7 +237,7 @@ Panel {
     contentHeight: panel.fittedContentHeight(content.implicitHeight, Style.space(560))
     PanelKeyCatcher {
       id: keyCatcher; anchors.fill: parent
-      blocked: root.viewState==="pin" && pinInput.activeFocus
+      blocked: (root.viewState==="pin" && pinInput.activeFocus)||(root.viewState==="incoming_pin_edit"&&incomingPinInput.activeFocus)
       onMoveRequested: function(dx,dy){root.moveCursor(dx,dy)}
       onActivateRequested: root.activateCursor()
       onCloseRequested: root.goBack()
@@ -231,7 +245,7 @@ Panel {
         id: content; width: parent.width; spacing: Style.space(12)
         PanelHero {
           id: hero
-          title: (root.viewState === "target" || root.viewState === "pin") && root.selectedDevice ? root.selectedDevice.alias : (root.viewState === "incoming" ? "Incoming" : "Nearby")
+          title: root.viewState.indexOf("incoming_pin_")===0 ? "Incoming PIN" : ((root.viewState === "target" || root.viewState === "pin") && root.selectedDevice ? root.selectedDevice.alias : (root.viewState === "incoming" ? "Incoming" : "Nearby"))
           meta: root.heroMetaText
           detail: ""
           foreground: root.foreground; fontFamily: root.fontFamily
@@ -260,6 +274,7 @@ Panel {
             Button { required property var modelData; required property int index; width:parent.width; leftAlign:true; bordered:false; iconText:Model.iconFor(modelData.deviceType); text:modelData.alias; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===index; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=index}}; onClicked:root.chooseDevice(index) }
           }
           Button { visible:root.receiverEnabled&&root.backendReady; width:parent.width; leftAlign:true; bordered:false; iconText:"󰑐"; text:"Search for new devices"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=root.devices.length}}; onClicked:root.forceFullDiscovery() }
+          Button { visible:root.receiverEnabled&&root.backendReady; width:parent.width; leftAlign:true; bordered:false; iconText:"󰌾"; text:"Incoming PIN · "+(root.incomingPinEnabled?"On":"Off"); foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=root.devices.length+1}}; onClicked:root.openIncomingPinSettings() }
         }
 
         Column {
@@ -282,6 +297,46 @@ Panel {
           Row { width:parent.width; spacing:Style.space(8)
             Button { width:(parent.width-parent.spacing)/2; text:"Cancel"; bordered:true; foreground:root.dim; onClicked:root.cancelPin() }
             Button { width:(parent.width-parent.spacing)/2; text:"Retry"; bordered:true; foreground:root.foreground; onClicked:root.retryWithPin() }
+          }
+        }
+
+        Column {
+          visible: root.viewState === "incoming_pin_settings"; width:parent.width; spacing:Style.space(8)
+          PanelSectionHeader { text:"INCOMING TRANSFERS"; foreground:root.foreground; fontFamily:root.fontFamily }
+          Text { width:parent.width; text:root.incomingPinEnabled?"PIN protection is enabled":"PIN protection is disabled"; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Button { visible:!root.incomingPinEnabled; width:parent.width; text:"Enable PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:root.beginIncomingPinEdit() }
+          Row { visible:root.incomingPinEnabled; width:parent.width; spacing:Style.space(8)
+            Button { width:(parent.width-parent.spacing)/2; text:"Change PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:root.beginIncomingPinEdit() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Disable PIN"; bordered:true; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onClicked:root.requestDisableIncomingPin() }
+          }
+          Text { visible:root.incomingPinError!==""; width:parent.width; text:root.incomingPinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
+        }
+
+        Column {
+          visible: root.viewState === "incoming_pin_edit"; width:parent.width; spacing:Style.space(8)
+          PanelSectionHeader { text:root.incomingPinEnabled?"CHANGE PIN":"ENABLE PIN"; foreground:root.foreground; fontFamily:root.fontFamily }
+          Text { width:parent.width; text:"Use 1–64 letters, numbers, dot, underscore, tilde or hyphen"; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
+          TextField {
+            id:incomingPinInput; width:parent.width; password:true; placeholderText:"New PIN"; maximumLength:64; enabled:!root.incomingPinUpdating; foreground:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body
+            validator:RegularExpressionValidator { regularExpression:/[A-Za-z0-9._~-]{0,64}/ }
+            onAccepted:root.submitIncomingPin()
+            Keys.onPressed:function(event){if(event.key===Qt.Key_Escape){root.cancelIncomingPinSettings();event.accepted=true}}
+          }
+          Text { visible:root.incomingPinError!==""; width:parent.width; text:root.incomingPinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
+          Row { width:parent.width; spacing:Style.space(8)
+            Button { width:(parent.width-parent.spacing)/2; text:"Cancel"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.dim; onClicked:root.cancelIncomingPinSettings() }
+            Button { width:(parent.width-parent.spacing)/2; text:root.incomingPinUpdating?"Saving…":"Save"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.foreground; onClicked:root.submitIncomingPin() }
+          }
+        }
+
+        Column {
+          visible: root.viewState === "incoming_pin_disable"; width:parent.width; spacing:Style.space(8)
+          PanelSectionHeader { text:"DISABLE PIN"; foreground:root.foreground; fontFamily:root.fontFamily }
+          Text { width:parent.width; text:"New incoming requests will no longer require a PIN."; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
+          Text { visible:root.incomingPinError!==""; width:parent.width; text:root.incomingPinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
+          Row { width:parent.width; spacing:Style.space(8)
+            Button { width:(parent.width-parent.spacing)/2; text:"Cancel"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.dim; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:root.cancelIncomingPinSettings() }
+            Button { width:(parent.width-parent.spacing)/2; text:root.incomingPinUpdating?"Disabling…":"Disable"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onClicked:root.confirmDisableIncomingPin() }
           }
         }
 

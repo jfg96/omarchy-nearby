@@ -69,6 +69,10 @@ Item {
   property string outgoingTransferId: ""
   property var pendingOutgoing: null
   property string pinError: ""
+  property bool incomingPinEnabled: false
+  property bool incomingPinUpdating: false
+  property var pendingIncomingPinEnabled: null
+  property string incomingPinError: ""
   property int transferSequence: 0
   property bool shutdownPending: false
   property bool backendAcceptedThisRun: false
@@ -88,6 +92,8 @@ Item {
   signal cursorRequested(int index)
   signal pinCleared()
   signal pinFocusRequested()
+  signal incomingPinCleared()
+  signal incomingPinFocusRequested()
   signal focusRestoreRequested()
 
   FileView {
@@ -202,6 +208,27 @@ Item {
   function stopDiscovery() { discoveryActive = false; send({command:"discovery_stop"}) }
   function chooseDevice(index) { if (index >= 0 && index < devices.length) { selectedDevice = devices[index]; viewState = "target"; cursorRequested(0) } }
   function clearTarget() { viewState = "nearby"; selectedDevice = null; cursorRequested(0) }
+  function openIncomingPinSettings() { if(!backendReady)return; incomingPinError=""; viewState="incoming_pin_settings"; cursorRequested(0) }
+  function beginIncomingPinEdit() { if(incomingPinUpdating)return; incomingPinError=""; viewState="incoming_pin_edit"; incomingPinCleared(); incomingPinFocusRequested() }
+  function requestDisableIncomingPin() { if(incomingPinUpdating||!incomingPinEnabled)return; incomingPinError=""; viewState="incoming_pin_disable"; cursorRequested(0) }
+  function cancelIncomingPinSettings() {
+    if(incomingPinUpdating)return
+    incomingPinError=""; incomingPinCleared()
+    if(viewState==="incoming_pin_edit"||viewState==="incoming_pin_disable"){viewState="incoming_pin_settings";cursorRequested(0)}
+    else{viewState="nearby";cursorRequested(0);focusRestoreRequested()}
+  }
+  function submitIncomingPin(pin) {
+    if(incomingPinUpdating)return
+    var entered=String(pin || "")
+    if(!/^[A-Za-z0-9._~-]{1,64}$/.test(entered)){incomingPinError="Use 1–64 letters, numbers, dot, underscore, tilde or hyphen";incomingPinFocusRequested();return}
+    incomingPinUpdating=true; pendingIncomingPinEnabled=true; incomingPinError=""
+    send({command:"set_incoming_pin",pin:entered})
+  }
+  function confirmDisableIncomingPin() {
+    if(incomingPinUpdating||!incomingPinEnabled)return
+    incomingPinUpdating=true; pendingIncomingPinEnabled=false; incomingPinError=""
+    send({command:"disable_incoming_pin"})
+  }
   function failWith(message) { viewState="error"; errorText=message; statusText=errorText }
   function cancelOutgoing() { send({command:"cancel_outgoing",transfer_id:outgoingTransferId}) }
   function noteTextCopied() { if (viewState !== "text") return; viewState="success"; statusText="Received" }
@@ -277,7 +304,7 @@ Item {
   function finishText() { incomingText=""; incomingTextPending=false; viewState="nearby"; cursorRequested(0); startDiscovery() }
   function finishTerminal() { viewState="nearby"; cursorRequested(0); startDiscovery() }
   function handleBackendExit(code) {
-    backendReady=false; discoveryActive=false; incomingQueue=[]; incomingTextPending=false; activeIncomingSession=""; clearPendingOutgoing()
+    backendReady=false; discoveryActive=false; incomingQueue=[]; incomingTextPending=false; activeIncomingSession=""; incomingPinUpdating=false; pendingIncomingPinEnabled=null; incomingPinError=""; incomingPinCleared(); clearPendingOutgoing()
     if (shutdownPending) { finishReceiverShutdown(); return }
     if (!receiverEnabled) { statusText="Turned off"; errorText=""; return }
     if (backendVersionMismatch) return
@@ -286,7 +313,9 @@ Item {
       // confirmed bind conflict as a structured event before it exits; all
       // other pre-ready failures remain generic. Both keep the existing
       // bounded retry schedule so a transient conflict can recover.
-      if (backendRestart.attempts < 4) {
+      if (backendStartupFailureCode === "receiver_security_settings_invalid") {
+        errorText = "Nearby security settings are invalid. Repair or remove ~/.local/state/omarchy-nearby/settings.json."
+      } else if (backendRestart.attempts < 4) {
         errorText = "Nearby receiver could not start. Retrying…"
       } else if (backendStartupFailureCode === "receiver_port_in_use") {
         var port = backendStartupFailurePort > 0 ? backendStartupFailurePort : 53317
@@ -300,7 +329,7 @@ Item {
       statusText=errorText
       if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; errorText="Nearby backend stopped during transfer"; statusText=errorText }
     }
-    if (backendRestart.attempts < 4) { backendRestart.attempts++; backendRestart.interval=Math.min(30000,1000*Math.pow(2,backendRestart.attempts-1)); backendRestart.restart() }
+    if (backendStartupFailureCode !== "receiver_security_settings_invalid" && backendRestart.attempts < 4) { backendRestart.attempts++; backendRestart.interval=Math.min(30000,1000*Math.pow(2,backendRestart.attempts-1)); backendRestart.restart() }
   }
   function handleEvent(event) {
     if (!event || !event.event) return
@@ -320,11 +349,19 @@ Item {
       }
       backendAcceptedThisRun=true; backendReady=true; backendVersionMismatch=false; backendRestart.attempts=0; statusText="Ready to receive"; errorText=""; if(anyViewOpen&&viewState==="nearby")startDiscovery()
     }
+    else if (event.event === "incoming_pin_state") {
+      incomingPinEnabled=event.enabled===true
+      if(pendingIncomingPinEnabled!==null){var enabled=pendingIncomingPinEnabled===true;pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError="";incomingPinCleared();viewState="incoming_pin_settings";statusText=enabled?"Incoming PIN enabled":"Incoming PIN disabled";cursorRequested(0);focusRestoreRequested()}
+    }
+    else if (event.event === "incoming_pin_update_failed") {
+      pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError=String(event.message||"Unable to update incoming PIN");incomingPinCleared();if(viewState==="incoming_pin_edit")incomingPinFocusRequested()
+    }
     else if (event.event === "peer_snapshot") { devices=Model.snapshotDevices(event.devices); statusText=devices.length ? "Ready" : "Looking nearby…" }
     else if (event.event === "device") { devices=Model.upsertDevice(devices,event.device); statusText=devices.length ? "Ready" : "Looking nearby…" }
     else if (event.event === "discovery_started") discoveryActive=true
     else if (event.event === "discovery_stopped") discoveryActive=false
     else if (event.event === "incoming_request") {
+      if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
       incomingQueue=Model.enqueueIncoming(incomingQueue,event); if(!incomingTextPending)incomingText=""; if (viewState!=="sending" && viewState!=="receiving" && viewState!=="pin") { viewState="incoming"; cursorRequested(1) }
       Quickshell.execDetached(["notify-send","-a","Nearby","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
     }

@@ -95,6 +95,8 @@ const functionNames = [
   "syncOpenState", "toggleReceiver", "startDiscovery", "forceFullDiscovery",
   "chooseDevice", "acceptIncoming", "declineIncoming", "finishText", "finishTerminal",
   "cancelOutgoing", "cancelPin", "retryWithPin", "failWith", "noteTextCopied", "beginOutgoing",
+  "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
+  "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "goBack", "selectFiles", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
 ]
 
@@ -117,6 +119,12 @@ function stubEngine() {
     cancelOutgoing: record("cancelOutgoing"),
     cancelPin: record("cancelPin"),
     retryWithPin: record("retryWithPin"),
+    openIncomingPinSettings: record("openIncomingPinSettings"),
+    beginIncomingPinEdit: record("beginIncomingPinEdit"),
+    requestDisableIncomingPin: record("requestDisableIncomingPin"),
+    cancelIncomingPinSettings: record("cancelIncomingPinSettings"),
+    submitIncomingPin: record("submitIncomingPin"),
+    confirmDisableIncomingPin: record("confirmDisableIncomingPin"),
     failWith: record("failWith"),
     noteTextCopied: record("noteTextCopied"),
     beginOutgoing: record("beginOutgoing"),
@@ -136,6 +144,7 @@ function panel(initial = {}) {
     clipboard: {running: false, launched: false},
     clipboardWriter: {running: false, launched: false},
     pinInput: {text: "", forceActiveFocus: () => {}},
+    incomingPinInput: {text: "", forceActiveFocus: () => {}},
     keyCatcher: {forceActiveFocus: () => {}},
     close: () => closes.push(true),
     moduleName: "oma.nearby",
@@ -147,6 +156,9 @@ function panel(initial = {}) {
     devices: [],
     selectedDevice: {fingerprint: "phone", alias: "Phone"},
     viewState: "target",
+    receiverEnabled: true,
+    backendReady: true,
+    incomingPinEnabled: false,
     ...initial,
   }
   context.engine = engine
@@ -172,6 +184,10 @@ function callNames(state) {
   state.activateCursor()
   assert.equal(callNames(state).at(-1), "toggleReceiver",
     "the cursor above the list is the receiver switch")
+  state.selectedIndex = 3
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "openIncomingPinSettings",
+    "the entry after rescan opens incoming PIN settings")
 }
 
 {
@@ -208,7 +224,7 @@ function callNames(state) {
   state.moveCursor(0, 1)
   assert.equal(state.selectedIndex, 1)
   state.moveCursor(0, 5)
-  assert.equal(state.selectedIndex, 2, "the cursor stops on the rescan entry past the last device")
+  assert.equal(state.selectedIndex, 3, "the cursor stops on incoming PIN settings after rescan")
   state.moveCursor(0, -9)
   assert.equal(state.selectedIndex, -1, "the cursor stops on the receiver switch above the list")
   assert.equal(state.engine.calls.length, 0, "moving a cursor is local to one monitor")
@@ -221,10 +237,32 @@ function callNames(state) {
   const pin = panel({viewState: "pin"})
   pin.goBack()
   assert.equal(callNames(pin).at(-1), "cancelPin")
+  const incomingPin = panel({viewState: "incoming_pin_settings"})
+  incomingPin.goBack()
+  assert.equal(callNames(incomingPin).at(-1), "cancelIncomingPinSettings")
   const nearby = panel({viewState: "nearby"})
   nearby.goBack()
   assert.equal(nearby.closes.length, 1, "back from the root view closes this monitor's popup")
   assert.equal(nearby.engine.calls.length, 0)
+}
+
+{
+  const state = panel({viewState: "incoming_pin_edit"})
+  state.incomingPinInput.text = "Abc-_.~09"
+  state.submitIncomingPin()
+  assert.deepEqual(state.engine.calls.at(-1), ["submitIncomingPin", "Abc-_.~09"])
+}
+
+{
+  const disabled = panel({viewState: "incoming_pin_settings", incomingPinEnabled: false, selectedIndex: 0})
+  disabled.activateCursor()
+  assert.equal(callNames(disabled).at(-1), "beginIncomingPinEdit")
+  const enabled = panel({viewState: "incoming_pin_settings", incomingPinEnabled: true, selectedIndex: 1})
+  enabled.activateCursor()
+  assert.equal(callNames(enabled).at(-1), "requestDisableIncomingPin")
+  const confirmation = panel({viewState: "incoming_pin_disable", selectedIndex: 1})
+  confirmation.activateCursor()
+  assert.equal(callNames(confirmation).at(-1), "confirmDisableIncomingPin")
 }
 
 {
