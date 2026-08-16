@@ -168,7 +168,7 @@ session, and final progress count.
 
 ### 5. Match official LocalSend receiver PIN enforcement and allow live changes
 
-- Nearby commits: `3b842ca` and `e51e10d`
+- Nearby commits: `3b842ca`, `e51e10d` and `f08c52a`
 - Files: `Cargo.toml`, `Cargo.lock`, `src/server/pin.rs`,
   `src/server/server.rs`, and `tests/conformance_pin.rs`
 

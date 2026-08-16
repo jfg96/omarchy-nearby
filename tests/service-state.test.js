@@ -580,6 +580,7 @@ function incoming(requestId, sender = requestId) {
   state.handleBackendExit(1)
   assert.match(state.errorText, /security settings are invalid/i)
   assert.match(state.errorText, /settings\.json/)
+  assert.match(state.errorText, /XDG state directory/i)
   assert.deepEqual(restarts, [],
     "a persistent security configuration error must fail closed without a retry loop")
 }

@@ -314,7 +314,7 @@ Item {
       // other pre-ready failures remain generic. Both keep the existing
       // bounded retry schedule so a transient conflict can recover.
       if (backendStartupFailureCode === "receiver_security_settings_invalid") {
-        errorText = "Nearby security settings are invalid. Repair or remove ~/.local/state/omarchy-nearby/settings.json."
+        errorText = "Nearby security settings are invalid. Repair or remove Nearby's settings.json in your XDG state directory."
       } else if (backendRestart.attempts < 4) {
         errorText = "Nearby receiver could not start. Retrying…"
       } else if (backendStartupFailureCode === "receiver_port_in_use") {

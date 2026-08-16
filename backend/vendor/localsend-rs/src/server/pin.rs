@@ -57,7 +57,7 @@ impl PinGate {
     }
 }
 
-/// Length-leaking-free comparison without extra deps.
+/// Compare equal-length values without exiting on the first differing byte.
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
