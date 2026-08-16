@@ -1,12 +1,11 @@
-//! Receiver-side PIN enforcement: 401 on mismatch, 3 failures -> 429 + 5 min cooldown
-//! (matches official LocalSend app behavior).
+//! Receiver-side PIN enforcement matching the official LocalSend server.
 
-use std::collections::HashMap;
+use lru::LruCache;
 use std::net::IpAddr;
-use std::time::{Duration, Instant};
+use std::num::NonZeroUsize;
 
 pub const MAX_FAILURES: u32 = 3;
-pub const LOCKOUT: Duration = Duration::from_secs(5 * 60);
+const FAILURE_CACHE_CAPACITY: usize = 200;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum PinVerdict {
@@ -18,14 +17,14 @@ pub enum PinVerdict {
 #[derive(Debug)]
 pub struct PinGate {
     pin: Option<String>,
-    failures: HashMap<IpAddr, (u32, Instant)>, // (count, last_failure)
+    failures: LruCache<IpAddr, u32>,
 }
 
 impl PinGate {
     pub fn new(pin: Option<String>) -> Self {
         Self {
             pin,
-            failures: HashMap::new(),
+            failures: LruCache::new(NonZeroUsize::new(FAILURE_CACHE_CAPACITY).unwrap()),
         }
     }
 
@@ -34,23 +33,21 @@ impl PinGate {
             return PinVerdict::Ok;
         };
 
-        if let Some((count, at)) = self.failures.get(&peer)
-            && *count >= MAX_FAILURES
-        {
-            if at.elapsed() < LOCKOUT {
-                return PinVerdict::LockedOut;
-            }
-            self.failures.remove(&peer);
+        let count = self.failures.get(&peer).copied().unwrap_or(0);
+        if count >= MAX_FAILURES {
+            return PinVerdict::LockedOut;
         }
 
-        if provided.is_some_and(|p| constant_time_eq(p.as_bytes(), expected.as_bytes())) {
-            self.failures.remove(&peer);
-            PinVerdict::Ok
-        } else {
-            let entry = self.failures.entry(peer).or_insert((0, Instant::now()));
-            entry.0 += 1;
-            entry.1 = Instant::now();
-            PinVerdict::Unauthorized
+        match provided {
+            Some(pin) if constant_time_eq(pin.as_bytes(), expected.as_bytes()) => {
+                self.failures.pop(&peer);
+                PinVerdict::Ok
+            }
+            Some(_) => {
+                self.failures.put(peer, count + 1);
+                PinVerdict::Unauthorized
+            }
+            None => PinVerdict::Unauthorized,
         }
     }
 }
@@ -87,6 +84,15 @@ mod tests {
     }
 
     #[test]
+    fn missing_pin_does_not_increase_failure_count() {
+        let mut g = PinGate::new(Some("123456".to_string()));
+        for _ in 0..10 {
+            assert_eq!(g.check(None, PEER), PinVerdict::Unauthorized);
+        }
+        assert_eq!(g.check(Some("123456"), PEER), PinVerdict::Ok);
+    }
+
+    #[test]
     fn three_failures_lock_out_that_peer_only() {
         let mut g = PinGate::new(Some("123456".to_string()));
         for _ in 0..3 {
@@ -108,5 +114,19 @@ mod tests {
         g.check(Some("bad"), PEER);
         g.check(Some("bad"), PEER);
         assert_eq!(g.check(Some("123456"), PEER), PinVerdict::Ok);
+    }
+
+    #[test]
+    fn failure_cache_is_bounded_and_evicts_least_recently_used_ip() {
+        let mut g = PinGate::new(Some("123456".to_string()));
+        let first = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+
+        for host in 1..=201u16 {
+            let peer = IpAddr::V4(Ipv4Addr::new(10, 0, (host / 256) as u8, host as u8));
+            assert_eq!(g.check(Some("bad"), peer), PinVerdict::Unauthorized);
+        }
+
+        assert_eq!(g.failures.len(), FAILURE_CACHE_CAPACITY);
+        assert!(g.failures.peek(&first).is_none());
     }
 }
