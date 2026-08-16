@@ -7,7 +7,7 @@ use localsend_rs::discovery::{Discovery, HttpDiscovery, MulticastDiscovery};
 use localsend_rs::error::LocalSendError;
 use localsend_rs::protocol::types::FileMetadataDetails;
 use localsend_rs::protocol::{DeviceInfo, FileId, FileMetadata, Protocol};
-use localsend_rs::server::{PendingRequest, ServerEvent};
+use localsend_rs::server::{LocalSendServerBuilder, PendingRequest, ServerEvent};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -778,6 +778,16 @@ async fn update_incoming_pin(
     Ok(())
 }
 
+fn configure_receiver_pin(
+    builder: LocalSendServerBuilder,
+    receiver_settings: &settings::Settings,
+) -> LocalSendServerBuilder {
+    match receiver_settings.incoming_pin.as_deref() {
+        Some(pin) => builder.pin(pin.to_string()),
+        None => builder,
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let home = PathBuf::from(std::env::var("HOME").context("HOME is not set")?);
@@ -820,9 +830,7 @@ async fn main() -> Result<()> {
         .protocol(Protocol::Https)
         .tls_certificate(certificate.clone())
         .auto_accept(false);
-    if let Some(pin) = receiver_settings.incoming_pin.clone() {
-        builder = builder.pin(pin);
-    }
+    builder = configure_receiver_pin(builder, &receiver_settings);
     let started = builder.build().await;
     let (mut server, mut events) = match started {
         Ok(started) => started,
@@ -1229,6 +1237,53 @@ mod tests {
                 .unwrap()
                 .incoming_pin
                 .is_none()
+        );
+
+        server.stop();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn persisted_pin_is_applied_when_the_receiver_is_built() {
+        let directory = std::env::temp_dir().join(format!(
+            "omarchy-nearby-startup-pin-test-{}-{}",
+            std::process::id(),
+            FileId::new().as_str()
+        ));
+        let save_directory = directory.join("downloads");
+        tokio::fs::create_dir_all(&save_directory).await.unwrap();
+        let settings_path = directory.join("state/settings.json");
+        let persisted = settings::updated(
+            &settings::Settings::default(),
+            Some("Startup-1".to_string()),
+        )
+        .unwrap();
+        settings::save(&settings_path, &persisted).unwrap();
+        let loaded = settings::load(&settings_path).unwrap();
+
+        let builder = LocalSendServer::builder()
+            .alias("Startup PIN")
+            .port(0)
+            .save_dir(&save_directory)
+            .protocol(Protocol::Http)
+            .auto_accept(true);
+        let (mut server, _events) = configure_receiver_pin(builder, &loaded)
+            .build()
+            .await
+            .unwrap();
+        let mut target = DeviceInfo::new("Startup PIN".into(), server.port(), Protocol::Http);
+        target.ip = Some("127.0.0.1".into());
+        let client = LocalSendClient::new(DeviceInfo::new("Sender".into(), 53317, Protocol::Http));
+
+        assert!(matches!(
+            client.prepare_upload(&target, HashMap::new(), None).await,
+            Err(LocalSendError::InvalidPin)
+        ));
+        assert!(
+            client
+                .prepare_upload(&target, HashMap::new(), Some("Startup-1"))
+                .await
+                .is_ok()
         );
 
         server.stop();
