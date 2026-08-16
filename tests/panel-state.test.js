@@ -36,8 +36,14 @@ assert.match(source, /onOpenedChanged[\s\S]*?if \(root\.viewState==="pin"\) pinI
   "reopening a pending PIN prompt must restore focus to its input")
 assert.match(source, /Component\.onDestruction:\s*if \(engine && viewRegistered\) engine\.viewClosed\(\)/,
   "a view torn down while open must release its claim on discovery")
-assert.match(source, /viewState\.indexOf\("incoming_pin_"\) === 0\) return "Receiver security"/,
-  "PIN screens must not inherit stale discovery status in their header")
+assert.match(source, /viewState === "incoming_pin_settings"\) return incomingPinEnabled \? "Protection enabled" : "Protection disabled"/,
+  "PIN settings must expose their state in the hero instead of repeating it in the body")
+assert.match(source, /id:nearbyActions/,
+  "secondary Nearby actions should share one compact row")
+assert.equal(source.includes('PanelSectionHeader { text: "NEARBY"'), false,
+  "the device section must not repeat the panel title")
+assert.equal(source.includes('text:root.incomingPinEnabled?"PIN protection is enabled"'), false,
+  "PIN settings must not repeat the state already shown in the hero")
 assert.equal((source.match(/text:"Back"/g) || []).length, 2,
   "the device actions and PIN settings screens both need a visible mouse exit")
 
@@ -201,6 +207,8 @@ function callNames(state) {
   state.selectedIndex = 0
   state.activateCursor()
   assert.equal(callNames(state).at(-1), "declineIncoming")
+  state.moveCursor(1, 0)
+  assert.equal(state.selectedIndex, 1, "left and right must navigate a two-button action row")
 }
 
 {
@@ -231,6 +239,9 @@ function callNames(state) {
   assert.equal(state.selectedIndex, 3, "the cursor stops on incoming PIN settings after rescan")
   state.moveCursor(0, -9)
   assert.equal(state.selectedIndex, -1, "the cursor stops on the receiver switch above the list")
+  state.selectedIndex = 2
+  state.moveCursor(1, 0)
+  assert.equal(state.selectedIndex, 3, "left and right must navigate the compact Nearby action row")
   assert.equal(state.engine.calls.length, 0, "moving a cursor is local to one monitor")
 }
 
@@ -264,6 +275,10 @@ function callNames(state) {
   const enabled = panel({viewState: "incoming_pin_settings", incomingPinEnabled: true, selectedIndex: 1})
   enabled.activateCursor()
   assert.equal(callNames(enabled).at(-1), "requestDisableIncomingPin")
+  enabled.selectedIndex = 0
+  enabled.moveCursor(1, 0)
+  assert.equal(enabled.selectedIndex, 1,
+    "left and right must navigate the Change/Disable row")
   enabled.selectedIndex = 2
   enabled.activateCursor()
   assert.equal(callNames(enabled).at(-1), "cancelIncomingPinSettings",

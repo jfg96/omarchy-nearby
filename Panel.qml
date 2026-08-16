@@ -71,7 +71,9 @@ Panel {
       if (!backendReady) return errorText || statusText
       return nearbyPhrases[nearbyPhraseIndex % nearbyPhrases.length]
     }
-    if (viewState.indexOf("incoming_pin_") === 0) return "Receiver security"
+    if (viewState === "incoming_pin_settings") return incomingPinEnabled ? "Protection enabled" : "Protection disabled"
+    if (viewState === "incoming_pin_edit") return incomingPinEnabled ? "Change protection" : "Enable protection"
+    if (viewState === "incoming_pin_disable") return "Confirm disable"
     if (viewState === "target") return "Ready to receive"
     return statusText
   }
@@ -134,7 +136,19 @@ Panel {
     cursorActive = true
     if (viewState === "nearby") {
       var lastNearbyIndex=receiverEnabled&&backendReady ? devices.length+1 : Math.max(-1,devices.length-1)
+      if (dx !== 0 && selectedIndex >= devices.length) {
+        selectedIndex = Math.max(devices.length, Math.min(lastNearbyIndex, selectedIndex + dx))
+        return
+      }
       if (dy !== 0) selectedIndex = Math.max(-1, Math.min(lastNearbyIndex, selectedIndex + dy))
+      return
+    }
+    if (dx !== 0 && (viewState === "incoming" || viewState === "text" || viewState === "incoming_pin_disable")) {
+      selectedIndex = Math.max(0, Math.min(1, selectedIndex + dx))
+      return
+    }
+    if (dx !== 0 && viewState === "incoming_pin_settings" && incomingPinEnabled && selectedIndex < 2) {
+      selectedIndex = Math.max(0, Math.min(1, selectedIndex + dx))
       return
     }
     var count = viewState === "target" ? 3 : ((viewState === "incoming" || viewState === "text" || viewState === "incoming_pin_disable") ? 2 : (viewState === "incoming_pin_settings" ? (incomingPinEnabled ? 3 : 2) : 1))
@@ -267,15 +281,18 @@ Panel {
         PanelSeparator { width: parent.width }
 
         Column {
-          visible: root.viewState === "nearby"; width: parent.width; spacing: Style.space(4)
-          PanelSectionHeader { text: "NEARBY"; foreground:root.foreground; fontFamily:root.fontFamily }
+          visible: root.viewState === "nearby"; width: parent.width; spacing: Style.space(6)
+          PanelSectionHeader { text: "DEVICES"; foreground:root.foreground; fontFamily:root.fontFamily }
           Text { visible: root.devices.length===0; width:parent.width; textFormat:Text.PlainText; text: !root.receiverEnabled ? "Nearby is turned off" : (root.discoveryActive ? "Finding devices…" : (root.backendReady ? "No devices nearby" : root.errorText)); wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; topPadding:Style.space(12); bottomPadding:Style.space(12) }
           Repeater {
             model: root.devices
             Button { required property var modelData; required property int index; width:parent.width; leftAlign:true; bordered:false; iconText:Model.iconFor(modelData.deviceType); text:modelData.alias; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===index; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=index}}; onClicked:root.chooseDevice(index) }
           }
-          Button { visible:root.receiverEnabled&&root.backendReady; width:parent.width; leftAlign:true; bordered:false; iconText:"󰑐"; text:"Search for new devices"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=root.devices.length}}; onClicked:root.forceFullDiscovery() }
-          Button { visible:root.receiverEnabled&&root.backendReady; width:parent.width; leftAlign:true; bordered:false; iconText:"󰌾"; text:"Incoming PIN · "+(root.incomingPinEnabled?"On":"Off"); foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=root.devices.length+1}}; onClicked:root.openIncomingPinSettings() }
+          Row {
+            id:nearbyActions; visible:root.receiverEnabled&&root.backendReady; width:parent.width; spacing:Style.space(8)
+            Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰑐"; text:"Rescan"; tooltipText:"Search for new devices"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=root.devices.length}}; onClicked:root.forceFullDiscovery() }
+            Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌾"; text:"PIN · "+(root.incomingPinEnabled?"On":"Off"); tooltipText:"Incoming PIN settings"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=root.devices.length+1}}; onClicked:root.openIncomingPinSettings() }
+          }
         }
 
         Column {
@@ -304,8 +321,6 @@ Panel {
 
         Column {
           visible: root.viewState === "incoming_pin_settings"; width:parent.width; spacing:Style.space(8)
-          PanelSectionHeader { text:"INCOMING TRANSFERS"; foreground:root.foreground; fontFamily:root.fontFamily }
-          Text { width:parent.width; text:root.incomingPinEnabled?"PIN protection is enabled":"PIN protection is disabled"; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Button { visible:!root.incomingPinEnabled; width:parent.width; text:"Enable PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.beginIncomingPinEdit() }
           Row { visible:root.incomingPinEnabled; width:parent.width; spacing:Style.space(8)
             Button { width:(parent.width-parent.spacing)/2; text:"Change PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.beginIncomingPinEdit() }
@@ -349,8 +364,8 @@ Panel {
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incoming ? Model.incomingSummary(root.incoming.files)+" · "+Model.formatBytes(root.incoming.total) : ""; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; elide:Text.ElideRight }
           Text { visible:root.incomingQueue.length>1; width:parent.width; text:(root.incomingQueue.length-1)+(root.incomingQueue.length===2 ? " more request" : " more requests"); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Decline"; foreground:root.urgent; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:root.declineIncoming() }
-            Button { width:(parent.width-parent.spacing)/2; text:"Accept"; foreground:root.foreground; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===1; onClicked:root.acceptIncoming() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Decline"; foreground:root.urgent; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.declineIncoming() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Accept"; foreground:root.foreground; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=1}}; onClicked:root.acceptIncoming() }
           }
         }
 
@@ -375,8 +390,8 @@ Panel {
           PanelSectionHeader { text:"RECEIVED TEXT"; foreground:root.foreground; fontFamily:root.fontFamily }
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incomingText; wrapMode:Text.Wrap; maximumLineCount:6; elide:Text.ElideRight; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Copy"; iconText:"󰆏"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:{root.copyReceivedText()} }
-            Button { width:(parent.width-parent.spacing)/2; text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onClicked:root.finishText() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Copy"; iconText:"󰆏"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:{root.copyReceivedText()} }
+            Button { width:(parent.width-parent.spacing)/2; text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=1}}; onClicked:root.finishText() }
           }
         }
       }
