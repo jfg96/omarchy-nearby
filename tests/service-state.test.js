@@ -228,6 +228,25 @@ function incoming(requestId, sender = requestId) {
 }
 
 {
+  const state = engine({viewState: "incoming_pin_edit"})
+  state.submitIncomingPin("Safe-1")
+  state.handleEvent(incoming("raced"))
+  state.handleEvent({event: "incoming_pin_state", enabled: true})
+  assert.equal(state.viewState, "incoming",
+    "a late PIN-save confirmation must not hide an incoming transfer that preempted settings")
+  assert.equal(state.incoming.requestId, "raced")
+}
+
+{
+  const state = engine({viewState: "incoming_pin_edit"})
+  const before = state.signals.incomingPinCleared
+  state.handleEvent({event: "incoming_text", sessionId: "text", sender: "Alice", text: "hello"})
+  assert.equal(state.viewState, "text")
+  assert.ok(state.signals.incomingPinCleared > before,
+    "incoming text that preempts PIN settings must clear the local secret field")
+}
+
+{
   const state = engine()
   state.handleEvent(incoming("a"))
   state.handleEvent(incoming("b"))

@@ -351,7 +351,7 @@ Item {
     }
     else if (event.event === "incoming_pin_state") {
       incomingPinEnabled=event.enabled===true
-      if(pendingIncomingPinEnabled!==null){var enabled=pendingIncomingPinEnabled===true;pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError="";incomingPinCleared();viewState="incoming_pin_settings";statusText=enabled?"Incoming PIN enabled":"Incoming PIN disabled";cursorRequested(0);focusRestoreRequested()}
+      if(pendingIncomingPinEnabled!==null){var enabled=pendingIncomingPinEnabled===true;var settingsStillVisible=viewState.indexOf("incoming_pin_")===0;pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError="";incomingPinCleared();if(settingsStillVisible){viewState="incoming_pin_settings";statusText=enabled?"Incoming PIN enabled":"Incoming PIN disabled";cursorRequested(0);focusRestoreRequested()}}
     }
     else if (event.event === "incoming_pin_update_failed") {
       pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError=String(event.message||"Unable to update incoming PIN");incomingPinCleared();if(viewState==="incoming_pin_edit")incomingPinFocusRequested()
@@ -366,6 +366,7 @@ Item {
       Quickshell.execDetached(["notify-send","-a","Nearby","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
     }
     else if (event.event === "incoming_text") {
+      if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
       incomingText=String(event.text || ""); transferPeer=String(event.sender || ""); incomingTextPending=pendingOutgoing!==null; if (!pendingOutgoing) { viewState="text"; stopDiscovery() }
       Quickshell.execDetached(["notify-send","-a","Nearby","Text received","From "+String(event.sender || "")])
     }
