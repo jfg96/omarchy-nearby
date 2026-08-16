@@ -36,6 +36,10 @@ assert.match(source, /onOpenedChanged[\s\S]*?if \(root\.viewState==="pin"\) pinI
   "reopening a pending PIN prompt must restore focus to its input")
 assert.match(source, /Component\.onDestruction:\s*if \(engine && viewRegistered\) engine\.viewClosed\(\)/,
   "a view torn down while open must release its claim on discovery")
+assert.match(source, /viewState\.indexOf\("incoming_pin_"\) === 0\) return "Receiver security"/,
+  "PIN screens must not inherit stale discovery status in their header")
+assert.equal((source.match(/text:"Back"/g) || []).length, 2,
+  "the device actions and PIN settings screens both need a visible mouse exit")
 
 assert.equal(source.includes("closeStdin"), false, "Quickshell Process does not expose closeStdin")
 assert.match(source, /onStarted:\s*\{[^}]*write\(root\.incomingText\);\s*stdinEnabled=false\s*\}/,
@@ -260,9 +264,27 @@ function callNames(state) {
   const enabled = panel({viewState: "incoming_pin_settings", incomingPinEnabled: true, selectedIndex: 1})
   enabled.activateCursor()
   assert.equal(callNames(enabled).at(-1), "requestDisableIncomingPin")
+  enabled.selectedIndex = 2
+  enabled.activateCursor()
+  assert.equal(callNames(enabled).at(-1), "cancelIncomingPinSettings",
+    "enabled PIN settings must expose Back to keyboard users too")
+  const disabledBack = panel({viewState: "incoming_pin_settings", incomingPinEnabled: false, selectedIndex: 1})
+  disabledBack.activateCursor()
+  assert.equal(callNames(disabledBack).at(-1), "cancelIncomingPinSettings",
+    "disabled PIN settings must expose Back to keyboard users too")
   const confirmation = panel({viewState: "incoming_pin_disable", selectedIndex: 1})
   confirmation.activateCursor()
   assert.equal(callNames(confirmation).at(-1), "confirmDisableIncomingPin")
+}
+
+{
+  const state = panel({viewState: "target", selectedIndex: 2})
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "clearTarget",
+    "device actions must expose Back to keyboard users too")
+  state.selectedIndex = 0
+  state.moveCursor(0, 9)
+  assert.equal(state.selectedIndex, 2, "device action cursor must stop on Back")
 }
 
 {

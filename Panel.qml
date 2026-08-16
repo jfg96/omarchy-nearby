@@ -71,6 +71,7 @@ Panel {
       if (!backendReady) return errorText || statusText
       return nearbyPhrases[nearbyPhraseIndex % nearbyPhrases.length]
     }
+    if (viewState.indexOf("incoming_pin_") === 0) return "Receiver security"
     if (viewState === "target") return "Ready to receive"
     return statusText
   }
@@ -136,15 +137,15 @@ Panel {
       if (dy !== 0) selectedIndex = Math.max(-1, Math.min(lastNearbyIndex, selectedIndex + dy))
       return
     }
-    var count = viewState === "target" ? 2 : ((viewState === "incoming" || viewState === "text" || viewState === "incoming_pin_disable") ? 2 : (viewState === "incoming_pin_settings" ? (incomingPinEnabled ? 2 : 1) : 1))
+    var count = viewState === "target" ? 3 : ((viewState === "incoming" || viewState === "text" || viewState === "incoming_pin_disable") ? 2 : (viewState === "incoming_pin_settings" ? (incomingPinEnabled ? 3 : 2) : 1))
     if (count > 0 && dy !== 0) selectedIndex = Math.max(0, Math.min(count - 1, selectedIndex + dy))
   }
   function activateCursor() {
     if (viewState === "nearby") selectedIndex < 0 ? toggleReceiver() : (selectedIndex === devices.length ? forceFullDiscovery() : (selectedIndex === devices.length+1 ? openIncomingPinSettings() : chooseDevice(selectedIndex)))
-    else if (viewState === "target") selectedIndex === 0 ? selectFiles() : sendClipboard()
+    else if (viewState === "target") selectedIndex === 0 ? selectFiles() : (selectedIndex === 1 ? sendClipboard() : goBack())
     else if (viewState === "incoming") selectedIndex === 0 ? declineIncoming() : acceptIncoming()
     else if (viewState === "text") { if(selectedIndex===0)copyReceivedText(); else finishText() }
-    else if (viewState === "incoming_pin_settings") incomingPinEnabled ? (selectedIndex===0?beginIncomingPinEdit():requestDisableIncomingPin()) : beginIncomingPinEdit()
+    else if (viewState === "incoming_pin_settings") incomingPinEnabled ? (selectedIndex===0?beginIncomingPinEdit():(selectedIndex===1?requestDisableIncomingPin():goBack())) : (selectedIndex===0?beginIncomingPinEdit():goBack())
     else if (viewState === "incoming_pin_disable") selectedIndex===0 ? cancelIncomingPinSettings() : confirmDisableIncomingPin()
     else if (viewState === "sending") cancelOutgoing()
     else if (viewState === "success" || viewState === "error") finishTerminal()
@@ -282,6 +283,7 @@ Panel {
           PanelSectionHeader { text:"SEND"; foreground:root.foreground; fontFamily:root.fontFamily }
           Button { width:parent.width; leftAlign:true; iconText:"󰈔"; text:"Send files"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.selectFiles() }
           Button { width:parent.width; leftAlign:true; iconText:"󰅇"; text:"Send clipboard"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=1}}; onClicked:root.sendClipboard() }
+          Button { width:parent.width; leftAlign:true; bordered:false; iconText:"󰅁"; text:"Back"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===2; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=2}}; onClicked:root.goBack() }
         }
 
         Column {
@@ -304,11 +306,12 @@ Panel {
           visible: root.viewState === "incoming_pin_settings"; width:parent.width; spacing:Style.space(8)
           PanelSectionHeader { text:"INCOMING TRANSFERS"; foreground:root.foreground; fontFamily:root.fontFamily }
           Text { width:parent.width; text:root.incomingPinEnabled?"PIN protection is enabled":"PIN protection is disabled"; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
-          Button { visible:!root.incomingPinEnabled; width:parent.width; text:"Enable PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:root.beginIncomingPinEdit() }
+          Button { visible:!root.incomingPinEnabled; width:parent.width; text:"Enable PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.beginIncomingPinEdit() }
           Row { visible:root.incomingPinEnabled; width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Change PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:root.beginIncomingPinEdit() }
-            Button { width:(parent.width-parent.spacing)/2; text:"Disable PIN"; bordered:true; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onClicked:root.requestDisableIncomingPin() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Change PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.beginIncomingPinEdit() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Disable PIN"; bordered:true; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=1}}; onClicked:root.requestDisableIncomingPin() }
           }
+          Button { width:parent.width; leftAlign:true; bordered:false; iconText:"󰅁"; text:"Back"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===(root.incomingPinEnabled?2:1); onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=root.incomingPinEnabled?2:1}}; onClicked:root.goBack() }
           Text { visible:root.incomingPinError!==""; width:parent.width; text:root.incomingPinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
         }
 
@@ -335,8 +338,8 @@ Panel {
           Text { width:parent.width; text:"New incoming requests will no longer require a PIN."; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
           Text { visible:root.incomingPinError!==""; width:parent.width; text:root.incomingPinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Cancel"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.dim; hasCursor:root.cursorActive&&root.selectedIndex===0; onClicked:root.cancelIncomingPinSettings() }
-            Button { width:(parent.width-parent.spacing)/2; text:root.incomingPinUpdating?"Disabling…":"Disable"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onClicked:root.confirmDisableIncomingPin() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Cancel"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.dim; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.cancelIncomingPinSettings() }
+            Button { width:(parent.width-parent.spacing)/2; text:root.incomingPinUpdating?"Disabling…":"Disable"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=1}}; onClicked:root.confirmDisableIncomingPin() }
           }
         }
 
