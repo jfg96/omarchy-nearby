@@ -172,6 +172,67 @@ async fn uploads_in_memory_bytes_without_a_source_file() {
 }
 
 #[tokio::test]
+async fn authorized_upload_survives_a_live_pin_change() {
+    let save_dir = tempfile::tempdir().expect("save dir");
+    let (mut server, _events) = LocalSendServer::builder()
+        .alias("PIN Change Receiver")
+        .port(0)
+        .save_dir(save_dir.path())
+        .protocol(Protocol::Http)
+        .pin("Old-1")
+        .auto_accept(true)
+        .build()
+        .await
+        .expect("build");
+    let target = common::target_device(server.port());
+    common::wait_for_http_info(server.port()).await;
+
+    let payload = b"authorized before the PIN changed".to_vec();
+    let file_id = FileId::new();
+    let mut files = HashMap::new();
+    files.insert(
+        file_id.clone(),
+        FileMetadata {
+            id: file_id.clone(),
+            file_name: "survives.bin".into(),
+            size: payload.len() as u64,
+            file_type: "application/octet-stream".into(),
+            sha256: Some(sha256_from_bytes(&payload)),
+            preview: None,
+            metadata: None,
+        },
+    );
+    let client = LocalSendClient::new(DeviceInfo::new("Sender".into(), 0, Protocol::Http));
+    let prepared = client
+        .prepare_upload(&target, files, Some("Old-1"))
+        .await
+        .expect("prepare with old PIN");
+    let token = prepared.files.get(&file_id).expect("token");
+
+    server
+        .set_pin(Some("New-1".to_string()))
+        .await
+        .expect("live PIN change");
+    client
+        .upload_bytes(
+            &target,
+            &prepared.session_id,
+            &file_id,
+            token,
+            payload.clone(),
+            None,
+        )
+        .await
+        .expect("previously authorized upload");
+
+    assert_eq!(
+        std::fs::read(save_dir.path().join("survives.bin")).unwrap(),
+        payload
+    );
+    server.stop();
+}
+
+#[tokio::test]
 async fn upload_completes_when_progress_event_channel_is_not_drained() {
     let save_dir = tempfile::tempdir().expect("save dir");
     let src_dir = tempfile::tempdir().expect("src dir");

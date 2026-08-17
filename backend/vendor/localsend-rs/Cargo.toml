@@ -88,6 +88,7 @@ strum = { version = "0.27", features = ["derive"], optional = true }
 itertools = { version = "0.14", optional = true }
 chrono = { version = "0.4.43", features = ["serde"] }
 parking_lot = "0.12"
+lru = "0.16"
 
 [dev-dependencies]
 tempfile = "3"

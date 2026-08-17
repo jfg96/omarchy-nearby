@@ -18,6 +18,12 @@ assert.match(source, /bar\.shell\.serviceFor\(manifestPluginId\)/,
   "the widget must read its state from the single service instance")
 assert.match(source, /manageIpc:\s*false/,
   "the base panel's IPC handler must stay off so the service owns the target")
+assert.equal(source.includes("Qt.ImhDigitsOnly"), false,
+  "the outgoing PIN prompt must accept the same text values as LocalSend")
+assert.equal(source.includes("RegularExpressionValidator { regularExpression: /[0-9]*/ }"), false,
+  "the outgoing PIN prompt must not silently reject non-numeric PINs")
+assert.doesNotMatch(source, /id:\s*pinInput[^\n]*maximumLength:\s*32/,
+  "the outgoing PIN prompt must not retain its old 32-character limit")
 for (const owned of ["backendRestart", "receiverShutdownFallback", "handleEvent(", "handleBackendExit("]) {
   assert.equal(source.includes(owned), false,
     `${owned} is engine state and must not be duplicated per monitor`)
@@ -28,8 +34,20 @@ assert.match(source, /onCursorRequested\(index\)\s*\{\s*root\.selectedIndex = in
   "the engine asks each view to move its own cursor rather than holding one")
 assert.match(source, /onOpenedChanged[\s\S]*?if \(root\.viewState==="pin"\) pinInput\.forceActiveFocus\(\)/,
   "reopening a pending PIN prompt must restore focus to its input")
+assert.match(source, /onOpenedChanged:[\s\S]*?else \{ clearSecretInputs\(\); syncOpenState\(\) \}/,
+  "closing a popup must clear locally retained PIN values")
 assert.match(source, /Component\.onDestruction:\s*if \(engine && viewRegistered\) engine\.viewClosed\(\)/,
   "a view torn down while open must release its claim on discovery")
+assert.match(source, /viewState === "incoming_pin_settings"\) return incomingPinEnabled \? "Protection enabled" : "Protection disabled"/,
+  "PIN settings must expose their state in the hero instead of repeating it in the body")
+assert.match(source, /id:nearbyActions/,
+  "secondary Nearby actions should share one compact row")
+assert.equal(source.includes('PanelSectionHeader { text: "NEARBY"'), false,
+  "the device section must not repeat the panel title")
+assert.equal(source.includes('text:root.incomingPinEnabled?"PIN protection is enabled"'), false,
+  "PIN settings must not repeat the state already shown in the hero")
+assert.equal((source.match(/text:"Back"/g) || []).length, 2,
+  "the device actions and PIN settings screens both need a visible mouse exit")
 
 assert.equal(source.includes("closeStdin"), false, "Quickshell Process does not expose closeStdin")
 assert.match(source, /onStarted:\s*\{[^}]*write\(root\.incomingText\);\s*stdinEnabled=false\s*\}/,
@@ -89,6 +107,9 @@ const functionNames = [
   "syncOpenState", "toggleReceiver", "startDiscovery", "forceFullDiscovery",
   "chooseDevice", "acceptIncoming", "declineIncoming", "finishText", "finishTerminal",
   "cancelOutgoing", "cancelPin", "retryWithPin", "failWith", "noteTextCopied", "beginOutgoing",
+  "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
+  "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
+  "clearSecretInputs",
   "goBack", "selectFiles", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
 ]
 
@@ -111,6 +132,12 @@ function stubEngine() {
     cancelOutgoing: record("cancelOutgoing"),
     cancelPin: record("cancelPin"),
     retryWithPin: record("retryWithPin"),
+    openIncomingPinSettings: record("openIncomingPinSettings"),
+    beginIncomingPinEdit: record("beginIncomingPinEdit"),
+    requestDisableIncomingPin: record("requestDisableIncomingPin"),
+    cancelIncomingPinSettings: record("cancelIncomingPinSettings"),
+    submitIncomingPin: record("submitIncomingPin"),
+    confirmDisableIncomingPin: record("confirmDisableIncomingPin"),
     failWith: record("failWith"),
     noteTextCopied: record("noteTextCopied"),
     beginOutgoing: record("beginOutgoing"),
@@ -130,6 +157,7 @@ function panel(initial = {}) {
     clipboard: {running: false, launched: false},
     clipboardWriter: {running: false, launched: false},
     pinInput: {text: "", forceActiveFocus: () => {}},
+    incomingPinInput: {text: "", forceActiveFocus: () => {}},
     keyCatcher: {forceActiveFocus: () => {}},
     close: () => closes.push(true),
     moduleName: "oma.nearby",
@@ -141,6 +169,9 @@ function panel(initial = {}) {
     devices: [],
     selectedDevice: {fingerprint: "phone", alias: "Phone"},
     viewState: "target",
+    receiverEnabled: true,
+    backendReady: true,
+    incomingPinEnabled: false,
     ...initial,
   }
   context.engine = engine
@@ -166,6 +197,10 @@ function callNames(state) {
   state.activateCursor()
   assert.equal(callNames(state).at(-1), "toggleReceiver",
     "the cursor above the list is the receiver switch")
+  state.selectedIndex = 3
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "openIncomingPinSettings",
+    "the entry after rescan opens incoming PIN settings")
 }
 
 {
@@ -175,6 +210,8 @@ function callNames(state) {
   state.selectedIndex = 0
   state.activateCursor()
   assert.equal(callNames(state).at(-1), "declineIncoming")
+  state.moveCursor(1, 0)
+  assert.equal(state.selectedIndex, 1, "left and right must navigate a two-button action row")
 }
 
 {
@@ -202,9 +239,12 @@ function callNames(state) {
   state.moveCursor(0, 1)
   assert.equal(state.selectedIndex, 1)
   state.moveCursor(0, 5)
-  assert.equal(state.selectedIndex, 2, "the cursor stops on the rescan entry past the last device")
+  assert.equal(state.selectedIndex, 3, "the cursor stops on incoming PIN settings after rescan")
   state.moveCursor(0, -9)
   assert.equal(state.selectedIndex, -1, "the cursor stops on the receiver switch above the list")
+  state.selectedIndex = 2
+  state.moveCursor(1, 0)
+  assert.equal(state.selectedIndex, 3, "left and right must navigate the compact Nearby action row")
   assert.equal(state.engine.calls.length, 0, "moving a cursor is local to one monitor")
 }
 
@@ -215,10 +255,54 @@ function callNames(state) {
   const pin = panel({viewState: "pin"})
   pin.goBack()
   assert.equal(callNames(pin).at(-1), "cancelPin")
+  const incomingPin = panel({viewState: "incoming_pin_settings"})
+  incomingPin.goBack()
+  assert.equal(callNames(incomingPin).at(-1), "cancelIncomingPinSettings")
   const nearby = panel({viewState: "nearby"})
   nearby.goBack()
   assert.equal(nearby.closes.length, 1, "back from the root view closes this monitor's popup")
   assert.equal(nearby.engine.calls.length, 0)
+}
+
+{
+  const state = panel({viewState: "incoming_pin_edit"})
+  state.incomingPinInput.text = "Abc-_.~09"
+  state.submitIncomingPin()
+  assert.deepEqual(state.engine.calls.at(-1), ["submitIncomingPin", "Abc-_.~09"])
+}
+
+{
+  const disabled = panel({viewState: "incoming_pin_settings", incomingPinEnabled: false, selectedIndex: 0})
+  disabled.activateCursor()
+  assert.equal(callNames(disabled).at(-1), "beginIncomingPinEdit")
+  const enabled = panel({viewState: "incoming_pin_settings", incomingPinEnabled: true, selectedIndex: 1})
+  enabled.activateCursor()
+  assert.equal(callNames(enabled).at(-1), "requestDisableIncomingPin")
+  enabled.selectedIndex = 0
+  enabled.moveCursor(1, 0)
+  assert.equal(enabled.selectedIndex, 1,
+    "left and right must navigate the Change/Disable row")
+  enabled.selectedIndex = 2
+  enabled.activateCursor()
+  assert.equal(callNames(enabled).at(-1), "cancelIncomingPinSettings",
+    "enabled PIN settings must expose Back to keyboard users too")
+  const disabledBack = panel({viewState: "incoming_pin_settings", incomingPinEnabled: false, selectedIndex: 1})
+  disabledBack.activateCursor()
+  assert.equal(callNames(disabledBack).at(-1), "cancelIncomingPinSettings",
+    "disabled PIN settings must expose Back to keyboard users too")
+  const confirmation = panel({viewState: "incoming_pin_disable", selectedIndex: 1})
+  confirmation.activateCursor()
+  assert.equal(callNames(confirmation).at(-1), "confirmDisableIncomingPin")
+}
+
+{
+  const state = panel({viewState: "target", selectedIndex: 2})
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "clearTarget",
+    "device actions must expose Back to keyboard users too")
+  state.selectedIndex = 0
+  state.moveCursor(0, 9)
+  assert.equal(state.selectedIndex, 2, "device action cursor must stop on Back")
 }
 
 {
@@ -227,6 +311,15 @@ function callNames(state) {
   state.retryWithPin()
   assert.deepEqual(state.engine.calls.at(-1), ["retryWithPin", "123456"],
     "the PIN is read from this monitor's field and handed to the shared engine")
+}
+
+{
+  const state = panel()
+  state.pinInput.text = "outgoing-secret"
+  state.incomingPinInput.text = "incoming-secret"
+  state.clearSecretInputs()
+  assert.equal(state.pinInput.text, "")
+  assert.equal(state.incomingPinInput.text, "")
 }
 
 {

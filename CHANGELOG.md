@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0-dev
+
+- Add a user-configured, persistent PIN for incoming text and file transfers.
+  PIN changes take effect without restarting the receiver or interrupting an
+  already authorized transfer, while normal Accept/Decline remains required.
+- Match LocalSend's three-attempt receiver lockout semantics and keep failure
+  tracking bounded per source IP.
+- Accept and correctly encode general PIN values when sending to LocalSend,
+  instead of restricting the prompt to numeric values.
+- Store incoming PIN configuration in a private atomic settings file, load it
+  before receiver startup and fail closed if that security state is invalid.
+
 ## 1.0.7
 
 - Keep the helper's running state bound to the receiver setting across startup

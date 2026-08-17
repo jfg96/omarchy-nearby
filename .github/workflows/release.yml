@@ -35,7 +35,7 @@ jobs:
           [[ "$(git rev-list -n 1 "$GITHUB_REF_NAME")" == "$GITHUB_SHA" ]]
 
       - name: Test frontend model
-        run: node tests/model.test.js && node tests/panel-state.test.js
+        run: node tests/model.test.js && node tests/panel-state.test.js && node tests/service-state.test.js
 
       - name: Check Rust formatting
         run: cargo fmt --manifest-path backend/Cargo.toml --all -- --check

@@ -80,6 +80,8 @@ const functionNames = [
   "viewOpened", "viewClosed",
   "send", "bindBackendRunning", "persistReceiverEnabled", "toggleReceiver", "finishReceiverShutdown",
   "startDiscovery", "forceFullDiscovery", "stopDiscovery", "chooseDevice", "clearTarget",
+  "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
+  "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
   "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming",
@@ -90,7 +92,7 @@ const functionNames = [
 function engine(initial = {}) {
   const sent = []
   const cursors = []
-  const signals = {pinCleared: 0, pinFocusRequested: 0, focusRestoreRequested: 0}
+  const signals = {pinCleared: 0, pinFocusRequested: 0, incomingPinCleared: 0, incomingPinFocusRequested: 0, focusRestoreRequested: 0}
   const context = {
     Model,
     Date: {now: () => 1000},
@@ -103,6 +105,8 @@ function engine(initial = {}) {
     cursorRequested: index => cursors.push(index),
     pinCleared: () => { signals.pinCleared++ },
     pinFocusRequested: () => { signals.pinFocusRequested++ },
+    incomingPinCleared: () => { signals.incomingPinCleared++ },
+    incomingPinFocusRequested: () => { signals.incomingPinFocusRequested++ },
     focusRestoreRequested: () => { signals.focusRestoreRequested++ },
     shell: null,
     moduleEntryId: "oma.nearby",
@@ -135,6 +139,10 @@ function engine(initial = {}) {
     outgoingTransferId: "",
     pendingOutgoing: null,
     pinError: "",
+    incomingPinEnabled: false,
+    incomingPinUpdating: false,
+    pendingIncomingPinEnabled: null,
+    incomingPinError: "",
     transferSequence: 0,
     ...initial,
   }
@@ -165,6 +173,93 @@ function engine(initial = {}) {
 
 function incoming(requestId, sender = requestId) {
   return {event: "incoming_request", requestId, sender, files: [{name: `${requestId}.txt`}], total: 1}
+}
+
+{
+  const state = engine({viewState: "nearby"})
+  state.handleEvent({event: "incoming_pin_state", enabled: false})
+  assert.equal(state.incomingPinEnabled, false)
+  state.openIncomingPinSettings()
+  assert.equal(state.viewState, "incoming_pin_settings")
+  state.beginIncomingPinEdit()
+  assert.equal(state.viewState, "incoming_pin_edit")
+
+  state.submitIncomingPin("bad pin")
+  assert.equal(state.sent.some(command => command.command === "set_incoming_pin"), false)
+  assert.match(state.incomingPinError, /1–64/)
+  assert.ok(state.signals.incomingPinFocusRequested > 0)
+
+  state.submitIncomingPin("Abc-_.~09")
+  assert.deepEqual(state.sent.at(-1), {command: "set_incoming_pin", pin: "Abc-_.~09"})
+  assert.equal(state.incomingPinUpdating, true)
+  assert.equal(Object.hasOwn(state, "incomingPin"), false,
+    "the service must never retain a readable copy of the submitted PIN")
+  state.handleEvent({event: "incoming_pin_state", enabled: true})
+  assert.equal(state.incomingPinEnabled, true)
+  assert.equal(state.incomingPinUpdating, false)
+  assert.equal(state.viewState, "incoming_pin_settings")
+  assert.ok(state.signals.incomingPinCleared > 0)
+
+  state.requestDisableIncomingPin()
+  assert.equal(state.viewState, "incoming_pin_disable")
+  state.confirmDisableIncomingPin()
+  assert.deepEqual(state.sent.at(-1), {command: "disable_incoming_pin"})
+  state.handleEvent({event: "incoming_pin_state", enabled: false})
+  assert.equal(state.incomingPinEnabled, false)
+}
+
+{
+  const state = engine({viewState: "incoming_pin_edit"})
+  state.submitIncomingPin("Safe-1")
+  state.handleEvent({event: "incoming_pin_update_failed", message: "Unable to update incoming PIN"})
+  assert.equal(state.incomingPinUpdating, false)
+  assert.equal(state.pendingIncomingPinEnabled, null)
+  assert.equal(state.incomingPinError, "Unable to update incoming PIN")
+  assert.ok(state.signals.incomingPinCleared > 0)
+}
+
+{
+  const state = engine({
+    backendReady: false,
+    viewState: "incoming_pin_settings",
+    incomingPinEnabled: true,
+  })
+  state.beginIncomingPinEdit()
+  state.requestDisableIncomingPin()
+  state.submitIncomingPin("Safe-1")
+  state.confirmDisableIncomingPin()
+  assert.equal(state.viewState, "incoming_pin_settings")
+  assert.equal(state.incomingPinUpdating, false)
+  assert.equal(state.sent.length, 0,
+    "receiver security controls must not queue an update while the helper is unavailable")
+}
+
+{
+  const state = engine({viewState: "incoming_pin_edit"})
+  const before = state.signals.incomingPinCleared
+  state.handleEvent(incoming("authenticated"))
+  assert.equal(state.viewState, "incoming")
+  assert.ok(state.signals.incomingPinCleared > before,
+    "an incoming request that preempts PIN settings must clear the local secret field")
+}
+
+{
+  const state = engine({viewState: "incoming_pin_edit"})
+  state.submitIncomingPin("Safe-1")
+  state.handleEvent(incoming("raced"))
+  state.handleEvent({event: "incoming_pin_state", enabled: true})
+  assert.equal(state.viewState, "incoming",
+    "a late PIN-save confirmation must not hide an incoming transfer that preempted settings")
+  assert.equal(state.incoming.requestId, "raced")
+}
+
+{
+  const state = engine({viewState: "incoming_pin_edit"})
+  const before = state.signals.incomingPinCleared
+  state.handleEvent({event: "incoming_text", sessionId: "text", sender: "Alice", text: "hello"})
+  assert.equal(state.viewState, "text")
+  assert.ok(state.signals.incomingPinCleared > before,
+    "incoming text that preempts PIN settings must clear the local secret field")
 }
 
 {
@@ -435,6 +530,14 @@ function incoming(requestId, sender = requestId) {
 }
 
 {
+  const state = engine({viewState: "incoming_pin_edit"})
+  state.handleBackendExit(1)
+  assert.equal(state.viewState, "error",
+    "helper exit must not leave receiver security controls connected to nothing")
+  assert.match(state.errorText, /receiver security/i)
+}
+
+{
   // A helper that exits before announcing itself still uses the bounded retry
   // schedule. Its cause is independent: an early exit is not, by itself,
   // evidence that the LocalSend port is occupied.
@@ -489,6 +592,21 @@ function incoming(requestId, sender = requestId) {
   assert.match(state.errorText, /another LocalSend receiver/i)
   assert.match(state.errorText, /quit it|close it/i,
     "the final message must tell the user how to release the port")
+}
+
+{
+  const restarts = []
+  const state = engine({
+    backendAcceptedThisRun: false,
+    backendRestart: {attempts: 0, interval: 0, restart() { restarts.push(true) }, stop: () => {}},
+  })
+  state.handleEvent({event: "startup_failed", code: "receiver_security_settings_invalid"})
+  state.handleBackendExit(1)
+  assert.match(state.errorText, /security settings are invalid/i)
+  assert.match(state.errorText, /settings\.json/)
+  assert.match(state.errorText, /XDG state directory/i)
+  assert.deepEqual(restarts, [],
+    "a persistent security configuration error must fail closed without a retry loop")
 }
 
 {

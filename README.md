@@ -34,8 +34,8 @@ bash /tmp/omarchy-nearby-install.sh
 
 The installer selects a published release, installs the plugin at that exact tag,
 downloads its matching Linux x86_64 helper, verifies the SHA256, and enables
-`oma.nearby`. It does not use `sudo`, install packages, require Rust, or compile
-anything locally.
+`oma.nearby`. Nearby never requests administrator privileges. The installer does
+not install packages, require Rust, or compile anything locally.
 
 Install or reinstall a specific release with:
 
@@ -52,6 +52,7 @@ The widget is placed in the right section of the bar by default. Remove it with
 - Send one or more files
 - Send clipboard text
 - Receive files and text with explicit accept/decline controls
+- Optionally require a persistent PIN for incoming text and file transfers
 - Transfer progress, completion, cancellation and error states
 - Native Omarchy bar widget and popup
 - HTTPS LocalSend interoperability with certificate fingerprint handling
@@ -82,6 +83,21 @@ requires a Rust toolchain with Cargo.
 Received files are written to the user's Downloads directory. Interrupted receives
 use `.nearby-*.part` files. On startup, Nearby removes only its own partial files
 that are older than 24 hours.
+
+## Incoming PIN protection
+
+Open **Incoming PIN** from Nearby's device list to enable, change or disable
+receiver PIN protection. Nearby accepts 1–64 ASCII letters, numbers, dots,
+underscores, tildes and hyphens for an incoming PIN so official LocalSend
+senders can transmit it reliably.
+
+The sender must provide the correct PIN before Nearby displays the transfer,
+but the local user must still explicitly Accept or Decline it. Changes apply to
+new requests immediately and do not restart discovery or interrupt an already
+authorized transfer. Nearby stores the PIN in
+`$XDG_STATE_HOME/omarchy-nearby/settings.json` (falling back to
+`~/.local/state/omarchy-nearby/settings.json`) with user-only permissions and
+never displays the saved value again.
 
 ## Architecture
 
@@ -214,6 +230,12 @@ A larger manual interoperability and robustness checklist is kept in
 Nearby validates transfer paths and writes incoming files through temporary partial
 files before atomic finalization. TLS fingerprints are used for peer connections
 where the LocalSend protocol exposes them.
+
+Incoming PIN protection is an additional authorization gate, not authenticated
+pairing and not a replacement for TLS or local Accept/Decline. Three incorrect
+PIN submissions from one IP cause subsequent requests from that IP to receive
+LocalSend's `429 Too Many Requests` response until the receiver security state
+changes or the receiver restarts.
 
 LocalSend discovery itself is LAN discovery and should not be treated as an
 authenticated pairing mechanism. Use Nearby on networks you trust.

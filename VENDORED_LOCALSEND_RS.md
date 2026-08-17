@@ -33,17 +33,22 @@ moved the tree from `oma.nearby/backend/vendor/localsend-rs` to its current path
 Git records every vendor file in that commit as a 100% content-preserving rename,
 so it is not a local `localsend-rs` patch.
 
-After that relocation, Nearby's history records four content-changing vendor
-commits. Their cumulative diff is 298 insertions and 44 deletions across five
+After that relocation, Nearby's history records eight content-changing vendor
+commits. Their cumulative diff is 621 insertions and 79 deletions across ten
 files:
 
 | File | Insertions | Deletions |
 | --- | ---: | ---: |
-| `src/client/client.rs` | 50 | 1 |
+| `Cargo.lock` | 3 | 2 |
+| `Cargo.toml` | 1 | 0 |
+| `src/client/client.rs` | 81 | 11 |
 | `src/client/mod.rs` | 1 | 1 |
 | `src/discovery/http.rs` | 142 | 33 |
 | `src/discovery/multicast.rs` | 29 | 8 |
-| `tests/interop_upload.rs` | 76 | 1 |
+| `src/server/pin.rs` | 65 | 22 |
+| `src/server/server.rs` | 16 | 0 |
+| `tests/conformance_pin.rs` | 146 | 1 |
+| `tests/interop_upload.rs` | 137 | 1 |
 
 ## Local modification policy
 
@@ -160,6 +165,38 @@ existing streaming file-upload path.
 The integration test prepares a normal upload session, uploads an in-memory
 payload without a source file, and verifies the exact received bytes, completed
 session, and final progress count.
+
+### 5. Match official LocalSend receiver PIN enforcement and allow live changes
+
+- Nearby commits: `3b842ca`, `e51e10d` and `f08c52a`
+- Files: `Cargo.toml`, `Cargo.lock`, `src/server/pin.rs`,
+  `src/server/server.rs`, and `tests/conformance_pin.rs`
+
+The imported PIN gate counted a missing PIN as a failed attempt, kept an
+unbounded IP map and applied a five-minute cooldown. LocalSend 1.18.1 instead
+counts only supplied incorrect values, blocks after three failures without a
+timer and bounds failure state to an LRU cache of 200 IPs. Nearby now follows
+those semantics.
+
+`PinGate::set_pin(...)` and `LocalSendServer::set_pin(...)` expose the existing
+authentication state to Nearby's long-lived helper. Changing or disabling the
+credential clears stale failure state and affects only future prepare-upload
+checks; it does not restart the listener or invalidate an authorized session.
+Conformance tests cover status codes, event suppression, counter reset and live
+changes, while the upload integration test proves an authorized transfer
+survives a credential change.
+
+### 6. Encode outgoing PIN query values
+
+- Nearby commit: `74bd876`
+- Primary file: `src/client/client.rs`
+- Regression test: `prepare_upload_url_round_trips_reserved_and_unicode_pin_characters`
+
+The imported client interpolated a PIN directly into the prepare-upload URL.
+Reserved query characters could therefore be parsed as delimiters or fragments
+instead of arriving as part of the PIN. Nearby now builds the URL with
+`reqwest::Url` and appends `pin` through its query serializer. Tests cover
+spaces, Unicode, `+`, `&`, `#` and `%` round-tripping unchanged.
 
 ## Nearby behavior outside the vendor
 

@@ -15,6 +15,19 @@ use tokio_util::io::ReaderStream;
 
 pub type ProgressCallback = Box<dyn Fn(u64, u64, f64) + Send + Sync>;
 
+fn prepare_upload_url(target: &DeviceInfo, ip: &str, pin: Option<&str>) -> Result<reqwest::Url> {
+    let base = format!(
+        "{}://{}:{}/api/localsend/v2/prepare-upload",
+        target.protocol, ip, target.port
+    );
+    let mut url = reqwest::Url::parse(&base)
+        .map_err(|error| LocalSendError::network(format!("Invalid target URL: {error}")))?;
+    if let Some(pin) = pin {
+        url.query_pairs_mut().append_pair("pin", pin);
+    }
+    Ok(url)
+}
+
 #[cfg(feature = "https")]
 fn reqwest_identity(identity: &TlsCertificate) -> Result<reqwest::Identity> {
     let pem = format!("{}\n{}", identity.cert_pem, identity.key_pem);
@@ -159,21 +172,14 @@ impl LocalSendClient {
             .ip
             .as_ref()
             .ok_or_else(|| LocalSendError::network("Target IP not provided"))?;
-        let mut url = format!(
-            "{}://{}:{}/api/localsend/v2/prepare-upload",
-            target.protocol, ip, target.port
-        );
-
-        if let Some(pin_value) = pin {
-            url = format!("{}?pin={}", url, pin_value);
-        }
+        let url = prepare_upload_url(target, ip, pin)?;
 
         let request = PrepareUploadRequest {
             info: self.device.clone(),
             files,
         };
 
-        let response = self.client.post(&url).json(&request).send().await?;
+        let response = self.client.post(url).json(&request).send().await?;
 
         let status = response.status();
         match status {
@@ -457,7 +463,7 @@ impl rustls::client::danger::ServerCertVerifier for FingerprintVerifier {
 
 #[cfg(test)]
 mod tests {
-    use super::LocalSendClient;
+    use super::{LocalSendClient, prepare_upload_url};
     use crate::client::TlsTrustPolicy;
     use crate::protocol::{DeviceInfo, Protocol};
 
@@ -473,6 +479,21 @@ mod tests {
         assert!(!policy.allows(""));
         // Client must construct without panicking and remain usable for the device payload.
         assert_eq!(client.device.alias, "alias");
+    }
+
+    #[test]
+    fn prepare_upload_url_round_trips_reserved_and_unicode_pin_characters() {
+        let mut target = DeviceInfo::new("receiver".to_string(), 53317, Protocol::Http);
+        target.ip = Some("192.0.2.2".to_string());
+
+        for pin in ["with space", "a+b", "a&b", "a#b", "a%b", "contraseña"] {
+            let url =
+                prepare_upload_url(&target, target.ip.as_deref().unwrap(), Some(pin)).unwrap();
+            let received = url
+                .query_pairs()
+                .find_map(|(key, value)| (key == "pin").then(|| value.into_owned()));
+            assert_eq!(received.as_deref(), Some(pin));
+        }
     }
 
     #[cfg(not(feature = "https"))]
