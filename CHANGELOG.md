@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0-dev
+## 1.1.0
 
 - Add a user-configured, persistent PIN for incoming text and file transfers.
   PIN changes take effect without restarting the receiver or interrupting an
