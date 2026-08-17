@@ -34,8 +34,8 @@ bash /tmp/omarchy-nearby-install.sh
 
 The installer selects a published release, installs the plugin at that exact tag,
 downloads its matching Linux x86_64 helper, verifies the SHA256, and enables
-`oma.nearby`. It does not use `sudo`, install packages, require Rust, or compile
-anything locally.
+`oma.nearby`. Nearby never requests administrator privileges. The installer does
+not install packages, require Rust, or compile anything locally.
 
 Install or reinstall a specific release with:
 
