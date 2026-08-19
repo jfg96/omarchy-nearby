@@ -182,16 +182,27 @@ Generated helper binaries are not tracked in the repository.
 
 ## Updates
 
-Prebuilt installations must be updated with Nearby's installer so the plugin and
-helper move to the same release together:
+Prebuilt installations are updated with Nearby's installer, which moves the
+plugin and its helper to the same release together:
 
 ```sh
 ~/.config/omarchy/plugins/oma.nearby/install.sh
 ```
 
-Running `omarchy plugin update oma.nearby` updates source files but cannot update
-the release helper. Nearby detects that version mismatch, stops the backend, and
-asks you to run the installer again.
+`omarchy plugin update oma.nearby` updates source files but cannot update the
+release helper: it fetches and fast-forwards the checkout, and `bin/` is not
+tracked. Nearby therefore states the oldest helper it can drive in
+`manifest.json`:
+
+```json
+"minHelperVersion": "1.1.0"
+```
+
+A helper at or above that version keeps working after a source-only update, so
+a release that does not change what the plugin asks of the helper no longer
+needs the installer run at all. Below it, Nearby stops the backend and reports
+which version it needs and which one is installed. Raise `minHelperVersion` in
+the same change that starts depending on a new helper.
 
 ## Releases
 
