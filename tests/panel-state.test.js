@@ -63,22 +63,54 @@ assert.match(source, /command:\s*\["omarchy-file-select"/,
   "the file chooser must be omarchy-file-select")
 assert.equal(/code\s*===?\s*127/.test(source), false,
   "no shell runs on our behalf, so a missing command never reports exit code 127")
+// The update row exists because `omarchy plugin update` cannot replace the
+// helper: bin/ is not tracked and Omarchy runs no plugin script on update. The
+// panel must therefore offer the action itself, and must keep the repository
+// and the manual command for the cases the action cannot cover.
+assert.match(source, /id: helperUpdate[\s\S]*?visible: root\.helperUpdateOffered/,
+  "the update row must appear exactly when the engine says the helper needs one")
+assert.match(source, /text: root\.helperUpdating \? "Updating…" : \(root\.helperUpdateError!=="" \? "Try again" : "Update helper"\)/,
+  "the button must name the retry after a failure, and say it is working while it works")
+assert.match(source, /enabled:!root\.helperUpdating/,
+  "a second press while the updater runs must not start a second download")
+assert.match(source, /visible:root\.helperUpdateError!==""[\s\S]*?root\.installerCommand[\s\S]*?onClicked:root\.copyInstallerCommand\(\)[\s\S]*?onClicked:root\.copyRepositoryLink\(\)/,
+  "a failed update must offer the command that fixes it, not only the repository link")
+assert.match(source, /readonly property string repositoryUrl: "https:\/\/github\.com\/jfg96\/omarchy-nearby"/,
+  "the fallback link must point at the repository the installer pulls from")
+assert.equal(source.includes("install.sh\"]"), false,
+  "install.sh owns the checkout and refuses a dirty one, so the panel must not call it")
 
-// The hero is uppercased and letterspaced, so it takes the short status the
-// engine sets and never the full error sentence, which cropped mid-word.
+// The popup used to say the same thing three times: the hero, the device
+// empty-state line, and the update row all rendered the version mismatch, and
+// the hero cropped its copy mid-word.
 assert.match(source, /if \(!backendReady\) return statusText/,
-  "the hero must show the short status")
+  "the hero must show the short status, not the full error sentence")
 assert.equal(source.includes("return errorText || statusText"), false,
-  "falling back to the long error text is what put a cropped sentence in the hero")
+  "the hero must not fall back to the long error text")
+assert.match(source, /text: root\.helperBlocksNearby \? "HELPER" : "DEVICES"/,
+  "a view owned by the helper failure must not head its section DEVICES")
+assert.match(source, /visible: root\.devices\.length===0 && !root\.helperBlocksNearby/,
+  "the device empty-state line must not repeat the error the update row states")
+assert.equal((source.match(/root\.helperUpdateDetail/g) || []).length, 1,
+  "the versions belong in one place: the engine's detail line, rendered once")
 
-// Every hover handler goes through noteHover. The originals only handled
-// enter, so hasCursor stayed on the last button the pointer crossed.
+// The path is 48 characters in a 360-wide popup. Wrapping it split the
+// extension onto its own line, which reads as a typo and invites one.
+assert.match(source, /text:root\.installerCommand; elide:Text\.ElideMiddle/,
+  "the installer path must elide rather than wrap")
+assert.doesNotMatch(source, /text:root\.installerCommand[^\n]*WrapAnywhere/,
+  "wrapping the path anywhere is what orphaned the .sh")
+
+// Every hover handler must go through noteHover. The originals only handled
+// enter, so `hasCursor` stayed on the last button the pointer crossed and the
+// popup showed a highlight the mouse had already left.
 assert.equal((source.match(/onHovered/g) || []).length,
   (source.match(/root\.noteHover\(/g) || []).length,
   "a hover handler that does not release the cursor leaves the button lit after the pointer goes")
 assert.doesNotMatch(source, /onHovered[^\n]*if\s*\(v\)\s*\{\s*root\.cursorActive=true/,
   "taking the cursor on enter without releasing it on leave is the bug this replaced")
-for (const launcher of ["picker", "clipboard", "clipboardWriter"]) {
+
+for (const launcher of ["picker", "clipboard", "clipboardWriter", "textCopier"]) {
   assert.match(source, new RegExp(`onRunningChanged:\\s*if\\s*\\(!running && !${launcher}\\.launched`),
     `${launcher} must report a command that never launched, which Quickshell signals by ` +
     "returning running to false without an exit code")
@@ -126,7 +158,7 @@ const functionNames = [
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "clearSecretInputs",
   "goBack", "selectFiles", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
-  "noteHover",
+  "updateHelper", "copyText", "copyInstallerCommand", "copyRepositoryLink", "noteHover",
 ]
 
 // Every call the view makes has to land on the shared engine, so the stub
@@ -157,9 +189,20 @@ function stubEngine() {
     failWith: record("failWith"),
     noteTextCopied: record("noteTextCopied"),
     beginOutgoing: record("beginOutgoing"),
+    startHelperUpdate: record("startHelperUpdate"),
     viewOpened: record("viewOpened"),
     viewClosed: record("viewClosed"),
   }
+}
+
+// The row index of the update button is a binding, not a function, so it is
+// pulled out of the source and evaluated rather than restated here: a copy of
+// the expression could not catch it drifting away from the order the panel
+// actually draws, which is the whole point of asserting on it.
+function helperUpdateIndexExpression() {
+  const match = source.match(/readonly property int helperUpdateIndex:\s*([\s\S]*?)\n\s*\n/)
+  assert.notEqual(match, null, "Panel.qml must bind helperUpdateIndex")
+  return match[1].trim()
 }
 
 function panel(initial = {}) {
@@ -172,6 +215,9 @@ function panel(initial = {}) {
     picker: {running: false, launched: false},
     clipboard: {running: false, launched: false},
     clipboardWriter: {running: false, launched: false},
+    textCopier: {running: false, launched: false, payload: ""},
+    copyNote: "",
+    helperUpdateOffered: false,
     pinInput: {text: "", forceActiveFocus: () => {}},
     incomingPinInput: {text: "", forceActiveFocus: () => {}},
     keyCatcher: {forceActiveFocus: () => {}},
@@ -191,6 +237,16 @@ function panel(initial = {}) {
     ...initial,
   }
   context.engine = engine
+  const indexExpression = helperUpdateIndexExpression()
+  Object.defineProperty(context, "helperUpdateIndex", {
+    enumerable: true,
+    get: () => vm.runInNewContext(`(${indexExpression})`, {
+      helperUpdateOffered: context.helperUpdateOffered,
+      receiverEnabled: context.receiverEnabled,
+      backendReady: context.backendReady,
+      devices: context.devices,
+    }),
+  })
   vm.createContext(context)
   vm.runInContext(functionNames.map(extractFunction).join("\n"), context)
   context.closes = closes
@@ -219,8 +275,40 @@ function callNames(state) {
     "the entry after rescan opens incoming PIN settings")
 }
 
-// Leaving a button must put its highlight out, and moving between two must
-// leave exactly one lit whichever order the enter and the leave arrive in.
+// An unusable helper hides the action row, so the update button takes the
+// index rescan would have had. Keyboard users have to be able to reach it:
+// without it the only stop below the receiver switch is nothing at all.
+{
+  const state = panel({
+    viewState: "nearby", devices: [], backendReady: false, helperUpdateOffered: true, selectedIndex: -1,
+  })
+  assert.equal(state.helperUpdateIndex, 0)
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 0, "the cursor must reach the update button with no devices listed")
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "startHelperUpdate",
+    "the keyboard must trigger the same update the button does")
+  state.moveCursor(0, 3)
+  assert.equal(state.selectedIndex, 0, "the update button is the last stop in the Nearby view")
+}
+
+// Usable but behind: the action row is still drawn, so the update button lands
+// after it rather than on top of rescan.
+{
+  const state = panel({
+    viewState: "nearby", devices: [{alias: "A"}], backendReady: true, helperUpdateOffered: true, selectedIndex: 1,
+  })
+  assert.equal(state.helperUpdateIndex, 3)
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "forceFullDiscovery",
+    "an offered update must not displace rescan while the helper still works")
+  state.selectedIndex = 3
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "startHelperUpdate")
+}
+
+// Leaving a button must put the highlight out, and moving between two must
+// leave exactly one lit whichever order the enter and leave arrive in.
 {
   const state = panel({viewState: "nearby", devices: [{alias: "A"}, {alias: "B"}], selectedIndex: -1})
   state.noteHover(true, 0)
@@ -231,14 +319,15 @@ function callNames(state) {
   assert.equal(state.cursorActive, false, "the pointer left, so nothing may still look hovered")
   assert.equal(state.selectedIndex, 0, "the index survives so an arrow key resumes from here")
 
+  // leave-then-enter
   state.noteHover(true, 0)
   state.noteHover(false, 0)
   state.noteHover(true, 1)
   assert.equal(state.cursorActive, true)
   assert.equal(state.selectedIndex, 1)
 
-  // Enter on the next button before leave on the previous one: the stale
-  // leave must not put out the button the pointer is now on.
+  // enter-then-leave: the stale leave must not put out the button the pointer
+  // is now on.
   state.noteHover(true, 0)
   state.noteHover(true, 1)
   state.noteHover(false, 0)
@@ -258,6 +347,14 @@ function callNames(state) {
   state.moveCursor(0, 1)
   assert.equal(state.cursorActive, true)
   assert.equal(state.selectedIndex, 2, "the keyboard resumes from the button the pointer last touched")
+}
+
+// No update offered: the Nearby view keeps the row order it had.
+{
+  const state = panel({viewState: "nearby", devices: [{alias: "A"}], selectedIndex: 0})
+  assert.equal(state.helperUpdateIndex, -1)
+  state.moveCursor(0, 9)
+  assert.equal(state.selectedIndex, 2, "the cursor still stops on incoming PIN settings")
 }
 
 {

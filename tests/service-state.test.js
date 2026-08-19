@@ -39,6 +39,21 @@ assert.match(source, /id: backendRestart[\s\S]*?onTriggered:[^\n]*bindBackendRun
   "the retry timer must restore the Process.running binding")
 assert.doesNotMatch(source, /backend\.running\s*=\s*true/,
   "a plain retry assignment would permanently remove the Process.running binding")
+
+// `omarchy plugin update` fetches, fast-forwards, validates and rescans, and
+// runs nothing the plugin ships. bin/ is not tracked, so the release helper
+// cannot arrive that way and there is no hook that could fetch it. The plugin
+// closes that gap itself, with a script that touches only the binary:
+// install.sh also owns the checkout and refuses a plugin directory with local
+// changes, so it cannot be what the panel calls.
+assert.match(source, /command:\s*\[root\.pluginDir \+ "\/bin\/nearby-update-helper"\]/,
+  "the in-panel update must run the binary-only updater")
+assert.doesNotMatch(source, /install\.sh"\]/,
+  "install.sh owns the git checkout and declines a dirty one; the panel must not call it")
+assert.match(source, /id: helperUpdater[\s\S]*?onRunningChanged:\s*\{\s*\n\s*if \(running \|\| helperUpdater\.launched\) return/,
+  "an updater that never launched must be reported the same way a missing helper is")
+assert.match(source, /function finishHelperUpdate[\s\S]*?if \(!backend\.running\) bindBackendRunning\(\)/,
+  "a successful update must restore the Process.running binding the mismatch shutdown wrote over")
 assert.match(source, /Model\.helperSatisfies\(requiredHelperVersion, helperVersion\)/,
   "the helper is checked against the floor the manifest declares, not against an exact version")
 
@@ -78,10 +93,10 @@ function backendEligible(state) {
   return vm.runInNewContext(`(${expression})`, {root: state})
 }
 
-// The version floor is a binding, not a function, so it comes out of the
-// source rather than being restated. A manifest with no floor falls back to
-// the version it ships with, and a test that hardcoded that fallback would not
-// notice it changing under the check that depends on it.
+// The version floor is a binding too, so it comes out of the source rather
+// than being restated. A manifest with no floor falls back to the version it
+// ships with, and a test that hardcoded that fallback would not notice it
+// changing under the check that depends on it.
 function requiredHelperVersion(state) {
   const match = source.match(/readonly property string requiredHelperVersion:\s*([^\n]+)/)
   assert.notEqual(match, null, "Service.qml must derive the helper version floor")
@@ -89,6 +104,33 @@ function requiredHelperVersion(state) {
     minHelperVersion: state.minHelperVersion,
     pluginVersion: state.pluginVersion,
   })
+}
+
+// What the panel offers is a chain of derived bindings, and each one is pulled
+// out of the source rather than restated here: they decide whether the update
+// row appears and what it says, so a copy could agree with the test while
+// disagreeing with the plugin.
+function extractBinding(name) {
+  const match = source.match(new RegExp(
+    `readonly property \\w+ ${name}:\\s*([\\s\\S]*?)(?=\\n\\s*(?://|readonly property|property |function |[A-Z]\\w*\\s*\\{))`))
+  assert.notEqual(match, null, `Service.qml must bind ${name}`)
+  return match[1].trim()
+}
+
+function helperDerived(state) {
+  const scope = {
+    Model,
+    helperVersion: state.helperVersion,
+    pluginVersion: state.pluginVersion,
+    minHelperVersion: state.minHelperVersion,
+    helperMissing: state.helperMissing,
+    backendVersionMismatch: state.backendVersionMismatch,
+    requiredHelperVersion: requiredHelperVersion(state),
+  }
+  for (const name of ["helperOutdated", "helperUpdateOffered", "helperUpdateDetail"]) {
+    scope[name] = vm.runInNewContext(`(${extractBinding(name)})`, scope)
+  }
+  return scope
 }
 
 const functionNames = [
@@ -101,7 +143,8 @@ const functionNames = [
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
   "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming",
   "finishIncoming", "finishOutgoing", "finishText", "finishTerminal",
-  "handleBackendExit", "handleEvent", "reportFailure",
+  "handleBackendExit", "handleEvent",
+  "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
 ]
 
 function engine(initial = {}) {
@@ -133,6 +176,12 @@ function engine(initial = {}) {
     pluginVersion: "1.0.4",
     minHelperVersion: "",
     helperVersion: "",
+    helperMissing: false,
+    helperUpdating: false,
+    helperUpdateInstalled: false,
+    helperUpdateStatus: "",
+    helperUpdateError: "",
+    helperUpdater: {running: false, launched: false},
     backendVersionMismatch: false,
     backendStartupFailureCode: "",
     backendStartupFailurePort: 0,
@@ -168,6 +217,12 @@ function engine(initial = {}) {
     enumerable: true,
     get() { return requiredHelperVersion(context) },
   })
+  for (const derived of ["helperOutdated", "helperUpdateOffered", "helperUpdateDetail"]) {
+    Object.defineProperty(context, derived, {
+      enumerable: true,
+      get() { return helperDerived(context)[derived] },
+    })
+  }
   vm.createContext(context)
   vm.runInContext(functionNames.map(extractFunction).join("\n"), context)
   context.sent = sent
@@ -192,50 +247,43 @@ function engine(initial = {}) {
     "the restored binding must make OFF -> ON eligible to start again")
 }
 
-// The hero renders statusText uppercased and letterspaced, and every failure
-// path assigned the same sentence to statusText and errorText. A sentence does
-// not fit there: it was cropped mid-word, so the one line the user saw first
-// said less than the icon beside it. The label and the detail are now separate
-// strings, and the hero takes the label.
+// A source-only update moves the plugin ahead of a helper that can still be
+// driven. That used to stop the plugin dead on every release; the floor is
+// what keeps a compatible helper working.
 {
   const state = engine({
-    backendAcceptedThisRun: false,
-    backendRestart: {attempts: 4, interval: 0, restart: () => {}, stop: () => {}},
-    backendStartupFailureCode: "receiver_port_in_use", backendStartupFailurePort: 53317,
-    backend: {running: false, write: () => {}},
+    pluginVersion: "1.1.0", minHelperVersion: "1.0.6", backendReady: false, viewState: "nearby",
   })
-  state.root = state
-  state.handleBackendExit(1)
-  assert.equal(state.statusText, "Port 53317 in use")
-  assert.match(state.errorText, /Another LocalSend receiver/,
-    "the body keeps the advice the label has no room for")
-  assert.notEqual(state.statusText, state.errorText)
-}
-
-{
-  const state = engine({
-    backendAcceptedThisRun: false,
-    backendRestart: {attempts: 4, interval: 0, restart: () => {}, stop: () => {}},
-    backendStartupFailureCode: "receiver_security_settings_invalid",
-    backend: {running: false, write: () => {}},
-  })
-  state.root = state
-  state.handleBackendExit(1)
-  assert.equal(state.statusText, "Security settings invalid")
-  assert.match(state.errorText, /settings\.json/)
-  assert.notEqual(state.statusText, state.errorText)
-}
-
-{
-  const state = engine({pluginVersion: "1.1.0", backendReady: false, viewState: "nearby"})
   state.handleEvent({event: "ready", helperVersion: "1.0.7"})
+  assert.equal(state.backendVersionMismatch, false)
+  assert.equal(state.backendReady, true, "a helper above the floor must keep working after a source update")
+  assert.equal(state.sent.some(command => command.command === "shutdown"), false)
+}
+
+// Below the floor is still a stop, and the message has to name both versions:
+// "run the installer again" was the old text and it did not say what was wrong.
+//
+// The hero renders statusText uppercased and letterspaced, so it gets a label
+// and the body gets the sentence. Assigning the sentence to both is what made
+// the popup print the same text twice, once cropped mid-word.
+{
+  const state = engine({
+    pluginVersion: "1.1.0", minHelperVersion: "1.1.0", backendReady: false, viewState: "nearby",
+  })
+  state.handleEvent({event: "ready", helperVersion: "1.0.7"})
+  assert.equal(state.backendVersionMismatch, true)
+  assert.equal(state.backendReady, false)
+  assert.deepEqual(state.sent.at(-1), {command: "shutdown"})
+  assert.match(state.errorText, /1\.1\.0/)
+  assert.match(state.errorText, /1\.0\.7/)
   assert.equal(state.statusText, "Helper out of date")
-  assert.match(state.errorText, /Nearby needs helper/)
-  assert.notEqual(state.statusText, state.errorText)
+  assert.notEqual(state.statusText, state.errorText,
+    "the hero label and the body detail must not be the same string")
+  assert.ok(state.statusText.length <= 24,
+    `the hero label must fit uppercased and letterspaced, got ${state.statusText.length} characters`)
 }
 
 // Whatever a failure path sets, the label has to survive the hero's transform.
-// Twenty-four characters is what the popup fits at its default width.
 for (const [name, setup] of [
   ["port conflict", {backendStartupFailureCode: "receiver_port_in_use", backendStartupFailurePort: 53317}],
   ["invalid settings", {backendStartupFailureCode: "receiver_security_settings_invalid"}],
@@ -253,33 +301,47 @@ for (const [name, setup] of [
     `${name} label must fit the hero, got ${state.statusText.length} characters: ${state.statusText}`)
 }
 
-// `omarchy plugin update` fast-forwards the checkout and cannot move the
-// helper: bin/ is not tracked and Omarchy runs no plugin script on update. So
-// the plugin routinely runs one version ahead of its helper, and requiring an
-// exact match stopped it dead on every release, including releases whose
-// helper it could still drive. The floor is what the helper has to clear.
+// Same rule for the other failures that reach the hero. The port conflict was
+// the worst of them: 150 characters of advice cropped down to a fragment.
 {
   const state = engine({
-    pluginVersion: "1.1.0", minHelperVersion: "1.0.6", backendReady: false, viewState: "nearby",
+    backendAcceptedThisRun: false, backendRestart: {attempts: 4, interval: 0, restart: () => {}, stop: () => {}},
+    backendStartupFailureCode: "receiver_port_in_use", backendStartupFailurePort: 53317,
+    backend: {running: false, write: () => {}},
   })
-  state.handleEvent({event: "ready", helperVersion: "1.0.7"})
-  assert.equal(state.backendVersionMismatch, false)
-  assert.equal(state.backendReady, true, "a helper above the floor must survive a source-only update")
-  assert.equal(state.sent.some(command => command.command === "shutdown"), false)
+  state.root = state
+  state.handleBackendExit(1)
+  assert.equal(state.statusText, "Port 53317 in use")
+  assert.match(state.errorText, /Another LocalSend receiver/)
+  assert.notEqual(state.statusText, state.errorText)
 }
 
-// Below the floor is still a stop, and the message names both versions:
-// "run the installer again" never said what was actually wrong.
 {
   const state = engine({
-    pluginVersion: "1.1.0", minHelperVersion: "1.1.0", backendReady: false, viewState: "nearby",
+    backendAcceptedThisRun: false, backendRestart: {attempts: 4, interval: 0, restart: () => {}, stop: () => {}},
+    backendStartupFailureCode: "receiver_security_settings_invalid",
+    backend: {running: false, write: () => {}},
   })
-  state.handleEvent({event: "ready", helperVersion: "1.0.7"})
-  assert.equal(state.backendVersionMismatch, true)
-  assert.equal(state.backendReady, false)
-  assert.deepEqual(state.sent.at(-1), {command: "shutdown"})
-  assert.match(state.errorText, /1\.1\.0/)
-  assert.match(state.errorText, /1\.0\.7/)
+  state.root = state
+  state.handleBackendExit(1)
+  assert.equal(state.statusText, "Security settings invalid")
+  assert.match(state.errorText, /settings\.json/)
+}
+
+// The detail line is the only place the versions are stated, so the panel can
+// drop the copies it used to print above and below it.
+{
+  const state = engine({pluginVersion: "1.1.0", minHelperVersion: "1.1.0", helperVersion: "1.0.7", backendVersionMismatch: true})
+  assert.equal(state.helperUpdateDetail, "Needs helper 1.1.0 · installed 1.0.7")
+}
+{
+  const state = engine({pluginVersion: "1.1.0", helperMissing: true})
+  assert.equal(state.helperUpdateDetail, "The helper binary is missing.")
+}
+{
+  const state = engine({pluginVersion: "1.1.0", minHelperVersion: "1.0.0", helperVersion: "1.0.7"})
+  assert.equal(state.helperUpdateOffered, true, "a helper above the floor but behind the plugin is still worth updating")
+  assert.match(state.helperUpdateDetail, /behind plugin 1\.1\.0/)
 }
 
 // No floor declared reads as the shipped version, which is the rule the plugin
@@ -291,13 +353,6 @@ for (const [name, setup] of [
   assert.equal(state.backendVersionMismatch, true)
 }
 
-// A helper that reports nothing readable is not one to trust with a transfer.
-{
-  const state = engine({pluginVersion: "1.1.0", minHelperVersion: "1.0.6", backendReady: false})
-  state.handleEvent({event: "ready", helperVersion: ""})
-  assert.equal(state.backendVersionMismatch, true)
-}
-
 // A helper ahead of the plugin is not a reason to refuse to start.
 {
   const state = engine({
@@ -306,6 +361,87 @@ for (const [name, setup] of [
   state.handleEvent({event: "ready", helperVersion: "1.2.0"})
   assert.equal(state.backendVersionMismatch, false)
   assert.equal(state.backendReady, true)
+}
+
+// A helper that reports nothing readable is not one to trust with a transfer.
+{
+  const state = engine({pluginVersion: "1.1.0", minHelperVersion: "1.0.6", backendReady: false})
+  state.handleEvent({event: "ready", helperVersion: ""})
+  assert.equal(state.backendVersionMismatch, true)
+}
+
+{
+  const state = engine({
+    pluginVersion: "1.1.0", minHelperVersion: "1.1.0", backendReady: false,
+    backendVersionMismatch: true, errorText: "Nearby needs helper 1.1.0. Installed: 1.0.7.",
+    backend: {running: false, write: () => {}},
+  })
+  state.root = state
+
+  state.startHelperUpdate()
+  assert.equal(state.helperUpdating, true)
+  assert.equal(state.helperUpdater.running, true)
+  state.startHelperUpdate()
+  assert.equal(state.helperUpdater.launched, false,
+    "a second press while the updater runs must not start another download")
+
+  state.handleUpdaterEvent({event: "step", message: "Downloading helper v1.1.0…"})
+  assert.equal(state.helperUpdateStatus, "Downloading helper v1.1.0…")
+
+  state.handleUpdaterEvent({event: "done", version: "1.1.0"})
+  state.finishHelperUpdate(0)
+  assert.equal(state.helperUpdating, false)
+  assert.equal(state.backendVersionMismatch, false)
+  assert.equal(state.helperUpdateError, "")
+  assert.equal(state.errorText, "")
+  assert.equal(typeof state.backend.running.callback, "function",
+    "the restored binding is what starts the helper the update just installed")
+  assert.equal(state.backend.running.callback(), true)
+}
+
+// A failed update leaves the old binary in place, so the plugin must stay in
+// the state that says so rather than pretending the helper is new.
+{
+  const state = engine({
+    pluginVersion: "1.1.0", minHelperVersion: "1.1.0", backendReady: false,
+    backendVersionMismatch: true, backend: {running: false, write: () => {}},
+  })
+  state.root = state
+  state.startHelperUpdate()
+  state.handleUpdaterEvent({event: "failed", message: "Download of the v1.1.0 helper failed"})
+  state.finishHelperUpdate(1)
+  assert.equal(state.helperUpdating, false)
+  assert.equal(state.helperUpdateError, "Download of the v1.1.0 helper failed")
+  assert.equal(state.backendVersionMismatch, true)
+  assert.equal(state.backend.running, false, "a failed update must not try to start the old helper again")
+}
+
+// Installing the helper changes the plugin directory, the shell watches that
+// directory, and the reload it triggers kills the updater a line after its
+// work is done. The exit status is lost; the binary is not. Reporting a
+// failure there would send the user back to a terminal to redo an update that
+// already succeeded.
+{
+  const state = engine({
+    pluginVersion: "1.1.0", minHelperVersion: "1.1.0", backendReady: false,
+    backendVersionMismatch: true, backend: {running: false, write: () => {}},
+  })
+  state.root = state
+  state.startHelperUpdate()
+  state.handleUpdaterEvent({event: "done", version: "1.1.0"})
+  state.finishHelperUpdate(143)
+  assert.equal(state.helperUpdateError, "")
+  assert.equal(state.backendVersionMismatch, false)
+  assert.equal(typeof state.backend.running.callback, "function")
+}
+
+// An updater that dies without reporting anything still has to say something.
+{
+  const state = engine({pluginVersion: "1.1.0", backend: {running: false, write: () => {}}})
+  state.root = state
+  state.startHelperUpdate()
+  state.finishHelperUpdate(1)
+  assert.equal(state.helperUpdateError, "Nearby could not update the helper.")
 }
 
 function incoming(requestId, sender = requestId) {

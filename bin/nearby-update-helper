@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+
+# Fetch the release helper that matches this checkout's manifest version.
+#
+# Deliberately not install.sh. That script owns the git checkout as well, and
+# refuses to run when the plugin directory has local changes, so it cannot be
+# the thing a panel button calls. `omarchy plugin update` already moves the
+# source: it fetches, fast-forwards, validates and rescans, and the only thing
+# it cannot move is this binary, because bin/ is not tracked. Keeping the two
+# jobs apart leaves the git side to Omarchy and the binary side here.
+#
+# Progress is reported as one JSON object per line on stdout, the same shape
+# the helper itself uses, so Service.qml can parse it with Model.parseLine:
+#
+#   {"event":"step","message":"…"}   work in progress
+#   {"event":"done","version":"…"}   the binary on disk now matches
+#   {"event":"failed","message":"…"} nothing was replaced
+#
+# Exit status is 0 only after a verified binary has been moved into place.
+
+set -uo pipefail
+
+plugin_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly plugin_dir
+readonly repository="jfg96/omarchy-nearby"
+
+emit() { jq -nc "$@" 2>/dev/null || printf '{"event":"failed","message":"could not report progress"}\n'; }
+step() { emit --arg m "$1" '{event:"step",message:$m}'; }
+fail() {
+  emit --arg m "$1" '{event:"failed",message:$m}'
+  exit 1
+}
+
+# jq builds every line above, so a missing jq cannot be reported as JSON.
+for command_name in curl jq sha256sum; do
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    printf '{"event":"failed","message":"required command not found: %s"}\n' "$command_name"
+    exit 1
+  fi
+done
+
+case "$(uname -m)" in
+x86_64 | amd64) platform="linux-x86_64" ;;
+*) fail "No prebuilt helper is published for $(uname -m). Build it with ./build.sh." ;;
+esac
+
+manifest="$plugin_dir/manifest.json"
+[[ -f $manifest ]] || fail "manifest.json is missing from $plugin_dir"
+version=$(jq -r '.version // empty' "$manifest") || fail "manifest.json is not valid JSON"
+[[ -n $version ]] || fail "manifest.json does not declare a version"
+
+# Releases exist only for stable tags. A checkout sitting on a prerelease has
+# no published binary at all, so say that rather than reporting a 404 from the
+# release lookup as though the network were at fault.
+[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+  || fail "Nearby $version is a development build with no published helper. Build it with ./build.sh."
+
+tag="v$version"
+
+# Staged outside the plugin directory, and deliberately so. The shell watches
+# the plugin tree and reloads the plugin when anything in it changes, which
+# tears down the service that owns this process and kills it: downloading nine
+# megabytes into bin/ triggered that reload partway through and left a half
+# staged directory behind every time. Nothing may be written under the plugin
+# until the binary is ready to be its final self.
+#
+# The cache lives on the same filesystem as the config directory on any normal
+# XDG layout, so the last step is still a rename rather than a copy, and the
+# single change the watcher sees is a helper that is already verified.
+mkdir -p "$plugin_dir/bin" || fail "Could not write to $plugin_dir/bin"
+cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-nearby"
+mkdir -p "$cache_root" || fail "Could not write to $cache_root"
+stage_dir=$(mktemp -d "$cache_root/update.XXXXXX") || fail "Could not create a staging directory"
+cleanup() { rm -rf -- "$stage_dir"; }
+trap cleanup EXIT
+
+# "Could not reach GitHub" and "GitHub has no such release" are different
+# problems with different fixes, and `curl --fail` reports both as a non-zero
+# exit. Telling someone to check their connection when the connection is fine
+# and the release simply does not exist sends them to fix the one thing that is
+# not broken, so the transport failure and the HTTP status are read separately.
+step "Looking up Nearby $tag…"
+release_file="$stage_dir/release.json"
+http_status=$(curl --location --silent --output "$release_file" --write-out '%{http_code}' \
+  "https://api.github.com/repos/${repository}/releases/tags/${tag}")
+curl_status=$?
+(( curl_status == 0 )) \
+  || fail "Could not reach GitHub (curl error $curl_status). Check your connection and try again."
+
+case "$http_status" in
+200) ;;
+404) fail "GitHub has no release $tag. Nearby $version may not be published yet." ;;
+403 | 429) fail "GitHub is rate-limiting this update. Try again in a few minutes." ;;
+5??) fail "GitHub is having trouble (HTTP $http_status). Try again shortly." ;;
+*) fail "GitHub returned HTTP $http_status for release $tag." ;;
+esac
+
+release_json=$(<"$release_file")
+jq -e '.draft == false' >/dev/null 2>&1 <<<"$release_json" || fail "Release $tag is a draft"
+jq -e '.prerelease == false' >/dev/null 2>&1 <<<"$release_json" || fail "Release $tag is a prerelease"
+
+asset_name="omarchy-nearby-helper-${tag}-${platform}"
+checksum_name="${asset_name}.sha256"
+asset_url=$(jq -r --arg name "$asset_name" \
+  '.assets[]? | select(.name == $name) | .browser_download_url' <<<"$release_json")
+checksum_url=$(jq -r --arg name "$checksum_name" \
+  '.assets[]? | select(.name == $name) | .browser_download_url' <<<"$release_json")
+[[ -n $asset_url && -n $checksum_url ]] \
+  || fail "Release $tag publishes no $platform helper. Build it with ./build.sh."
+
+step "Downloading helper $tag…"
+curl --fail --location --silent --show-error --output "$stage_dir/$asset_name" "$asset_url" \
+  || fail "The $tag helper download did not finish. Check your connection and try again."
+curl --fail --location --silent --show-error --output "$stage_dir/$checksum_name" "$checksum_url" \
+  || fail "The $tag checksum download did not finish. Check your connection and try again."
+
+step "Verifying checksum…"
+(cd "$stage_dir" && sha256sum --check --strict "$checksum_name" >/dev/null 2>&1) \
+  || fail "The downloaded helper failed its SHA256 check and was discarded"
+
+chmod 0755 "$stage_dir/$asset_name" || fail "Could not make the helper executable"
+
+# Replacing the entry rather than the file: a helper still running keeps the
+# inode it was started from and exits on its own.
+mv -- "$stage_dir/$asset_name" "$plugin_dir/bin/omarchy-nearby-helper" \
+  || fail "Could not install the helper into $plugin_dir/bin"
+
+emit --arg v "$version" '{event:"done",version:$v}'
+
+# Last, because it writes into the watched tree: an earlier version of this
+# script staged in bin/, and every run the reload killed left its directory
+# behind. Anything that interrupts the sweep now costs nothing.
+for orphan in "$plugin_dir"/bin/.update.*; do
+  if [[ -d $orphan ]]; then rm -rf -- "$orphan"; fi
+done
+
+# The sweep must not decide the exit status: with nothing to sweep the glob
+# stays literal, the test fails, and a successful update reported failure.
+exit 0

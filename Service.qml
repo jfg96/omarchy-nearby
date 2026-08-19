@@ -86,6 +86,34 @@ Item {
   property string backendStartupFailureCode: ""
   property int backendStartupFailurePort: 0
 
+  // The helper is the one part of the plugin `omarchy plugin update` cannot
+  // move: bin/ is not tracked, so a source update always leaves the previous
+  // binary behind. All three states below are fixed by fetching the release
+  // helper for the version now on disk, so the panel offers that one action
+  // rather than sending the user to a terminal.
+  property bool helperMissing: false
+  property bool helperUpdating: false
+  property bool helperUpdateInstalled: false
+  property string helperUpdateStatus: ""
+  property string helperUpdateError: ""
+  // Behind but still usable: the version floor accepts it, so this is a nudge
+  // rather than a stop.
+  readonly property bool helperOutdated: helperVersion !== "" && pluginVersion !== ""
+    && Model.helperUpdateAvailable(pluginVersion, helperVersion)
+  readonly property bool helperUpdateOffered: pluginVersion !== ""
+    && (backendVersionMismatch || helperMissing || helperOutdated)
+  // One line, and the only place the versions are stated. The hero shows the
+  // short status and the panel shows this; saying it in both is what made the
+  // popup repeat itself three times over four lines.
+  readonly property string helperUpdateDetail: !helperUpdateOffered
+    ? ""
+    : (helperMissing
+      ? "The helper binary is missing."
+      : (backendVersionMismatch
+        ? "Needs helper " + requiredHelperVersion + " · installed "
+          + (helperVersion !== "" ? helperVersion : "unknown")
+        : "Helper " + helperVersion + " is behind plugin " + pluginVersion + "."))
+
   // Discovery follows the popup, and the popup exists once per monitor, so
   // openness is a count rather than a flag: discovery runs while any view is
   // open and stops when the last one closes.
@@ -141,7 +169,13 @@ Item {
     function receiverOn(): string { if (!root.receiverEnabled) root.toggleReceiver(); return "ok" }
     function receiverOff(): string { if (root.receiverEnabled) root.toggleReceiver(); return "ok" }
     function receiverToggle(): string { root.toggleReceiver(); return "ok" }
-    function status(): string { return JSON.stringify({enabled:root.receiverEnabled,ready:root.backendReady,running:backend.running,devices:root.devices.length}) }
+    // The same repair the panel button runs, for a shell whose bar is not
+    // where the user is looking when the helper stops matching.
+    function updateHelper(): string { if (root.helperUpdating) return "busy"; root.startHelperUpdate(); return "ok" }
+    // The helper version and the floor it has to clear are reported here
+    // because a mismatch otherwise shows up only as a panel that says it is
+    // not ready, which is the same thing a port conflict looks like.
+    function status(): string { return JSON.stringify({enabled:root.receiverEnabled,ready:root.backendReady,running:backend.running,devices:root.devices.length,helper:root.helperVersion,requires:root.requiredHelperVersion,updateOffered:root.helperUpdateOffered}) }
   }
 
   function viewOpened() {
@@ -236,6 +270,53 @@ Item {
     if(incomingPinUpdating||!backendReady||!incomingPinEnabled)return
     incomingPinUpdating=true; pendingIncomingPinEnabled=false; incomingPinError=""
     send({command:"disable_incoming_pin"})
+  }
+  // Fetching the release helper is a separate job from moving the checkout,
+  // and install.sh does both. install.sh also refuses to run against a plugin
+  // directory with local changes, so it cannot be what a button calls. The
+  // updater below only replaces bin/omarchy-nearby-helper, and git already
+  // ignores that path.
+  function startHelperUpdate() {
+    if (helperUpdating || pluginVersion === "" || helperUpdater.running) return
+    helperUpdateError=""
+    helperUpdateStatus="Contacting GitHub…"
+    helperUpdateInstalled=false
+    helperUpdating=true
+    helperUpdater.launched=false
+    helperUpdater.running=true
+  }
+  function handleUpdaterEvent(event) {
+    if (!event || !event.event) return
+    if (event.event === "step") helperUpdateStatus=String(event.message || "")
+    else if (event.event === "done") { helperUpdateStatus=""; helperUpdateError=""; helperUpdateInstalled=true }
+    else if (event.event === "failed") { helperUpdateStatus=""; helperUpdateError=String(event.message || "") }
+  }
+  function finishHelperUpdate(code) {
+    helperUpdating=false
+    helperUpdateStatus=""
+    // The binary landing is what makes the update real, and the updater says
+    // so before it exits. Its exit status can still be lost: replacing the
+    // helper changes the plugin directory, the shell watches that directory
+    // and reloads the plugin, and the reload kills whatever the old service
+    // had running -- including the updater, one line after its work was done.
+    if (code !== 0 && !helperUpdateInstalled) {
+      if (helperUpdateError === "") helperUpdateError="Nearby could not update the helper."
+      return
+    }
+    helperUpdateError=""
+    helperMissing=false
+    helperVersion=""
+    backendVersionMismatch=false
+    backendStartupFailureCode=""
+    backendStartupFailurePort=0
+    backendRestart.stop()
+    backendRestart.attempts=0
+    errorText=""
+    statusText="Starting receiver…"
+    // The mismatch shutdown left Process.running written rather than bound, so
+    // the binding has to be restored before the new helper can start. Same
+    // reason backendRestart calls this instead of assigning true.
+    if (!backend.running) bindBackendRunning()
   }
   // The hero gets a short status and the body gets the detail. Assigning one
   // sentence to both is what cropped it: the hero line is uppercased and
@@ -355,12 +436,11 @@ Item {
     }
     else if (event.event === "ready") {
       helperVersion=String(event.helperVersion || "")
+      helperMissing=false
       if (!Model.helperSatisfies(requiredHelperVersion, helperVersion)) {
         backendReady=false
         backendVersionMismatch=true
-        reportFailure("Helper out of date",
-          "Nearby needs helper " + requiredHelperVersion + ". Installed: "
-            + (helperVersion !== "" ? helperVersion : "unknown") + ".")
+        reportFailure("Helper out of date", helperUpdateDetail)
         send({command:"shutdown"})
         return
       }
@@ -428,6 +508,7 @@ Item {
       backend.launched=true
       root.backendAcceptedThisRun=false
       root.backendVersionMismatch=false
+      root.helperMissing=false
       root.backendStartupFailureCode=""
       root.backendStartupFailurePort=0
     }
@@ -443,10 +524,29 @@ Item {
       // running counts as one that failed to launch.
       if (!root.receiverEnabled || root.pluginVersion === "") return
       root.backendReady=false
+      root.helperMissing=true
       root.reportFailure("Helper missing",
         "Nearby helper is missing. Run the Nearby installer again or build it with ./build.sh.")
     }
     onExited: function(code) { root.handleBackendExit(code) }
+  }
+  Process {
+    id: helperUpdater
+    property bool launched: false
+    command: [root.pluginDir + "/bin/nearby-update-helper"]
+    running: false
+    stdout: SplitParser { onRead: function(line) { root.handleUpdaterEvent(Model.parseLine(line)) } }
+    stderr: SplitParser { onRead: function(line) { console.warn("nearby updater", line) } }
+    onStarted: helperUpdater.launched=true
+    // Same missing-command signal the helper and the file chooser use: no exit
+    // code ever arrives, so the absent updater has to be caught here.
+    onRunningChanged: {
+      if (running || helperUpdater.launched) return
+      root.helperUpdating=false
+      root.helperUpdateStatus=""
+      root.helperUpdateError="The Nearby updater is missing. Reinstall Nearby with install.sh."
+    }
+    onExited: function(code) { root.finishHelperUpdate(code) }
   }
   Timer { id: backendRestart; property int attempts: 0; interval: 1000; repeat: false; onTriggered: if (root.receiverEnabled && !backend.running) root.bindBackendRunning() }
   Timer { id: receiverShutdownFallback; interval: 250; repeat: false; onTriggered: root.finishReceiverShutdown() }

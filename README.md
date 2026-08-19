@@ -179,6 +179,8 @@ bin/omarchy-nearby-helper
 ```
 
 Generated helper binaries are not tracked in the repository.
+`bin/nearby-update-helper` is source rather than a build product, so it is
+tracked despite living beside one.
 
 ## Updates
 
@@ -203,6 +205,22 @@ a release that does not change what the plugin asks of the helper no longer
 needs the installer run at all. Below it, Nearby stops the backend and reports
 which version it needs and which one is installed. Raise `minHelperVersion` in
 the same change that starts depending on a new helper.
+
+When the helper does need replacing, the Nearby panel offers to do it. The
+Update helper button fetches the release helper matching `manifest.json`,
+checks it against the release SHA256, replaces `bin/omarchy-nearby-helper` and
+restarts the receiver. The same repair is available without the popup:
+
+```sh
+omarchy-shell oma.nearby updateHelper
+omarchy-shell oma.nearby status
+```
+
+That path replaces only the binary. `install.sh` also moves the git checkout
+and refuses to run against a plugin directory with local changes, so it stays
+the way to move plugin and helper to a release together, and the panel falls
+back to it whenever the fetch cannot succeed: no published helper for the
+architecture, no network, or a development checkout with no release at all.
 
 ## Releases
 
