@@ -63,6 +63,13 @@ assert.match(source, /command:\s*\["omarchy-file-select"/,
   "the file chooser must be omarchy-file-select")
 assert.equal(/code\s*===?\s*127/.test(source), false,
   "no shell runs on our behalf, so a missing command never reports exit code 127")
+
+// The hero is uppercased and letterspaced, so it takes the short status the
+// engine sets and never the full error sentence, which cropped mid-word.
+assert.match(source, /if \(!backendReady\) return statusText/,
+  "the hero must show the short status")
+assert.equal(source.includes("return errorText || statusText"), false,
+  "falling back to the long error text is what put a cropped sentence in the hero")
 for (const launcher of ["picker", "clipboard", "clipboardWriter"]) {
   assert.match(source, new RegExp(`onRunningChanged:\\s*if\\s*\\(!running && !${launcher}\\.launched`),
     `${launcher} must report a command that never launched, which Quickshell signals by ` +
