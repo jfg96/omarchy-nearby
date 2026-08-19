@@ -136,6 +136,24 @@ Panel {
   function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.launched=false; clipboard.running = true }
   function copyReceivedText() { clipboardWriter.launched=false; clipboardWriter.running=true }
 
+  // The kit's Button already paints its own mouse hover from containsMouse.
+  // `hasCursor` is this panel's keyboard cursor, and the handlers only ever
+  // took it: pointing the cursor at whatever the mouse touched and never
+  // letting go, so the last button the pointer crossed stayed lit after it had
+  // moved away, and two things looked hovered at once.
+  //
+  // Taking it on enter and releasing it on leave keeps one highlight, under the
+  // pointer. selectedIndex survives the release so an arrow key resumes from
+  // where the mouse left off rather than from the top.
+  //
+  // The release is guarded by index because entering the next button can be
+  // delivered before leaving the previous one; unguarded, that order would
+  // clear the highlight on the button the pointer is now sitting on.
+  function noteHover(on, index) {
+    if (on) { cursorActive = true; selectedIndex = index }
+    else if (selectedIndex === index) cursorActive = false
+  }
+
   function moveCursor(dx, dy) {
     cursorActive = true
     if (viewState === "nearby") {
@@ -277,7 +295,7 @@ Panel {
             checked: root.receiverEnabled
             hasCursor: root.cursorActive && root.selectedIndex < 0
             foreground: root.foreground
-            onHovered: function(on) { if (on) { root.cursorActive=true; root.selectedIndex=-1 } }
+            onHovered: function(on) { root.noteHover(on, -1) }
             onToggled: root.toggleReceiver()
             PanelToolTip { visible: parent.containsMouse; text: root.receiverEnabled ? "Turn Nearby off" : "Turn Nearby on"; fontFamily:root.fontFamily }
           }
@@ -290,21 +308,21 @@ Panel {
           Text { visible: root.devices.length===0; width:parent.width; textFormat:Text.PlainText; text: !root.receiverEnabled ? "Nearby is turned off" : (root.discoveryActive ? "Finding devices…" : (root.backendReady ? "No devices nearby" : root.errorText)); wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; topPadding:Style.space(12); bottomPadding:Style.space(12) }
           Repeater {
             model: root.devices
-            Button { required property var modelData; required property int index; width:parent.width; leftAlign:true; bordered:false; iconText:Model.iconFor(modelData.deviceType); text:modelData.alias; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===index; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=index}}; onClicked:root.chooseDevice(index) }
+            Button { required property var modelData; required property int index; width:parent.width; leftAlign:true; bordered:false; iconText:Model.iconFor(modelData.deviceType); text:modelData.alias; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===index; onHovered:function(v){root.noteHover(v,index)}; onClicked:root.chooseDevice(index) }
           }
           Row {
             id:nearbyActions; visible:root.receiverEnabled&&root.backendReady; width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰑐"; text:"Rescan"; tooltipText:"Search for new devices"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=root.devices.length}}; onClicked:root.forceFullDiscovery() }
-            Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌾"; text:"PIN · "+(root.incomingPinEnabled?"On":"Off"); tooltipText:"Incoming PIN settings"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=root.devices.length+1}}; onClicked:root.openIncomingPinSettings() }
+            Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰑐"; text:"Rescan"; tooltipText:"Search for new devices"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length; onHovered:function(v){root.noteHover(v,root.devices.length)}; onClicked:root.forceFullDiscovery() }
+            Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌾"; text:"PIN · "+(root.incomingPinEnabled?"On":"Off"); tooltipText:"Incoming PIN settings"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){root.noteHover(v,root.devices.length+1)}; onClicked:root.openIncomingPinSettings() }
           }
         }
 
         Column {
           visible: root.viewState === "target"; width:parent.width; spacing:Style.space(6)
           PanelSectionHeader { text:"SEND"; foreground:root.foreground; fontFamily:root.fontFamily }
-          Button { width:parent.width; leftAlign:true; iconText:"󰈔"; text:"Send files"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.selectFiles() }
-          Button { width:parent.width; leftAlign:true; iconText:"󰅇"; text:"Send clipboard"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=1}}; onClicked:root.sendClipboard() }
-          Button { width:parent.width; leftAlign:true; bordered:false; iconText:"󰅁"; text:"Back"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===2; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=2}}; onClicked:root.goBack() }
+          Button { width:parent.width; leftAlign:true; iconText:"󰈔"; text:"Send files"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.selectFiles() }
+          Button { width:parent.width; leftAlign:true; iconText:"󰅇"; text:"Send clipboard"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.sendClipboard() }
+          Button { width:parent.width; leftAlign:true; bordered:false; iconText:"󰅁"; text:"Back"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===2; onHovered:function(v){root.noteHover(v,2)}; onClicked:root.goBack() }
         }
 
         Column {
@@ -325,12 +343,12 @@ Panel {
 
         Column {
           visible: root.viewState === "incoming_pin_settings"; width:parent.width; spacing:Style.space(8)
-          Button { visible:!root.incomingPinEnabled; width:parent.width; text:"Enable PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.beginIncomingPinEdit() }
+          Button { visible:!root.incomingPinEnabled; width:parent.width; text:"Enable PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.beginIncomingPinEdit() }
           Row { visible:root.incomingPinEnabled; width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Change PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.beginIncomingPinEdit() }
-            Button { width:(parent.width-parent.spacing)/2; text:"Disable PIN"; bordered:true; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=1}}; onClicked:root.requestDisableIncomingPin() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Change PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.beginIncomingPinEdit() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Disable PIN"; bordered:true; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.requestDisableIncomingPin() }
           }
-          Button { width:parent.width; leftAlign:true; bordered:false; iconText:"󰅁"; text:"Back"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===(root.incomingPinEnabled?2:1); onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=root.incomingPinEnabled?2:1}}; onClicked:root.goBack() }
+          Button { width:parent.width; leftAlign:true; bordered:false; iconText:"󰅁"; text:"Back"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===(root.incomingPinEnabled?2:1); onHovered:function(v){root.noteHover(v,root.incomingPinEnabled?2:1)}; onClicked:root.goBack() }
           Text { visible:root.incomingPinError!==""; width:parent.width; text:root.incomingPinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
         }
 
@@ -357,8 +375,8 @@ Panel {
           Text { width:parent.width; text:"New incoming requests will no longer require a PIN."; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
           Text { visible:root.incomingPinError!==""; width:parent.width; text:root.incomingPinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Cancel"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.dim; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.cancelIncomingPinSettings() }
-            Button { width:(parent.width-parent.spacing)/2; text:root.incomingPinUpdating?"Disabling…":"Disable"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=1}}; onClicked:root.confirmDisableIncomingPin() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Cancel"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.dim; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.cancelIncomingPinSettings() }
+            Button { width:(parent.width-parent.spacing)/2; text:root.incomingPinUpdating?"Disabling…":"Disable"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.confirmDisableIncomingPin() }
           }
         }
 
@@ -368,8 +386,8 @@ Panel {
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incoming ? Model.incomingSummary(root.incoming.files)+" · "+Model.formatBytes(root.incoming.total) : ""; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; elide:Text.ElideRight }
           Text { visible:root.incomingQueue.length>1; width:parent.width; text:(root.incomingQueue.length-1)+(root.incomingQueue.length===2 ? " more request" : " more requests"); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Decline"; foreground:root.urgent; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:root.declineIncoming() }
-            Button { width:(parent.width-parent.spacing)/2; text:"Accept"; foreground:root.foreground; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=1}}; onClicked:root.acceptIncoming() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Decline"; foreground:root.urgent; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.declineIncoming() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Accept"; foreground:root.foreground; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.acceptIncoming() }
           }
         }
 
@@ -394,8 +412,8 @@ Panel {
           PanelSectionHeader { text:"RECEIVED TEXT"; foreground:root.foreground; fontFamily:root.fontFamily }
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incomingText; wrapMode:Text.Wrap; maximumLineCount:6; elide:Text.ElideRight; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Copy"; iconText:"󰆏"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=0}}; onClicked:{root.copyReceivedText()} }
-            Button { width:(parent.width-parent.spacing)/2; text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){if(v){root.cursorActive=true;root.selectedIndex=1}}; onClicked:root.finishText() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Copy"; iconText:"󰆏"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:{root.copyReceivedText()} }
+            Button { width:(parent.width-parent.spacing)/2; text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.finishText() }
           }
         }
       }
