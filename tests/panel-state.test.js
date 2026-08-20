@@ -70,6 +70,14 @@ assert.match(source, /if \(!backendReady\) return statusText/,
   "the hero must show the short status")
 assert.equal(source.includes("return errorText || statusText"), false,
   "falling back to the long error text is what put a cropped sentence in the hero")
+
+// Every hover handler goes through noteHover. The originals only handled
+// enter, so hasCursor stayed on the last button the pointer crossed.
+assert.equal((source.match(/onHovered/g) || []).length,
+  (source.match(/root\.noteHover\(/g) || []).length,
+  "a hover handler that does not release the cursor leaves the button lit after the pointer goes")
+assert.doesNotMatch(source, /onHovered[^\n]*if\s*\(v\)\s*\{\s*root\.cursorActive=true/,
+  "taking the cursor on enter without releasing it on leave is the bug this replaced")
 for (const launcher of ["picker", "clipboard", "clipboardWriter"]) {
   assert.match(source, new RegExp(`onRunningChanged:\\s*if\\s*\\(!running && !${launcher}\\.launched`),
     `${launcher} must report a command that never launched, which Quickshell signals by ` +
@@ -118,6 +126,7 @@ const functionNames = [
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "clearSecretInputs",
   "goBack", "selectFiles", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
+  "noteHover",
 ]
 
 // Every call the view makes has to land on the shared engine, so the stub
@@ -208,6 +217,47 @@ function callNames(state) {
   state.activateCursor()
   assert.equal(callNames(state).at(-1), "openIncomingPinSettings",
     "the entry after rescan opens incoming PIN settings")
+}
+
+// Leaving a button must put its highlight out, and moving between two must
+// leave exactly one lit whichever order the enter and the leave arrive in.
+{
+  const state = panel({viewState: "nearby", devices: [{alias: "A"}, {alias: "B"}], selectedIndex: -1})
+  state.noteHover(true, 0)
+  assert.equal(state.cursorActive, true)
+  assert.equal(state.selectedIndex, 0)
+
+  state.noteHover(false, 0)
+  assert.equal(state.cursorActive, false, "the pointer left, so nothing may still look hovered")
+  assert.equal(state.selectedIndex, 0, "the index survives so an arrow key resumes from here")
+
+  state.noteHover(true, 0)
+  state.noteHover(false, 0)
+  state.noteHover(true, 1)
+  assert.equal(state.cursorActive, true)
+  assert.equal(state.selectedIndex, 1)
+
+  // Enter on the next button before leave on the previous one: the stale
+  // leave must not put out the button the pointer is now on.
+  state.noteHover(true, 0)
+  state.noteHover(true, 1)
+  state.noteHover(false, 0)
+  assert.equal(state.cursorActive, true, "a late leave from the previous button must not clear the new one")
+  assert.equal(state.selectedIndex, 1)
+
+  assert.equal(state.engine.calls.length, 0, "hovering is local to one monitor")
+}
+
+// A released cursor comes back on the first arrow key, from where the mouse
+// left it rather than from the top of the list.
+{
+  const state = panel({viewState: "nearby", devices: [{alias: "A"}, {alias: "B"}], selectedIndex: 0})
+  state.noteHover(true, 1)
+  state.noteHover(false, 1)
+  assert.equal(state.cursorActive, false)
+  state.moveCursor(0, 1)
+  assert.equal(state.cursorActive, true)
+  assert.equal(state.selectedIndex, 2, "the keyboard resumes from the button the pointer last touched")
 }
 
 {
