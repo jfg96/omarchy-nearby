@@ -49,12 +49,32 @@ Panel {
   readonly property bool incomingPinEnabled: engine ? engine.incomingPinEnabled : false
   readonly property bool incomingPinUpdating: engine ? engine.incomingPinUpdating : false
   readonly property string incomingPinError: engine ? engine.incomingPinError : ""
+  readonly property bool helperUpdateOffered: engine ? engine.helperUpdateOffered : false
+  readonly property bool helperUpdating: engine ? engine.helperUpdating : false
+  readonly property string helperUpdateStatus: engine ? engine.helperUpdateStatus : ""
+  readonly property string helperUpdateError: engine ? engine.helperUpdateError : ""
+  readonly property string helperUpdateDetail: engine ? engine.helperUpdateDetail : ""
+  // An unusable helper takes the whole view over: there are no devices to list
+  // and none are coming, so the section stops calling itself DEVICES.
+  readonly property bool helperBlocksNearby: helperUpdateOffered && !backendReady
+
+  // Shown only when the in-panel update cannot do the job, so the user still
+  // has somewhere to go: the repository and the command that does it by hand.
+  readonly property string repositoryUrl: "https://github.com/jfg96/omarchy-nearby"
+  readonly property string installerCommand: "~/.config/omarchy/plugins/oma.nearby/install.sh"
+
+  // The update row is the last thing in the Nearby view, so it sits after the
+  // devices and after the compact action row when that row is there at all.
+  readonly property int helperUpdateIndex: !helperUpdateOffered
+    ? -1
+    : (receiverEnabled && backendReady ? devices.length + 2 : devices.length)
 
   // Cursor and popup focus are per monitor, so they stay here.
   property int selectedIndex: 0
   property bool cursorActive: false
   property int nearbyPhraseIndex: 0
   property bool viewRegistered: false
+  property string copyNote: ""
 
   readonly property var nearbyPhrases: [
     "Looking nearby",
@@ -125,6 +145,10 @@ Panel {
   function submitIncomingPin() { if (engine) engine.submitIncomingPin(String(incomingPinInput.text || "")) }
   function confirmDisableIncomingPin() { if (engine) engine.confirmDisableIncomingPin() }
   function clearSecretInputs() { pinInput.text = ""; incomingPinInput.text = "" }
+  function updateHelper() { copyNote=""; if (engine) engine.startHelperUpdate() }
+  function copyText(value) { if (textCopier.running) return; copyNote=""; textCopier.payload=String(value); textCopier.launched=false; textCopier.running=true }
+  function copyInstallerCommand() { copyText(installerCommand) }
+  function copyRepositoryLink() { copyText(repositoryUrl) }
   function failWith(message) { if (engine) engine.failWith(message) }
   function noteTextCopied() { if (engine) engine.noteTextCopied() }
   function beginOutgoing(pending) { if (engine) engine.beginOutgoing(pending) }
@@ -157,7 +181,12 @@ Panel {
   function moveCursor(dx, dy) {
     cursorActive = true
     if (viewState === "nearby") {
-      var lastNearbyIndex=receiverEnabled&&backendReady ? devices.length+1 : Math.max(-1,devices.length-1)
+      // The update row, when it is showing, is the last stop in either
+      // direction: without it a panel reporting an unusable helper has nothing
+      // below the receiver switch to reach.
+      var lastNearbyIndex=helperUpdateIndex>=0
+        ? helperUpdateIndex
+        : (receiverEnabled&&backendReady ? devices.length+1 : Math.max(-1,devices.length-1))
       if (dx !== 0 && selectedIndex >= devices.length) {
         selectedIndex = Math.max(devices.length, Math.min(lastNearbyIndex, selectedIndex + dx))
         return
@@ -177,7 +206,15 @@ Panel {
     if (count > 0 && dy !== 0) selectedIndex = Math.max(0, Math.min(count - 1, selectedIndex + dy))
   }
   function activateCursor() {
-    if (viewState === "nearby") selectedIndex < 0 ? toggleReceiver() : (selectedIndex === devices.length ? forceFullDiscovery() : (selectedIndex === devices.length+1 ? openIncomingPinSettings() : chooseDevice(selectedIndex)))
+    if (viewState === "nearby") {
+      // Checked before the action row: with the helper unusable that row is
+      // hidden, and the update button takes the index rescan would have had.
+      if (selectedIndex < 0) toggleReceiver()
+      else if (helperUpdateIndex >= 0 && selectedIndex === helperUpdateIndex) updateHelper()
+      else if (selectedIndex < devices.length) chooseDevice(selectedIndex)
+      else if (receiverEnabled && backendReady && selectedIndex === devices.length) forceFullDiscovery()
+      else if (receiverEnabled && backendReady && selectedIndex === devices.length+1) openIncomingPinSettings()
+    }
     else if (viewState === "target") selectedIndex === 0 ? selectFiles() : (selectedIndex === 1 ? sendClipboard() : goBack())
     else if (viewState === "incoming") selectedIndex === 0 ? declineIncoming() : acceptIncoming()
     else if (viewState === "text") { if(selectedIndex===0)copyReceivedText(); else finishText() }
@@ -304,8 +341,10 @@ Panel {
 
         Column {
           visible: root.viewState === "nearby"; width: parent.width; spacing: Style.space(6)
-          PanelSectionHeader { text: "DEVICES"; foreground:root.foreground; fontFamily:root.fontFamily }
-          Text { visible: root.devices.length===0; width:parent.width; textFormat:Text.PlainText; text: !root.receiverEnabled ? "Nearby is turned off" : (root.discoveryActive ? "Finding devices…" : (root.backendReady ? "No devices nearby" : root.errorText)); wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; topPadding:Style.space(12); bottomPadding:Style.space(12) }
+          PanelSectionHeader { text: root.helperBlocksNearby ? "HELPER" : "DEVICES"; foreground:root.foreground; fontFamily:root.fontFamily }
+          // Silent while the helper row owns the view: its text there was
+          // errorText, which the row states once already.
+          Text { visible: root.devices.length===0 && !root.helperBlocksNearby; width:parent.width; textFormat:Text.PlainText; text: !root.receiverEnabled ? "Nearby is turned off" : (root.discoveryActive ? "Finding devices…" : (root.backendReady ? "No devices nearby" : root.errorText)); wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; topPadding:Style.space(12); bottomPadding:Style.space(12) }
           Repeater {
             model: root.devices
             Button { required property var modelData; required property int index; width:parent.width; leftAlign:true; bordered:false; iconText:Model.iconFor(modelData.deviceType); text:modelData.alias; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===index; onHovered:function(v){root.noteHover(v,index)}; onClicked:root.chooseDevice(index) }
@@ -314,6 +353,70 @@ Panel {
             id:nearbyActions; visible:root.receiverEnabled&&root.backendReady; width:parent.width; spacing:Style.space(8)
             Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰑐"; text:"Rescan"; tooltipText:"Search for new devices"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length; onHovered:function(v){root.noteHover(v,root.devices.length)}; onClicked:root.forceFullDiscovery() }
             Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌾"; text:"PIN · "+(root.incomingPinEnabled?"On":"Off"); tooltipText:"Incoming PIN settings"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){root.noteHover(v,root.devices.length+1)}; onClicked:root.openIncomingPinSettings() }
+          }
+
+          // `omarchy plugin update` fast-forwards the checkout and stops there.
+          // The helper is a release asset and bin/ is not tracked, so a source
+          // update always leaves the previous binary in place and there is no
+          // hook that could fetch the new one. That gap is closable from here:
+          // the button replaces only the binary, which is the half Omarchy
+          // does not move. The repository and the manual command appear when
+          // it cannot -- no arch build published, no network, a checkout on a
+          // development version that has no release at all.
+          Column {
+            id: helperUpdate
+            visible: root.helperUpdateOffered; width:parent.width; spacing:Style.space(6)
+            // Only when it follows something. With the helper blocking the
+            // view this row is the section, and a rule under its own header
+            // separates nothing.
+            PanelSeparator { visible:!root.helperBlocksNearby; width:parent.width }
+
+            // The versions, once. Replaced by live progress while the updater
+            // runs so the button is not the only thing that moves.
+            Text {
+              width:parent.width; textFormat:Text.PlainText; wrapMode:Text.Wrap
+              text: root.helperUpdating && root.helperUpdateStatus!=="" ? root.helperUpdateStatus : root.helperUpdateDetail
+              color: root.helperUpdating ? root.dim : root.foreground
+              font.family:root.fontFamily; font.pixelSize:Style.font.body
+            }
+            Text {
+              visible:!root.helperUpdating; width:parent.width; textFormat:Text.PlainText; wrapMode:Text.Wrap
+              text:"Updating the plugin cannot replace the helper binary."
+              color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body
+            }
+            Button {
+              width:parent.width; bordered:true
+              iconText: root.helperUpdateError!=="" && !root.helperUpdating ? "󰑐" : "󰇚"
+              // After a failure the old label gives no sign the press landed,
+              // and the error above it stays put; naming the retry is the only
+              // thing that distinguishes "not pressed yet" from "pressed once".
+              text: root.helperUpdating ? "Updating…" : (root.helperUpdateError!=="" ? "Try again" : "Update helper")
+              tooltipText:"Download the helper that matches this version"
+              enabled:!root.helperUpdating
+              foreground:root.foreground; fontFamily:root.fontFamily
+              hasCursor:root.cursorActive&&root.selectedIndex===root.helperUpdateIndex
+              onHovered:function(v){root.noteHover(v,root.helperUpdateIndex)}
+              onClicked:root.updateHelper()
+            }
+
+            // The fallback is subordinate to the failure, so it sits under a
+            // rule of its own rather than continuing the same flat stack.
+            Column {
+              visible:root.helperUpdateError!==""; width:parent.width; spacing:Style.space(6)
+              Text { width:parent.width; textFormat:Text.PlainText; text:root.helperUpdateError; wrapMode:Text.Wrap; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+              PanelSeparator { width:parent.width }
+              Text { width:parent.width; textFormat:Text.PlainText; text:"Or run this in a terminal:"; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+              // Elided rather than wrapped: wrapping broke the path across two
+              // lines and orphaned the `.sh`, which reads like a typo and is
+              // one. The full text goes to the clipboard, not to the eye.
+              Text { width:parent.width; textFormat:Text.PlainText; text:root.installerCommand; elide:Text.ElideMiddle; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+              Row {
+                width:parent.width; spacing:Style.space(8)
+                Button { width:(parent.width-parent.spacing)/2; bordered:true; iconText:"󰆏"; text:"Copy command"; tooltipText:root.installerCommand; foreground:root.foreground; fontFamily:root.fontFamily; onClicked:root.copyInstallerCommand() }
+                Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌷"; text:"Copy link"; tooltipText:root.repositoryUrl; foreground:root.dim; fontFamily:root.fontFamily; onClicked:root.copyRepositoryLink() }
+              }
+              Text { visible:root.copyNote!==""; width:parent.width; textFormat:Text.PlainText; text:root.copyNote; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+            }
           }
         }
 
@@ -418,6 +521,20 @@ Panel {
         }
       }
     }
+  }
+
+  // The text goes out as an argument rather than through stdin: none of it is
+  // secret, and it keeps this independent of clipboardWriter, which holds
+  // mid-transfer state the update row must not disturb.
+  Process {
+    id: textCopier
+    property bool launched: false
+    property string payload: ""
+    command: ["wl-copy", textCopier.payload]
+    running: false
+    onStarted: textCopier.launched=true
+    onRunningChanged: if (!running && !textCopier.launched) root.copyNote="wl-copy is required to copy"
+    onExited: function(code) { root.copyNote = code===0 ? "Copied to clipboard" : "wl-copy is required to copy" }
   }
 
   Process {

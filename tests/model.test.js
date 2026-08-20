@@ -37,6 +37,7 @@ assert.equal(Model.manifestVersion('{"id":"oma.nearby","version":"1.0.2"}', "oma
 assert.equal(Model.manifestVersion('{"id":"other.plugin","version":"1.0.2"}', "oma.nearby"), "")
 assert.equal(Model.manifestVersion('{"id":"oma.nearby"}', "oma.nearby"), "")
 assert.equal(Model.manifestVersion("not json", "oma.nearby"), "")
+
 // SemVer precedence, including the rule the release process depends on: a
 // prerelease sorts below the release it leads up to, so a checkout on 1.1.0-dev
 // is not satisfied by the 1.1.0 floor it is heading for and 1.1.0 is not held
