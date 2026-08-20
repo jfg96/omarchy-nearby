@@ -50,6 +50,12 @@ Item {
   readonly property bool receiverEnabled: Model.receiverEnabledIn(configEntry)
 
   property string pluginVersion: ""
+  property string minHelperVersion: ""
+  // The version the helper has to reach. A manifest that does not declare a
+  // floor is read as requiring the version it ships with, which is the rule
+  // this plugin followed before the field existed.
+  readonly property string requiredHelperVersion: minHelperVersion !== "" ? minHelperVersion : pluginVersion
+  property string helperVersion: ""
   property bool backendReady: false
   property bool discoveryActive: false
   property var devices: []
@@ -101,6 +107,7 @@ Item {
     printErrors: false
     onLoaded: {
       root.pluginVersion = Model.manifestVersion(text(), root.manifestPluginId)
+      root.minHelperVersion = Model.manifestMinHelperVersion(text(), root.manifestPluginId)
       if (root.pluginVersion === "") {
         root.errorText = "Nearby manifest version unavailable."
         root.statusText = root.errorText
@@ -108,6 +115,7 @@ Item {
     }
     onLoadFailed: function(error) {
       root.pluginVersion = ""
+      root.minHelperVersion = ""
       root.errorText = "Nearby manifest version unavailable."
       root.statusText = root.errorText
     }
@@ -346,10 +354,13 @@ Item {
       backendStartupFailurePort=Number(event.port) || 0
     }
     else if (event.event === "ready") {
-      if (!Model.helperVersionMatches(pluginVersion, event.helperVersion)) {
+      helperVersion=String(event.helperVersion || "")
+      if (!Model.helperSatisfies(requiredHelperVersion, helperVersion)) {
         backendReady=false
         backendVersionMismatch=true
-        reportFailure("Helper out of date", "Nearby backend version mismatch. Run the Nearby installer again.")
+        reportFailure("Helper out of date",
+          "Nearby needs helper " + requiredHelperVersion + ". Installed: "
+            + (helperVersion !== "" ? helperVersion : "unknown") + ".")
         send({command:"shutdown"})
         return
       }

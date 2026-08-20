@@ -39,6 +39,8 @@ assert.match(source, /id: backendRestart[\s\S]*?onTriggered:[^\n]*bindBackendRun
   "the retry timer must restore the Process.running binding")
 assert.doesNotMatch(source, /backend\.running\s*=\s*true/,
   "a plain retry assignment would permanently remove the Process.running binding")
+assert.match(source, /Model\.helperSatisfies\(requiredHelperVersion, helperVersion\)/,
+  "the helper is checked against the floor the manifest declares, not against an exact version")
 
 function extractFunction(name) {
   const marker = `function ${name}`
@@ -74,6 +76,19 @@ function backendEligible(state) {
   assert.match(expression, /receiverConfigured/,
     "eligibility must depend on having read the config, not only on the receiver switch")
   return vm.runInNewContext(`(${expression})`, {root: state})
+}
+
+// The version floor is a binding, not a function, so it comes out of the
+// source rather than being restated. A manifest with no floor falls back to
+// the version it ships with, and a test that hardcoded that fallback would not
+// notice it changing under the check that depends on it.
+function requiredHelperVersion(state) {
+  const match = source.match(/readonly property string requiredHelperVersion:\s*([^\n]+)/)
+  assert.notEqual(match, null, "Service.qml must derive the helper version floor")
+  return vm.runInNewContext(`(${match[1].trim()})`, {
+    minHelperVersion: state.minHelperVersion,
+    pluginVersion: state.pluginVersion,
+  })
 }
 
 const functionNames = [
@@ -116,6 +131,8 @@ function engine(initial = {}) {
     anyViewOpen: true,
     shutdownPending: false,
     pluginVersion: "1.0.4",
+    minHelperVersion: "",
+    helperVersion: "",
     backendVersionMismatch: false,
     backendStartupFailureCode: "",
     backendStartupFailurePort: 0,
@@ -147,6 +164,10 @@ function engine(initial = {}) {
     ...initial,
   }
   Object.defineProperty(context, "incoming", {get() { return Model.currentIncoming(context.incomingQueue) }})
+  Object.defineProperty(context, "requiredHelperVersion", {
+    enumerable: true,
+    get() { return requiredHelperVersion(context) },
+  })
   vm.createContext(context)
   vm.runInContext(functionNames.map(extractFunction).join("\n"), context)
   context.sent = sent
@@ -209,7 +230,7 @@ function engine(initial = {}) {
   const state = engine({pluginVersion: "1.1.0", backendReady: false, viewState: "nearby"})
   state.handleEvent({event: "ready", helperVersion: "1.0.7"})
   assert.equal(state.statusText, "Helper out of date")
-  assert.match(state.errorText, /Run the Nearby installer again/)
+  assert.match(state.errorText, /Nearby needs helper/)
   assert.notEqual(state.statusText, state.errorText)
 }
 
@@ -230,6 +251,61 @@ for (const [name, setup] of [
   state.handleBackendExit(1)
   assert.ok(state.statusText.length <= 26,
     `${name} label must fit the hero, got ${state.statusText.length} characters: ${state.statusText}`)
+}
+
+// `omarchy plugin update` fast-forwards the checkout and cannot move the
+// helper: bin/ is not tracked and Omarchy runs no plugin script on update. So
+// the plugin routinely runs one version ahead of its helper, and requiring an
+// exact match stopped it dead on every release, including releases whose
+// helper it could still drive. The floor is what the helper has to clear.
+{
+  const state = engine({
+    pluginVersion: "1.1.0", minHelperVersion: "1.0.6", backendReady: false, viewState: "nearby",
+  })
+  state.handleEvent({event: "ready", helperVersion: "1.0.7"})
+  assert.equal(state.backendVersionMismatch, false)
+  assert.equal(state.backendReady, true, "a helper above the floor must survive a source-only update")
+  assert.equal(state.sent.some(command => command.command === "shutdown"), false)
+}
+
+// Below the floor is still a stop, and the message names both versions:
+// "run the installer again" never said what was actually wrong.
+{
+  const state = engine({
+    pluginVersion: "1.1.0", minHelperVersion: "1.1.0", backendReady: false, viewState: "nearby",
+  })
+  state.handleEvent({event: "ready", helperVersion: "1.0.7"})
+  assert.equal(state.backendVersionMismatch, true)
+  assert.equal(state.backendReady, false)
+  assert.deepEqual(state.sent.at(-1), {command: "shutdown"})
+  assert.match(state.errorText, /1\.1\.0/)
+  assert.match(state.errorText, /1\.0\.7/)
+}
+
+// No floor declared reads as the shipped version, which is the rule the plugin
+// followed before the field existed.
+{
+  const state = engine({pluginVersion: "1.1.0", minHelperVersion: "", backendReady: false})
+  assert.equal(state.requiredHelperVersion, "1.1.0")
+  state.handleEvent({event: "ready", helperVersion: "1.0.7"})
+  assert.equal(state.backendVersionMismatch, true)
+}
+
+// A helper that reports nothing readable is not one to trust with a transfer.
+{
+  const state = engine({pluginVersion: "1.1.0", minHelperVersion: "1.0.6", backendReady: false})
+  state.handleEvent({event: "ready", helperVersion: ""})
+  assert.equal(state.backendVersionMismatch, true)
+}
+
+// A helper ahead of the plugin is not a reason to refuse to start.
+{
+  const state = engine({
+    pluginVersion: "1.1.0", minHelperVersion: "1.1.0", backendReady: false, viewState: "nearby",
+  })
+  state.handleEvent({event: "ready", helperVersion: "1.2.0"})
+  assert.equal(state.backendVersionMismatch, false)
+  assert.equal(state.backendReady, true)
 }
 
 function incoming(requestId, sender = requestId) {

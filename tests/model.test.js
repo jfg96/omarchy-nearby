@@ -37,6 +37,43 @@ assert.equal(Model.manifestVersion('{"id":"oma.nearby","version":"1.0.2"}', "oma
 assert.equal(Model.manifestVersion('{"id":"other.plugin","version":"1.0.2"}', "oma.nearby"), "")
 assert.equal(Model.manifestVersion('{"id":"oma.nearby"}', "oma.nearby"), "")
 assert.equal(Model.manifestVersion("not json", "oma.nearby"), "")
+// SemVer precedence, including the rule the release process depends on: a
+// prerelease sorts below the release it leads up to, so a checkout on 1.1.0-dev
+// is not satisfied by the 1.1.0 floor it is heading for and 1.1.0 is not held
+// back by a 1.1.0-dev helper.
+assert.equal(Model.compareVersions("1.0.0", "1.0.0"), 0)
+assert.equal(Model.compareVersions("1.2.0", "1.10.0"), -1)
+assert.equal(Model.compareVersions("2.0.0", "1.99.99"), 1)
+assert.equal(Model.compareVersions("1.1.0-dev", "1.1.0"), -1)
+assert.equal(Model.compareVersions("1.1.0", "1.1.0-dev"), 1)
+assert.equal(Model.compareVersions("1.1.0-dev.2", "1.1.0-dev.10"), -1)
+assert.equal(Model.compareVersions("1.1.0-alpha", "1.1.0-beta"), -1)
+assert.equal(Model.compareVersions("1.1.0-1", "1.1.0-alpha"), -1)
+assert.equal(Model.compareVersions("1.0", "1.0.0"), null, "an unreadable version is unknown, not equal")
+assert.equal(Model.compareVersions("", "1.0.0"), null)
+
+// The floor is what a source-only `omarchy plugin update` has to survive: the
+// checkout moves ahead of the helper, and a helper that still speaks the same
+// commands must keep working instead of stopping the plugin dead.
+assert.equal(Model.helperSatisfies("1.0.6", "1.0.6"), true)
+assert.equal(Model.helperSatisfies("1.0.6", "1.0.7"), true, "a helper past the floor is still usable")
+assert.equal(Model.helperSatisfies("1.0.6", "1.0.5"), false)
+assert.equal(Model.helperSatisfies("1.1.0", "1.1.0-dev"), false, "a prerelease is below the release")
+assert.equal(Model.helperSatisfies("1.0.6", ""), false, "no version reported is not a version that passes")
+assert.equal(Model.helperSatisfies("", "1.0.6"), false, "no floor known is not a floor that passes")
+
+// Behind the shipped version but above the floor: offer the update, do not
+// stop for it.
+assert.equal(Model.helperUpdateAvailable("1.1.0", "1.0.7"), true)
+assert.equal(Model.helperUpdateAvailable("1.1.0", "1.1.0"), false)
+assert.equal(Model.helperUpdateAvailable("1.1.0", "1.2.0"), false)
+assert.equal(Model.helperUpdateAvailable("1.1.0", ""), false)
+
+assert.equal(Model.manifestMinHelperVersion('{"id":"oma.nearby","version":"1.1.0","minHelperVersion":"1.0.6"}', "oma.nearby"), "1.0.6")
+assert.equal(Model.manifestMinHelperVersion('{"id":"oma.nearby","version":"1.1.0"}', "oma.nearby"), "",
+  "a manifest without the field declares no floor, and the service falls back to its own version")
+assert.equal(Model.manifestMinHelperVersion('{"id":"other.plugin","minHelperVersion":"1.0.6"}', "oma.nearby"), "")
+assert.equal(Model.manifestMinHelperVersion("not json", "oma.nearby"), "")
 // The service reads its own entry out of shell.json. An absent entry is a
 // config that has not been applied yet, which is why it is null rather than an
 // empty settings object: the receiver stays off until the entry is seen, so a
