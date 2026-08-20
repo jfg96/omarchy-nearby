@@ -168,6 +168,68 @@ function helperVersionMatches(pluginVersion, helperVersion) {
   return String(pluginVersion || "") !== "" && String(pluginVersion) === String(helperVersion || "")
 }
 
+// Nearby's release process only ever produces MAJOR.MINOR.PATCH with an
+// optional prerelease suffix, so that is all this reads. Anything else is
+// null, which callers treat as unknown rather than as equal: a version that
+// cannot be read is not one the plugin can vouch for.
+function parseVersion(value) {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(String(value || "").trim())
+  if (!match) return null
+  return {
+    release: [Number(match[1]), Number(match[2]), Number(match[3])],
+    prerelease: match[4] ? match[4].split(".") : []
+  }
+}
+
+// SemVer precedence: numeric fields compare as numbers, a prerelease sorts
+// before the release it leads up to, and prerelease identifiers compare as
+// numbers when both are numeric and as text otherwise.
+function compareVersions(left, right) {
+  const a = parseVersion(left)
+  const b = parseVersion(right)
+  if (!a || !b) return null
+  for (var i = 0; i < 3; i++) {
+    if (a.release[i] !== b.release[i]) return a.release[i] < b.release[i] ? -1 : 1
+  }
+  if (a.prerelease.length === 0 || b.prerelease.length === 0) {
+    if (a.prerelease.length === b.prerelease.length) return 0
+    return a.prerelease.length === 0 ? 1 : -1
+  }
+  const longest = Math.max(a.prerelease.length, b.prerelease.length)
+  for (var j = 0; j < longest; j++) {
+    if (j >= a.prerelease.length) return -1
+    if (j >= b.prerelease.length) return 1
+    const x = a.prerelease[j]
+    const y = b.prerelease[j]
+    const xNumeric = /^\d+$/.test(x)
+    const yNumeric = /^\d+$/.test(y)
+    if (xNumeric && yNumeric) {
+      if (Number(x) !== Number(y)) return Number(x) < Number(y) ? -1 : 1
+      continue
+    }
+    if (xNumeric !== yNumeric) return xNumeric ? -1 : 1
+    if (x !== y) return x < y ? -1 : 1
+  }
+  return 0
+}
+
+// A helper is good enough when it is at least the oldest one this plugin knows
+// how to drive. Requiring the exact shipped version instead broke the plugin on
+// every release: `omarchy plugin update` moves the source and cannot move the
+// binary, because bin/ is not tracked, so a plugin one version ahead of a
+// helper it could still talk to refused to run at all. An unreadable version on
+// either side is still a refusal.
+function helperSatisfies(requiredVersion, helperVersion) {
+  const order = compareVersions(helperVersion, requiredVersion)
+  return order !== null && order >= 0
+}
+
+// Usable but behind: worth offering an update, not worth stopping for.
+function helperUpdateAvailable(pluginVersion, helperVersion) {
+  const order = compareVersions(helperVersion, pluginVersion)
+  return order !== null && order < 0
+}
+
 function manifestVersion(text, pluginId) {
   try {
     const manifest = JSON.parse(String(text || ""))
@@ -178,4 +240,18 @@ function manifestVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, helperVersionMatches, manifestVersion }
+// The oldest helper this plugin can drive, declared beside the version it
+// ships with. Absent means "the shipped version", which is the rule the plugin
+// followed before the field existed and the safe reading of a manifest that
+// predates it.
+function manifestMinHelperVersion(text, pluginId) {
+  try {
+    const manifest = JSON.parse(String(text || ""))
+    if (String(manifest.id || "") !== String(pluginId || "")) return ""
+    return String(manifest.minHelperVersion || "")
+  } catch (_) {
+    return ""
+  }
+}
+
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, helperVersionMatches, compareVersions, helperSatisfies, helperUpdateAvailable, manifestVersion, manifestMinHelperVersion }
