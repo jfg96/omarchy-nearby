@@ -226,6 +226,11 @@ function helperSatisfies(requiredVersion, helperVersion) {
 
 // Usable but behind: worth offering an update, not worth stopping for.
 function helperUpdateAvailable(pluginVersion, helperVersion) {
+  // Release assets exist only for stable versions. A compatible helper may be
+  // older than a development checkout, but offering an update in that state
+  // can only lead to the updater's "no published helper" failure.
+  const plugin = parseVersion(pluginVersion)
+  if (!plugin || plugin.prerelease.length !== 0) return false
   const order = compareVersions(helperVersion, pluginVersion)
   return order !== null && order < 0
 }

@@ -97,7 +97,8 @@ Item {
   property string helperUpdateStatus: ""
   property string helperUpdateError: ""
   // Behind but still usable: the version floor accepts it, so this is a nudge
-  // rather than a stop.
+  // rather than a stop. Development versions have no release asset, so they
+  // never offer an optional update that is guaranteed to fail.
   readonly property bool helperOutdated: helperVersion !== "" && pluginVersion !== ""
     && Model.helperUpdateAvailable(pluginVersion, helperVersion)
   readonly property bool helperUpdateOffered: pluginVersion !== ""
