@@ -37,6 +37,9 @@ jobs:
       - name: Test frontend model
         run: node tests/model.test.js && node tests/panel-state.test.js && node tests/service-state.test.js
 
+      - name: Test helper updater
+        run: bash tests/updater.test.sh
+
       - name: Check Rust formatting
         run: cargo fmt --manifest-path backend/Cargo.toml --all -- --check
 

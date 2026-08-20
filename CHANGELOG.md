@@ -1,6 +1,28 @@
 # Changelog
 
-## 1.1.1-dev
+## 1.1.1
+
+- Keep the hero status short and readable while showing the complete error
+  detail separately below it, so failures remain understandable without
+  cropping the panel's primary message.
+- Keep mouse hover and keyboard selection in sync. Leaving a button now
+  releases the logical cursor in either enter/leave event order, avoiding
+  persistent or inconsistent highlights.
+- Declare the oldest compatible helper with `minHelperVersion` instead of
+  requiring the plugin and helper versions to match exactly. A compatible
+  older helper now survives source-only plugin updates, avoiding unnecessary
+  reinstalls when the helper protocol has not changed.
+- Update an incompatible helper directly from the Nearby panel. The updater
+  downloads the matching release asset and its required SHA256 checksum,
+  stages them outside the Quickshell-watched plugin tree, and replaces the
+  helper only after verification. Network and HTTP failures, missing assets,
+  interruptions, and shell reloads leave the previous helper intact and offer
+  explicit recovery actions.
+- Do not offer an impossible optional helper update from development or other
+  prerelease plugin versions that have no downloadable release, while keeping
+  recovery available when the installed helper is genuinely incompatible.
+  The fallback `Copy command` and `Copy link` actions are now reachable and
+  activatable with the panel's keyboard navigation.
 
 ## 1.1.0
 

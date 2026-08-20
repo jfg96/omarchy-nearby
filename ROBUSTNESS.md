@@ -71,9 +71,9 @@ non-guest LAN. Confirm TCP and UDP 53317 are allowed.
     each of `+`, `&`, `#` and `%`; verify Nearby can send text and files using
     each exact value.
 
-Before releasing v1.1.0, record the exact Android and iOS LocalSend versions
-used for steps 11–15 here. These real-device checks are not considered complete
-until those versions and results are written down.
+Before publishing a stable release, record the exact Android and iOS LocalSend
+versions used for steps 11–15 here. These real-device checks are not considered
+complete until those versions and results are written down.
 
 The protocol's current main branch identifies itself as v2.2. Nearby remains wire-compatible
 with v2.1 and also returns v2.2's `422` for a declared SHA-256 mismatch. Discovery fingerprints

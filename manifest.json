@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "oma.nearby",
   "name": "Nearby",
-  "version": "1.1.1-dev",
+  "version": "1.1.1",
   "minHelperVersion": "1.1.0",
   "author": "jfg96",
   "description": "Native nearby sharing compatible with the LocalSend protocol",
