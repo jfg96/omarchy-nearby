@@ -68,7 +68,10 @@ Panel {
   readonly property string heroMetaText: {
     if (viewState === "nearby") {
       if (!receiverEnabled) return "Turned off"
-      if (!backendReady) return errorText || statusText
+      // statusText, never errorText: this line is uppercased and letterspaced,
+      // so a full sentence crops mid-word and the body below is already saying
+      // the same thing in full.
+      if (!backendReady) return statusText
       return nearbyPhrases[nearbyPhraseIndex % nearbyPhrases.length]
     }
     if (viewState === "incoming_pin_settings") return incomingPinEnabled ? "Protection enabled" : "Protection disabled"

@@ -229,6 +229,11 @@ Item {
     incomingPinUpdating=true; pendingIncomingPinEnabled=false; incomingPinError=""
     send({command:"disable_incoming_pin"})
   }
+  // The hero gets a short status and the body gets the detail. Assigning one
+  // sentence to both is what cropped it: the hero line is uppercased and
+  // letterspaced, so anything longer than a few words ends in an ellipsis
+  // partway through a word and tells the user less than the icon already did.
+  function reportFailure(summary, detail) { statusText=summary; errorText=detail }
   function failWith(message) { viewState="error"; errorText=message; statusText=errorText }
   function cancelOutgoing() { send({command:"cancel_outgoing",transfer_id:outgoingTransferId}) }
   function noteTextCopied() { if (viewState !== "text") return; viewState="success"; statusText="Received" }
@@ -314,21 +319,22 @@ Item {
       // other pre-ready failures remain generic. Both keep the existing
       // bounded retry schedule so a transient conflict can recover.
       if (backendStartupFailureCode === "receiver_security_settings_invalid") {
-        errorText = "Nearby security settings are invalid. Repair or remove Nearby's settings.json in your XDG state directory."
+        reportFailure("Security settings invalid",
+          "Nearby security settings are invalid. Repair or remove Nearby's settings.json in your XDG state directory.")
       } else if (backendRestart.attempts < 4) {
-        errorText = "Nearby receiver could not start. Retrying…"
+        reportFailure("Retrying…", "Nearby receiver could not start. Retrying…")
       } else if (backendStartupFailureCode === "receiver_port_in_use") {
         var port = backendStartupFailurePort > 0 ? backendStartupFailurePort : 53317
-        errorText = "LocalSend receiver port " + port + " is already in use. Another LocalSend receiver on this computer may be running. Quit it and enable Nearby again."
+        reportFailure("Port " + port + " in use",
+          "LocalSend receiver port " + port + " is already in use. Another LocalSend receiver on this computer may be running. Quit it and enable Nearby again.")
       } else {
-        errorText = "Nearby receiver could not start."
+        reportFailure("Could not start", "Nearby receiver could not start.")
       }
-      statusText=errorText
     } else {
-      errorText=code===0 ? "Receiver stopped" : "Receiver unavailable"
-      statusText=errorText
-      if (viewState.indexOf("incoming_pin_")===0) { viewState="error"; errorText="Nearby backend stopped while updating receiver security"; statusText=errorText }
-      else if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; errorText="Nearby backend stopped during transfer"; statusText=errorText }
+      reportFailure(code===0 ? "Receiver stopped" : "Receiver unavailable",
+        code===0 ? "Receiver stopped" : "Receiver unavailable")
+      if (viewState.indexOf("incoming_pin_")===0) { viewState="error"; reportFailure("Backend stopped", "Nearby backend stopped while updating receiver security") }
+      else if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; reportFailure("Backend stopped", "Nearby backend stopped during transfer") }
     }
     if (backendStartupFailureCode !== "receiver_security_settings_invalid" && backendRestart.attempts < 4) { backendRestart.attempts++; backendRestart.interval=Math.min(30000,1000*Math.pow(2,backendRestart.attempts-1)); backendRestart.restart() }
   }
@@ -343,8 +349,7 @@ Item {
       if (!Model.helperVersionMatches(pluginVersion, event.helperVersion)) {
         backendReady=false
         backendVersionMismatch=true
-        errorText="Nearby backend version mismatch. Run the Nearby installer again."
-        statusText=errorText
+        reportFailure("Helper out of date", "Nearby backend version mismatch. Run the Nearby installer again.")
         send({command:"shutdown"})
         return
       }
@@ -427,8 +432,8 @@ Item {
       // running counts as one that failed to launch.
       if (!root.receiverEnabled || root.pluginVersion === "") return
       root.backendReady=false
-      root.errorText="Nearby helper is missing. Run the Nearby installer again or build it with ./build.sh."
-      root.statusText=root.errorText
+      root.reportFailure("Helper missing",
+        "Nearby helper is missing. Run the Nearby installer again or build it with ./build.sh.")
     }
     onExited: function(code) { root.handleBackendExit(code) }
   }

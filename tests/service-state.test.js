@@ -86,7 +86,7 @@ const functionNames = [
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
   "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming",
   "finishIncoming", "finishOutgoing", "finishText", "finishTerminal",
-  "handleBackendExit", "handleEvent",
+  "handleBackendExit", "handleEvent", "reportFailure",
 ]
 
 function engine(initial = {}) {
@@ -169,6 +169,67 @@ function engine(initial = {}) {
   state.receiverEnabled = true
   assert.equal(state.backend.running.callback(), true,
     "the restored binding must make OFF -> ON eligible to start again")
+}
+
+// The hero renders statusText uppercased and letterspaced, and every failure
+// path assigned the same sentence to statusText and errorText. A sentence does
+// not fit there: it was cropped mid-word, so the one line the user saw first
+// said less than the icon beside it. The label and the detail are now separate
+// strings, and the hero takes the label.
+{
+  const state = engine({
+    backendAcceptedThisRun: false,
+    backendRestart: {attempts: 4, interval: 0, restart: () => {}, stop: () => {}},
+    backendStartupFailureCode: "receiver_port_in_use", backendStartupFailurePort: 53317,
+    backend: {running: false, write: () => {}},
+  })
+  state.root = state
+  state.handleBackendExit(1)
+  assert.equal(state.statusText, "Port 53317 in use")
+  assert.match(state.errorText, /Another LocalSend receiver/,
+    "the body keeps the advice the label has no room for")
+  assert.notEqual(state.statusText, state.errorText)
+}
+
+{
+  const state = engine({
+    backendAcceptedThisRun: false,
+    backendRestart: {attempts: 4, interval: 0, restart: () => {}, stop: () => {}},
+    backendStartupFailureCode: "receiver_security_settings_invalid",
+    backend: {running: false, write: () => {}},
+  })
+  state.root = state
+  state.handleBackendExit(1)
+  assert.equal(state.statusText, "Security settings invalid")
+  assert.match(state.errorText, /settings\.json/)
+  assert.notEqual(state.statusText, state.errorText)
+}
+
+{
+  const state = engine({pluginVersion: "1.1.0", backendReady: false, viewState: "nearby"})
+  state.handleEvent({event: "ready", helperVersion: "1.0.7"})
+  assert.equal(state.statusText, "Helper out of date")
+  assert.match(state.errorText, /Run the Nearby installer again/)
+  assert.notEqual(state.statusText, state.errorText)
+}
+
+// Whatever a failure path sets, the label has to survive the hero's transform.
+// Twenty-four characters is what the popup fits at its default width.
+for (const [name, setup] of [
+  ["port conflict", {backendStartupFailureCode: "receiver_port_in_use", backendStartupFailurePort: 53317}],
+  ["invalid settings", {backendStartupFailureCode: "receiver_security_settings_invalid"}],
+  ["generic startup failure", {backendStartupFailureCode: ""}],
+]) {
+  const state = engine({
+    backendAcceptedThisRun: false,
+    backendRestart: {attempts: 4, interval: 0, restart: () => {}, stop: () => {}},
+    backend: {running: false, write: () => {}},
+    ...setup,
+  })
+  state.root = state
+  state.handleBackendExit(1)
+  assert.ok(state.statusText.length <= 26,
+    `${name} label must fit the hero, got ${state.statusText.length} characters: ${state.statusText}`)
 }
 
 function incoming(requestId, sender = requestId) {
