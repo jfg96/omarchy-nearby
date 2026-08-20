@@ -51,6 +51,14 @@ interoperability, a real LocalSend peer.
   maintenance or correctness benefit.
 - Preserve contributor authorship and keep release preparation separate from a
   contributor's functional commits.
+- Merge stacked pull requests in dependency order. After each merge, update the
+  next branch against the current `main`, prefer rebasing when it is safe, and
+  re-review the effective diff before merging it.
+- Do not merge `main` into a contributor branch merely to refresh a stacked
+  pull request's merge base. Avoid synchronization commits unless a concrete
+  technical reason makes one necessary, and preserve contributor authorship
+  when updating or rebasing the branch.
+- Do not rewrite published `main` solely to make its history look cleaner.
 - Stable releases require matching versions in `manifest.json`,
   `backend/Cargo.toml`, and `backend/Cargo.lock`, plus a matching changelog
   heading and `vX.Y.Z` tag.
