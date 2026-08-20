@@ -63,11 +63,15 @@ Panel {
   readonly property string repositoryUrl: "https://github.com/jfg96/omarchy-nearby"
   readonly property string installerCommand: "~/.config/omarchy/plugins/oma.nearby/install.sh"
 
-  // The update row is the last thing in the Nearby view, so it sits after the
-  // devices and after the compact action row when that row is there at all.
+  // The update row sits after the devices and compact action row. If updating
+  // fails, its two recovery actions follow it in keyboard order.
   readonly property int helperUpdateIndex: !helperUpdateOffered
     ? -1
     : (receiverEnabled && backendReady ? devices.length + 2 : devices.length)
+  readonly property int helperCopyCommandIndex: helperUpdateError === "" || helperUpdateIndex < 0
+    ? -1 : helperUpdateIndex + 1
+  readonly property int helperCopyLinkIndex: helperCopyCommandIndex < 0
+    ? -1 : helperCopyCommandIndex + 1
 
   // Cursor and popup focus are per monitor, so they stay here.
   property int selectedIndex: 0
@@ -181,12 +185,17 @@ Panel {
   function moveCursor(dx, dy) {
     cursorActive = true
     if (viewState === "nearby") {
-      // The update row, when it is showing, is the last stop in either
-      // direction: without it a panel reporting an unusable helper has nothing
-      // below the receiver switch to reach.
-      var lastNearbyIndex=helperUpdateIndex>=0
-        ? helperUpdateIndex
-        : (receiverEnabled&&backendReady ? devices.length+1 : Math.max(-1,devices.length-1))
+      // The update row is the last stop until a failure reveals the two
+      // recovery actions that follow it.
+      var lastNearbyIndex=helperCopyLinkIndex>=0
+        ? helperCopyLinkIndex
+        : (helperUpdateIndex>=0
+          ? helperUpdateIndex
+          : (receiverEnabled&&backendReady ? devices.length+1 : Math.max(-1,devices.length-1)))
+      if (dx !== 0 && helperCopyCommandIndex >= 0 && selectedIndex >= helperCopyCommandIndex) {
+        selectedIndex = Math.max(helperCopyCommandIndex, Math.min(helperCopyLinkIndex, selectedIndex + dx))
+        return
+      }
       if (dx !== 0 && selectedIndex >= devices.length) {
         selectedIndex = Math.max(devices.length, Math.min(lastNearbyIndex, selectedIndex + dx))
         return
@@ -211,6 +220,8 @@ Panel {
       // hidden, and the update button takes the index rescan would have had.
       if (selectedIndex < 0) toggleReceiver()
       else if (helperUpdateIndex >= 0 && selectedIndex === helperUpdateIndex) updateHelper()
+      else if (helperCopyCommandIndex >= 0 && selectedIndex === helperCopyCommandIndex) copyInstallerCommand()
+      else if (helperCopyLinkIndex >= 0 && selectedIndex === helperCopyLinkIndex) copyRepositoryLink()
       else if (selectedIndex < devices.length) chooseDevice(selectedIndex)
       else if (receiverEnabled && backendReady && selectedIndex === devices.length) forceFullDiscovery()
       else if (receiverEnabled && backendReady && selectedIndex === devices.length+1) openIncomingPinSettings()
@@ -412,8 +423,8 @@ Panel {
               Text { width:parent.width; textFormat:Text.PlainText; text:root.installerCommand; elide:Text.ElideMiddle; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
               Row {
                 width:parent.width; spacing:Style.space(8)
-                Button { width:(parent.width-parent.spacing)/2; bordered:true; iconText:"󰆏"; text:"Copy command"; tooltipText:root.installerCommand; foreground:root.foreground; fontFamily:root.fontFamily; onClicked:root.copyInstallerCommand() }
-                Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌷"; text:"Copy link"; tooltipText:root.repositoryUrl; foreground:root.dim; fontFamily:root.fontFamily; onClicked:root.copyRepositoryLink() }
+                Button { width:(parent.width-parent.spacing)/2; bordered:true; iconText:"󰆏"; text:"Copy command"; tooltipText:root.installerCommand; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.helperCopyCommandIndex; onHovered:function(v){root.noteHover(v,root.helperCopyCommandIndex)}; onClicked:root.copyInstallerCommand() }
+                Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌷"; text:"Copy link"; tooltipText:root.repositoryUrl; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.helperCopyLinkIndex; onHovered:function(v){root.noteHover(v,root.helperCopyLinkIndex)}; onClicked:root.copyRepositoryLink() }
               }
               Text { visible:root.copyNote!==""; width:parent.width; textFormat:Text.PlainText; text:root.copyNote; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
             }

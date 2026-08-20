@@ -75,6 +75,10 @@ assert.match(source, /enabled:!root\.helperUpdating/,
   "a second press while the updater runs must not start a second download")
 assert.match(source, /visible:root\.helperUpdateError!==""[\s\S]*?root\.installerCommand[\s\S]*?onClicked:root\.copyInstallerCommand\(\)[\s\S]*?onClicked:root\.copyRepositoryLink\(\)/,
   "a failed update must offer the command that fixes it, not only the repository link")
+assert.match(source, /text:"Copy command"[^\n]*hasCursor:[^\n]*helperCopyCommandIndex[^\n]*onHovered:[^\n]*helperCopyCommandIndex/,
+  "the copy-command fallback must participate in keyboard and hover navigation")
+assert.match(source, /text:"Copy link"[^\n]*hasCursor:[^\n]*helperCopyLinkIndex[^\n]*onHovered:[^\n]*helperCopyLinkIndex/,
+  "the copy-link fallback must participate in keyboard and hover navigation")
 assert.match(source, /readonly property string repositoryUrl: "https:\/\/github\.com\/jfg96\/omarchy-nearby"/,
   "the fallback link must point at the repository the installer pulls from")
 assert.equal(source.includes("install.sh\"]"), false,
@@ -199,9 +203,10 @@ function stubEngine() {
 // pulled out of the source and evaluated rather than restated here: a copy of
 // the expression could not catch it drifting away from the order the panel
 // actually draws, which is the whole point of asserting on it.
-function helperUpdateIndexExpression() {
-  const match = source.match(/readonly property int helperUpdateIndex:\s*([\s\S]*?)\n\s*\n/)
-  assert.notEqual(match, null, "Panel.qml must bind helperUpdateIndex")
+function intBindingExpression(name) {
+  const match = source.match(new RegExp(
+    `readonly property int ${name}:\\s*([\\s\\S]*?)(?=\\n\\s*(?:readonly property|property |//))`))
+  assert.notEqual(match, null, `Panel.qml must bind ${name}`)
   return match[1].trim()
 }
 
@@ -218,6 +223,9 @@ function panel(initial = {}) {
     textCopier: {running: false, launched: false, payload: ""},
     copyNote: "",
     helperUpdateOffered: false,
+    helperUpdateError: "",
+    installerCommand: "~/.config/omarchy/plugins/oma.nearby/install.sh",
+    repositoryUrl: "https://github.com/jfg96/omarchy-nearby",
     pinInput: {text: "", forceActiveFocus: () => {}},
     incomingPinInput: {text: "", forceActiveFocus: () => {}},
     keyCatcher: {forceActiveFocus: () => {}},
@@ -237,20 +245,40 @@ function panel(initial = {}) {
     ...initial,
   }
   context.engine = engine
-  const indexExpression = helperUpdateIndexExpression()
-  Object.defineProperty(context, "helperUpdateIndex", {
-    enumerable: true,
-    get: () => vm.runInNewContext(`(${indexExpression})`, {
-      helperUpdateOffered: context.helperUpdateOffered,
-      receiverEnabled: context.receiverEnabled,
-      backendReady: context.backendReady,
-      devices: context.devices,
-    }),
-  })
+  for (const name of ["helperUpdateIndex", "helperCopyCommandIndex", "helperCopyLinkIndex"]) {
+    const expression = intBindingExpression(name)
+    Object.defineProperty(context, name, {
+      enumerable: true,
+      get: () => vm.runInNewContext(`(${expression})`, context),
+    })
+  }
   vm.createContext(context)
   vm.runInContext(functionNames.map(extractFunction).join("\n"), context)
   context.closes = closes
   return context
+}
+
+// A failed update adds two recovery controls after the retry button. Both have
+// to be reachable and activatable without a pointer.
+{
+  const state = panel({
+    viewState: "nearby", devices: [], backendReady: false, helperUpdateOffered: true,
+    helperUpdateError: "offline", selectedIndex: 0,
+  })
+  assert.equal(state.helperUpdateIndex, 0)
+  assert.equal(state.helperCopyCommandIndex, 1)
+  assert.equal(state.helperCopyLinkIndex, 2)
+
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 1)
+  state.activateCursor()
+  assert.equal(state.textCopier.payload, state.installerCommand)
+
+  state.textCopier.running = false
+  state.moveCursor(1, 0)
+  assert.equal(state.selectedIndex, 2)
+  state.activateCursor()
+  assert.equal(state.textCopier.payload, state.repositoryUrl)
 }
 
 function callNames(state) {

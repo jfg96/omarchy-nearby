@@ -69,6 +69,10 @@ assert.equal(Model.helperUpdateAvailable("1.1.0", "1.0.7"), true)
 assert.equal(Model.helperUpdateAvailable("1.1.0", "1.1.0"), false)
 assert.equal(Model.helperUpdateAvailable("1.1.0", "1.2.0"), false)
 assert.equal(Model.helperUpdateAvailable("1.1.0", ""), false)
+assert.equal(Model.helperUpdateAvailable("1.1.1-dev", "1.1.0"), false,
+  "a development checkout has no matching release asset to offer")
+assert.equal(Model.helperUpdateAvailable("1.1.1-rc.1", "1.1.0"), false,
+  "prereleases must not offer an optional stable-helper download")
 
 assert.equal(Model.manifestMinHelperVersion('{"id":"oma.nearby","version":"1.1.0","minHelperVersion":"1.0.6"}', "oma.nearby"), "1.0.6")
 assert.equal(Model.manifestMinHelperVersion('{"id":"oma.nearby","version":"1.1.0"}', "oma.nearby"), "",

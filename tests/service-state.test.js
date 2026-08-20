@@ -343,6 +343,21 @@ for (const [name, setup] of [
   assert.equal(state.helperUpdateOffered, true, "a helper above the floor but behind the plugin is still worth updating")
   assert.match(state.helperUpdateDetail, /behind plugin 1\.1\.0/)
 }
+{
+  const state = engine({pluginVersion: "1.1.1-dev", minHelperVersion: "1.1.0", helperVersion: "1.1.0"})
+  assert.equal(state.helperOutdated, false)
+  assert.equal(state.helperUpdateOffered, false,
+    "a compatible helper must not offer an impossible optional update for a development checkout")
+}
+{
+  const state = engine({
+    pluginVersion: "1.1.1-dev", minHelperVersion: "1.1.1-dev", helperVersion: "1.1.0",
+    backendVersionMismatch: true,
+  })
+  assert.equal(state.helperUpdateOffered, true,
+    "an incompatible helper must still expose the recovery UI on a development checkout")
+  assert.match(state.helperUpdateDetail, /Needs helper 1\.1\.1-dev/)
+}
 
 // No floor declared reads as the shipped version, which is the rule the plugin
 // followed before the field existed.
