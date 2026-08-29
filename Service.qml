@@ -189,6 +189,18 @@ Item {
     if (openViewCount === 0) stopDiscovery()
   }
 
+  // A desktop notification exists to reach a user who is not looking at the
+  // panel. Raising one for something the open panel is already showing is a
+  // duplicate the user has to dismiss on top of the prompt they are answering.
+  //
+  // Open is not enough on its own: an arrival during a transfer, a PIN prompt,
+  // or behind an earlier queued request is held back rather than displayed, so
+  // the panel being open would otherwise swallow it silently. The caller says
+  // whether this particular event reached the screen.
+  function notificationNeeded(onScreen) {
+    return !anyViewOpen || !onScreen
+  }
+
   function send(command) {
     if (!backend.running) return
     backend.write(JSON.stringify(command) + "\n")
@@ -460,13 +472,17 @@ Item {
     else if (event.event === "discovery_stopped") discoveryActive=false
     else if (event.event === "incoming_request") {
       if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
-      incomingQueue=Model.enqueueIncoming(incomingQueue,event); if(!incomingTextPending)incomingText=""; if (viewState!=="sending" && viewState!=="receiving" && viewState!=="pin") { viewState="incoming"; cursorRequested(1) }
-      Quickshell.execDetached(["notify-send","-a","Nearby","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
+      incomingQueue=Model.enqueueIncoming(incomingQueue,event); if(!incomingTextPending)incomingText=""
+      var incomingTakesView = viewState!=="sending" && viewState!=="receiving" && viewState!=="pin"
+      if (incomingTakesView) { viewState="incoming"; cursorRequested(1) }
+      if (notificationNeeded(incomingTakesView && incoming && incoming.requestId===event.requestId))
+        Quickshell.execDetached(["notify-send","-a","Nearby","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
     }
     else if (event.event === "incoming_text") {
       if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
       incomingText=String(event.text || ""); transferPeer=String(event.sender || ""); incomingTextPending=pendingOutgoing!==null; if (!pendingOutgoing) { viewState="text"; stopDiscovery() }
-      Quickshell.execDetached(["notify-send","-a","Nearby","Text received","From "+String(event.sender || "")])
+      if (notificationNeeded(!incomingTextPending))
+        Quickshell.execDetached(["notify-send","-a","Nearby","Text received","From "+String(event.sender || "")])
     }
     else if (event.event === "incoming_accepted") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
     else if (event.event === "incoming_expired") {

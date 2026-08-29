@@ -2,6 +2,11 @@
 
 ## 1.1.2-dev
 
+- Stop duplicating an incoming transfer or received text as a desktop
+  notification when the Nearby panel is already open on it. Arrivals the open
+  panel holds back instead of displaying — behind a transfer in progress, a PIN
+  prompt, or an earlier queued request — are still announced.
+
 ## 1.1.1
 
 - Keep the hero status short and readable while showing the complete error
