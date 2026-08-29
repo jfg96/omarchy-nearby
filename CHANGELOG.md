@@ -1,5 +1,7 @@
 # Changelog
 
+## 1.1.2-dev
+
 ## 1.1.1
 
 - Keep the hero status short and readable while showing the complete error
