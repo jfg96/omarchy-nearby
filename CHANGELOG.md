@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.2-dev
+## 1.1.2
 
 - Stop duplicating an incoming transfer or received text as a desktop
   notification when the Nearby panel is already open on it. Arrivals the open
