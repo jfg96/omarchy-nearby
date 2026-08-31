@@ -134,7 +134,7 @@ function helperDerived(state) {
 }
 
 const functionNames = [
-  "viewOpened", "viewClosed",
+  "viewOpened", "viewClosed", "notificationNeeded",
   "send", "bindBackendRunning", "persistReceiverEnabled", "toggleReceiver", "finishReceiverShutdown",
   "startDiscovery", "forceFullDiscovery", "stopDiscovery", "chooseDevice", "clearTarget",
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
@@ -150,11 +150,12 @@ const functionNames = [
 function engine(initial = {}) {
   const sent = []
   const cursors = []
+  const notified = []
   const signals = {pinCleared: 0, pinFocusRequested: 0, incomingPinCleared: 0, incomingPinFocusRequested: 0, focusRestoreRequested: 0}
   const context = {
     Model,
     Date: {now: () => 1000},
-    Quickshell: {execDetached: () => {}},
+    Quickshell: {execDetached: command => notified.push(command)},
     Qt: {binding: callback => ({callback})},
     backend: {running: true, write: line => sent.push(JSON.parse(line))},
     backendRestart: {attempts: 0, interval: 0, restart: () => {}, stop: () => {}},
@@ -227,8 +228,15 @@ function engine(initial = {}) {
   vm.runInContext(functionNames.map(extractFunction).join("\n"), context)
   context.sent = sent
   context.cursors = cursors
+  context.notified = notified
   context.signals = signals
   return context
+}
+
+function notificationTitles(state) {
+  return state.notified
+    .filter(command => command[0] === "notify-send")
+    .map(command => command[3])
 }
 
 {
@@ -548,6 +556,74 @@ function incoming(requestId, sender = requestId) {
   assert.equal(state.viewState, "text")
   assert.ok(state.signals.incomingPinCleared > before,
     "incoming text that preempts PIN settings must clear the local secret field")
+}
+
+// A desktop notification exists to reach a user who is not looking at the
+// panel. Raised while the panel is open on the very request it announces, it is
+// a duplicate the user has to dismiss on top of answering the prompt.
+{
+  const state = engine({viewState: "nearby", openViewCount: 1, anyViewOpen: true})
+  state.handleEvent(incoming("visible"))
+  assert.equal(state.viewState, "incoming")
+  assert.deepEqual(notificationTitles(state), [],
+    "a panel already showing the request must not also raise a notification")
+}
+
+{
+  const state = engine({viewState: "nearby", openViewCount: 0, anyViewOpen: false})
+  state.handleEvent(incoming("unseen"))
+  assert.deepEqual(notificationTitles(state), ["Incoming transfer"],
+    "a closed panel is the case the notification exists for")
+}
+
+// Open is not the same as displayed. A request that arrives while the panel is
+// busy is queued rather than shown, so going quiet would drop it silently.
+for (const busy of ["sending", "receiving", "pin"]) {
+  const state = engine({viewState: busy, anyViewOpen: true})
+  state.handleEvent(incoming("held"))
+  assert.equal(state.viewState, busy)
+  assert.deepEqual(notificationTitles(state), ["Incoming transfer"],
+    `a request held behind ${busy} is not on screen and still has to be announced`)
+}
+
+// The panel shows the head of the queue, so a second request is not visible
+// either even though the view is already the incoming one.
+{
+  const state = engine({viewState: "nearby", anyViewOpen: true})
+  state.handleEvent(incoming("first"))
+  state.handleEvent(incoming("second"))
+  assert.equal(state.incoming.requestId, "first")
+  assert.deepEqual(notificationTitles(state), ["Incoming transfer"],
+    "only the request queued behind the displayed one may notify")
+}
+
+// Received text follows the same rule.
+{
+  const state = engine({viewState: "nearby", anyViewOpen: true})
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "hello"})
+  assert.equal(state.viewState, "text")
+  assert.deepEqual(notificationTitles(state), [],
+    "a panel already showing the text must not also raise a notification")
+}
+
+{
+  const state = engine({viewState: "nearby", anyViewOpen: false})
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "hello"})
+  assert.deepEqual(notificationTitles(state), ["Text received"])
+}
+
+// Its held case is an outgoing transfer in flight: the text is kept until the
+// send finishes instead of being shown, so the open panel does not cover it.
+{
+  const state = engine({
+    viewState: "sending",
+    anyViewOpen: true,
+    pendingOutgoing: {kind: "text", device: {fingerprint: "phone"}, text: "outgoing"},
+  })
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "deferred"})
+  assert.equal(state.incomingTextPending, true)
+  assert.deepEqual(notificationTitles(state), ["Text received"],
+    "text deferred behind an outgoing transfer is not on screen and still has to be announced")
 }
 
 {
