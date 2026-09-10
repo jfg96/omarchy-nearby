@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.3-dev
+## 1.1.3
 
 - Restore the receiver ON/OFF toggle on recent Omarchy releases after the
   third-party plugin security boundary stopped injecting the host `shellConfig`
