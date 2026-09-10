@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.3
+
+- Restore the receiver ON/OFF toggle on recent Omarchy releases after the
+  third-party plugin security boundary stopped injecting the host `shellConfig`
+  object into plugins. Nearby now reads its persisted state compatibly,
+  falling back to `~/.config/omarchy/shell.json` when the scoped plugin API
+  provides no `shellConfig` while keeping the live injected config
+  authoritative on older Omarchy, and continues writing settings through
+  Omarchy's scoped `updateEntryInline()` API. The legacy bare-string bar-entry
+  promotion now only runs on hosts that genuinely expose the config, so a
+  `mutateShellConfig()` that exists but is denied can no longer silently
+  swallow the toggle.
+
 ## 1.1.2
 
 - Stop duplicating an incoming transfer or received text as a desktop

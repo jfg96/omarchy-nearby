@@ -93,6 +93,18 @@ function backendEligible(state) {
   return vm.runInNewContext(`(${expression})`, {root: state})
 }
 
+// configEntry is a binding too, and with the scoped shell it derives from
+// effectiveShellConfig instead of shell.shellConfig. Evaluating it is what
+// covers the modern host: the fallback file becomes the receiver's source.
+function configEntry(state) {
+  return vm.runInNewContext(`(${extractBinding("configEntry")})`, {
+    Model,
+    manifestPluginId: "oma.nearby",
+    shell: state.shell,
+    get effectiveShellConfig() { return state.effectiveShellConfig },
+  })
+}
+
 // The version floor is a binding too, so it comes out of the source rather
 // than being restated. A manifest with no floor falls back to the version it
 // ships with, and a test that hardcoded that fallback would not notice it
@@ -168,6 +180,7 @@ function engine(initial = {}) {
     incomingPinFocusRequested: () => { signals.incomingPinFocusRequested++ },
     focusRestoreRequested: () => { signals.focusRestoreRequested++ },
     shell: null,
+    fileShellConfig: null,
     moduleEntryId: "oma.nearby",
     pluginSettings: {},
     receiverConfigured: true,
@@ -217,6 +230,14 @@ function engine(initial = {}) {
   Object.defineProperty(context, "requiredHelperVersion", {
     enumerable: true,
     get() { return requiredHelperVersion(context) },
+  })
+  Object.defineProperty(context, "hasLegacyShellConfig", {
+    enumerable: true,
+    get() { return !!(context.shell && context.shell.shellConfig) },
+  })
+  Object.defineProperty(context, "effectiveShellConfig", {
+    enumerable: true,
+    get() { return context.hasLegacyShellConfig ? context.shell.shellConfig : context.fileShellConfig },
   })
   for (const derived of ["helperOutdated", "helperUpdateOffered", "helperUpdateDetail"]) {
     Object.defineProperty(context, derived, {
@@ -1116,6 +1137,106 @@ for (const busy of ["sending", "receiving", "pin"]) {
     entry === "oma.nearby" || (entry && entry.id === "oma.nearby")).length, 1,
     "promoting and toggling a string-form entry must not create a duplicate")
 }
+
+// Omarchy 4.0.3+ injects a scoped PluginShellApi that no longer carries
+// shellConfig. The fallback file is what the receiver reads, and a valid one
+// must not permanently resolve the toggle to off.
+{
+  const state = engine({
+    fileShellConfig: {version: 1, bar: {layout: {right: [{id: "oma.nearby"}]}}, plugins: []},
+    shell: {},
+  })
+  assert.equal(Object.hasOwn(state.shell, "shellConfig"), false,
+    "the scoped shell test fixture must model the missing shellConfig")
+  assert.equal(Model.receiverEnabledIn(configEntry(state)), true,
+    "a valid fallback entry without a receiver setting means on, like the injected config")
+}
+{
+  const state = engine({
+    fileShellConfig: {version: 1, bar: {layout: {right: [{id: "oma.nearby", receiverEnabled: false}]}}, plugins: []},
+    shell: {},
+  })
+  assert.equal(Model.receiverEnabledIn(configEntry(state)), false,
+    "the fallback file must keep a persisted off the source the toggle reads")
+}
+
+// A legacy host that still injects the real shell.shellConfig keeps using it:
+// the file must never override the live injected config.
+{
+  const legacy = {version: 1, bar: {layout: {right: [{id: "oma.nearby", receiverEnabled: true}]}}, plugins: []}
+  const fileOff = {version: 1, bar: {layout: {right: [{id: "oma.nearby", receiverEnabled: false}]}}, plugins: []}
+  const state = engine({shell: {shellConfig: legacy}, fileShellConfig: fileOff})
+  assert.equal(state.hasLegacyShellConfig, true)
+  assert.equal(Model.receiverEnabledIn(configEntry(state)), true,
+    "a real injected shellConfig stays authoritative on legacy hosts")
+}
+
+// Config reload: the watched file is what a modern shell update flips, and a
+// restart reads the file again, so the persisted value must become effective.
+{
+  const state = engine({fileShellConfig: {version: 1, bar: {layout: {right: []}}, plugins: []}, shell: {}})
+  assert.equal(configEntry(state), null, "a file that does not contain the entry keeps the receiver off")
+  state.fileShellConfig = {version: 1, bar: {layout: {right: [{id: "oma.nearby", receiverEnabled: true}]}}, plugins: []}
+  assert.equal(Model.receiverEnabledIn(configEntry(state)), true,
+    "a refreshed fallback must make the persisted receiver state effective")
+}
+
+// OFF -> ON on a scoped shell must persist through the self-scoped
+// updateEntryInline(), and a mutateShellConfig() that only exists as a denied
+// capability must never be called or swallow the write.
+{
+  const config = {version: 1, bar: {layout: {right: [{id: "oma.nearby", receiverEnabled: false}]}}, plugins: []}
+  const writes = []
+  const mutates = []
+  const state = engine({
+    fileShellConfig: config,
+    moduleEntryId: "oma.nearby",
+    pluginSettings: {receiverEnabled: false},
+    shell: {
+      updateEntryInline(id, settings) { writes.push([id, JSON.parse(JSON.stringify(settings))]); return true },
+      mutateShellConfig() { mutates.push(true); return false },
+    },
+  })
+  state.persistReceiverEnabled(true)
+  assert.deepEqual(writes, [["oma.nearby", {receiverEnabled: true}]],
+    "a scoped shell must persist through the self-scoped updateEntryInline()")
+  assert.deepEqual(mutates, [],
+    "a denied mutateShellConfig() must never capture the toggle and drop the write")
+  assert.equal(backendEligible({receiverConfigured: true, receiverEnabled: true, pluginVersion: "1.0.6-dev"}), true,
+    "the persisted ON must leave the helper eligible to start")
+}
+
+// ON -> OFF on a scoped shell preserves the entry's unrelated settings.
+{
+  const config = {version: 1, bar: {layout: {right: [{id: "oma.nearby", tooltip: "keep me", receiverEnabled: true}]}}, plugins: []}
+  const writes = []
+  const state = engine({
+    fileShellConfig: config,
+    moduleEntryId: "oma.nearby",
+    pluginSettings: {tooltip: "keep me", receiverEnabled: true},
+    shell: {updateEntryInline(id, settings) { writes.push(JSON.parse(JSON.stringify(settings))); return true }},
+  })
+  state.persistReceiverEnabled(false)
+  assert.deepEqual(writes, [{tooltip: "keep me", receiverEnabled: false}],
+    "an OFF write on a scoped shell must preserve unrelated inline settings")
+  assert.equal(backendEligible({receiverConfigured: true, receiverEnabled: false, pluginVersion: "1.0.6-dev"}), false)
+}
+
+// No unguarded shell.shellConfig read may remain in the service: the only
+// allowed reads sit behind hasLegacyShellConfig as the legacy compatibility
+// path.
+assert.doesNotMatch(source, /Model\.barEntry\(shell\.shellConfig/,
+  "configEntry must derive from the compatibility source, not shell.shellConfig")
+assert.doesNotMatch(source, /Model\.hasStringBarEntry\(shell\.shellConfig/,
+  "string promotion must be decided from the compatibility source")
+assert.match(source, /readonly property bool hasLegacyShellConfig:\s*!!shell && !!shell\.shellConfig/,
+  "the legacy-host discriminator must require a truthy shell.shellConfig")
+assert.match(source, /readonly property var effectiveShellConfig:\s*hasLegacyShellConfig \? shell\.shellConfig : fileShellConfig/,
+  "the compatibility source must prefer the live injected config when present")
+assert.match(source, /watchChanges:\s*true/,
+  "the fallback shell.json watcher must track the shell's atomic rewrites")
+assert.match(source, /onFileChanged:\s*reload\(\)/,
+  "the watcher must refresh after the shell persists a settings update")
 
 assert.match(source,
   /function failWith\(message\)\s*\{\s*viewState="error";\s*errorText=message;\s*statusText=errorText\s*\}/,

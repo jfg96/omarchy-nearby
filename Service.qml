@@ -41,8 +41,15 @@ Item {
   // the persisted state and the effective state are the same value, so they
   // cannot drift apart, and `receiverConfigured` is a fact about the config
   // rather than about which widget spoke first.
-  readonly property var configEntry: shell && shell.shellConfig
-    ? Model.barEntry(shell.shellConfig, manifestPluginId)
+  // Omarchy's third-party plugin security boundary (4.0.3+) injects a scoped
+  // PluginShellApi that no longer carries shellConfig. Legacy hosts still do.
+  // The service watches shell.json directly so the persisted state keeps
+  // arriving; the injected config stays authoritative when a host provides it.
+  property var fileShellConfig: null
+  readonly property bool hasLegacyShellConfig: !!shell && !!shell.shellConfig
+  readonly property var effectiveShellConfig: hasLegacyShellConfig ? shell.shellConfig : fileShellConfig
+  readonly property var configEntry: effectiveShellConfig
+    ? Model.barEntry(effectiveShellConfig, manifestPluginId)
     : null
   readonly property bool receiverConfigured: configEntry !== null
   readonly property string moduleEntryId: configEntry ? configEntry.id : manifestPluginId
@@ -150,6 +157,23 @@ Item {
     }
   }
 
+  // The scoped plugin shell no longer exposes shellConfig on modern Omarchy, so
+  // the persisted state is read from the shell.json Omarchy owns. Read-only:
+  // every write still goes back through the shell API, and watching the file
+  // also covers the shell's own atomic rewrite after it applies an update.
+  FileView {
+    path: (Quickshell.env("HOME") || "") + "/.config/omarchy/shell.json"
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      root.fileShellConfig = Model.parseShellConfig(text())
+    }
+    onLoadFailed: function(error) {
+      root.fileShellConfig = null
+    }
+    onFileChanged: reload()
+  }
+
   // Registered once, from the one object there is one of. Registering this
   // from the widget meant one handler per monitor, of which the shell kept the
   // first and warned about the rest.
@@ -215,10 +239,16 @@ Item {
   }
   // receiverEnabled follows the entry, so writing the entry is what turns the
   // receiver on or off. There is no second copy of the state to keep in step.
+  // Modern Omarchy exposes only the self-scoped updateEntryInline(), which
+  // updates Nearby's own entry. The string-form promotion needs a real host
+  // config object, so it stays confined to legacy hosts that still inject
+  // shell.shellConfig: on a scoped shell a mutateShellConfig() that exists but
+  // is denied must not capture the toggle and drop the write.
   function persistReceiverEnabled(enabled) {
     if (!shell) return
     var settings = Object.assign({}, pluginSettings, { receiverEnabled: enabled })
-    if (Model.hasStringBarEntry(shell.shellConfig, moduleEntryId)
+    if (hasLegacyShellConfig
+        && Model.hasStringBarEntry(effectiveShellConfig, moduleEntryId)
         && typeof shell.mutateShellConfig === "function") {
       shell.mutateShellConfig(function(config) {
         Model.promoteStringBarEntry(config, moduleEntryId, settings)
