@@ -123,6 +123,18 @@ function barEntry(config, pluginId) {
   return null
 }
 
+// A compatibility config read from disk on hosts whose scoped plugin API no
+// longer injects shell.json. Anything that is not an object is a config that
+// has not arrived: null keeps the receiver off until a valid file exists.
+function parseShellConfig(text) {
+  try {
+    const parsed = JSON.parse(String(text || ""))
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null
+  } catch (_) {
+    return null
+  }
+}
+
 // Quattro accepts a bare id in bar.layout, but its inline-settings writer can
 // only attach settings to object entries. Promote a matching string in place
 // before writing the first setting; top-level plugins[] does not accept this
@@ -259,4 +271,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, helperVersionMatches, compareVersions, helperSatisfies, helperUpdateAvailable, manifestVersion, manifestMinHelperVersion }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, helperVersionMatches, compareVersions, helperSatisfies, helperUpdateAvailable, manifestVersion, manifestMinHelperVersion }

@@ -38,6 +38,16 @@ assert.equal(Model.manifestVersion('{"id":"other.plugin","version":"1.0.2"}', "o
 assert.equal(Model.manifestVersion('{"id":"oma.nearby"}', "oma.nearby"), "")
 assert.equal(Model.manifestVersion("not json", "oma.nearby"), "")
 
+// The compatibility config parser backs the modern-host file fallback: an
+// object is the config, anything else is a config that has not arrived.
+assert.deepEqual(Model.parseShellConfig('{"bar":{"layout":{}}}'), {bar:{layout:{}}})
+assert.deepEqual(Model.parseShellConfig("{}"), {})
+assert.equal(Model.parseShellConfig("not json"), null)
+assert.equal(Model.parseShellConfig(""), null)
+assert.equal(Model.parseShellConfig("null"), null)
+assert.equal(Model.parseShellConfig('["oma.nearby"]'), null,
+  "a JSON array is not a shell config and must stay null")
+
 // SemVer precedence, including the rule the release process depends on: a
 // prerelease sorts below the release it leads up to, so a checkout on 1.1.0-dev
 // is not satisfied by the 1.1.0 floor it is heading for and 1.1.0 is not held
