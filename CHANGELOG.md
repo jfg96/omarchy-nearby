@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.4
+
+- Dim the Nearby bar icon while the receiver is disabled, while preserving the
+  existing toggle behavior.
+- Fall back to the system hostname when the `HOSTNAME` environment variable is
+  unavailable, so the helper can still start with a stable device alias.
+- Send incoming transfer and text notifications through Omarchy's native
+  `omarchy-notification-send` helper. Nearby keeps its own application identity
+  so notifications respect Do Not Disturb, and explicitly retains normal
+  urgency to preserve the previous popup duration and priority.
+
 ## 1.1.3
 
 - Restore the receiver ON/OFF toggle on recent Omarchy releases after the
