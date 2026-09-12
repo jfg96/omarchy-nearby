@@ -66,7 +66,7 @@ Runtime:
 - Omarchy Quattro (Quickshell-based shell)
 - `omarchy-file-select` for file selection, which Omarchy ships
 - `wl-clipboard` (`wl-copy` / `wl-paste`) for text sharing
-- `libnotify` (`notify-send`) for desktop notifications
+- `omarchy-notification-send` for desktop notifications, which Omarchy ships
 - Local network connectivity for LocalSend traffic (default TCP/UDP port `53317`)
 
 The recommended prebuilt installation supports Linux x86_64. Building from source
