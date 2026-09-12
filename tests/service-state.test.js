@@ -257,7 +257,7 @@ function engine(initial = {}) {
 function notificationTitles(state) {
   return state.notified
     .filter(command => command[0] === "omarchy-notification-send")
-    .map(command => command[3])
+    .map(command => command[5])
 }
 
 function notificationCommands(state) {
@@ -599,6 +599,7 @@ function incoming(requestId, sender = requestId) {
   state.handleEvent(incoming("unseen", "Alice"))
   assert.deepEqual(notificationCommands(state), [[
     "omarchy-notification-send", "--app-name", "Nearby",
+    "--urgency", "normal",
     "Incoming transfer", "Alice wants to send unseen.txt",
   ]], "an incoming transfer must keep its identity and contents through Omarchy's notification helper")
   assert.deepEqual(notificationTitles(state), ["Incoming transfer"],
@@ -640,6 +641,7 @@ for (const busy of ["sending", "receiving", "pin"]) {
   state.handleEvent({event: "incoming_text", sender: "Alice", text: "hello"})
   assert.deepEqual(notificationCommands(state), [[
     "omarchy-notification-send", "--app-name", "Nearby",
+    "--urgency", "normal",
     "Text received", "From Alice",
   ]], "received text must keep its identity and contents through Omarchy's notification helper")
   assert.deepEqual(notificationTitles(state), ["Text received"])
