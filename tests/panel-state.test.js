@@ -18,6 +18,10 @@ assert.match(source, /bar\.shell\.serviceFor\(manifestPluginId\)/,
   "the widget must read its state from the single service instance")
 assert.match(source, /manageIpc:\s*false/,
   "the base panel's IPC handler must stay off so the service owns the target")
+assert.match(source, /barIconColor:\s*root\.receiverEnabled\s*\?\s*barForeground\s*:\s*Qt\.darker\(barForeground,\s*1\.55\)/,
+  "the bar icon must dim when receiver is disabled")
+assert.match(source, /BarIconButton[\s\S]*?foreground:\s*root\.barIconColor/,
+  "the bar icon button must use barIconColor")
 assert.equal(source.includes("Qt.ImhDigitsOnly"), false,
   "the outgoing PIN prompt must accept the same text values as LocalSend")
 assert.equal(source.includes("RegularExpressionValidator { regularExpression: /[0-9]*/ }"), false,
