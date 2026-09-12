@@ -506,13 +506,13 @@ Item {
       var incomingTakesView = viewState!=="sending" && viewState!=="receiving" && viewState!=="pin"
       if (incomingTakesView) { viewState="incoming"; cursorRequested(1) }
       if (notificationNeeded(incomingTakesView && incoming && incoming.requestId===event.requestId))
-        Quickshell.execDetached(["notify-send","-a","Nearby","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
+        Quickshell.execDetached(["omarchy-notification-send","--app-name","Nearby","--urgency","normal","Incoming transfer",String(event.sender)+" wants to send "+Model.incomingSummary(event.files)])
     }
     else if (event.event === "incoming_text") {
       if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
       incomingText=String(event.text || ""); transferPeer=String(event.sender || ""); incomingTextPending=pendingOutgoing!==null; if (!pendingOutgoing) { viewState="text"; stopDiscovery() }
       if (notificationNeeded(!incomingTextPending))
-        Quickshell.execDetached(["notify-send","-a","Nearby","Text received","From "+String(event.sender || "")])
+        Quickshell.execDetached(["omarchy-notification-send","--app-name","Nearby","--urgency","normal","Text received","From "+String(event.sender || "")])
     }
     else if (event.event === "incoming_accepted") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
     else if (event.event === "incoming_expired") {
