@@ -758,6 +758,33 @@ fn load_identity(home: &Path) -> Result<TlsCertificate> {
     Ok(cert)
 }
 
+fn resolve_device_alias() -> String {
+    resolve_device_alias_from(std::env::var("HOSTNAME").ok(), || {
+        std::fs::read_to_string("/proc/sys/kernel/hostname")
+            .or_else(|_| std::fs::read_to_string("/etc/hostname"))
+            .ok()
+    })
+}
+
+fn resolve_device_alias_from<F>(env_hostname: Option<String>, read_sys_hostname: F) -> String
+where
+    F: FnOnce() -> Option<String>,
+{
+    if let Some(name) = env_hostname
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+    {
+        return name;
+    }
+    if let Some(name) = read_sys_hostname()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+    {
+        return name;
+    }
+    "Omarchy".into()
+}
+
 async fn update_incoming_pin(
     server: &mut LocalSendServer,
     settings_path: &Path,
@@ -819,10 +846,7 @@ async fn main() -> Result<()> {
         Ok(_) => {}
         Err(error) => eprintln!("could not clean stale Nearby partial files: {error}"),
     }
-    let alias = std::env::var("HOSTNAME")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "Omarchy".into());
+    let alias = resolve_device_alias();
     let certificate = load_identity(&home).context("TLS identity unavailable")?;
     let mut builder = LocalSendServer::builder()
         .alias(alias)
@@ -1030,6 +1054,34 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn device_alias_prefers_environment_hostname() {
+        let alias = resolve_device_alias_from(Some("custom-host".to_string()), || {
+            Some("system-host".to_string())
+        });
+        assert_eq!(alias, "custom-host");
+    }
+
+    #[test]
+    fn device_alias_falls_back_to_system_hostname() {
+        let alias = resolve_device_alias_from(None, || Some("system-host\n".to_string()));
+        assert_eq!(alias, "system-host");
+
+        let empty_env =
+            resolve_device_alias_from(Some("   ".to_string()), || Some("system-host".to_string()));
+        assert_eq!(empty_env, "system-host");
+    }
+
+    #[test]
+    fn device_alias_falls_back_to_omarchy_when_unresolved() {
+        let alias = resolve_device_alias_from(None, || None);
+        assert_eq!(alias, "Omarchy");
+
+        let whitespace =
+            resolve_device_alias_from(Some("".to_string()), || Some("   \n".to_string()));
+        assert_eq!(whitespace, "Omarchy");
+    }
 
     #[test]
     fn port_in_use_is_recognized_through_the_error_chain() {
