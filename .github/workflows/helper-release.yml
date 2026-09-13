@@ -84,7 +84,6 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#helper-v}"
-          prerelease=()
-          [[ "$version" == *-* ]] && prerelease=(--prerelease)
           gh release create "$GITHUB_REF_NAME" dist/* \
-            --verify-tag --generate-notes --title "$GITHUB_REF_NAME" "${prerelease[@]}"
+            --verify-tag --generate-notes --prerelease \
+            --title "Nearby helper v${version}"

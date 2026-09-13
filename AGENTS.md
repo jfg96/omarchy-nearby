@@ -111,13 +111,14 @@ passing.
   technical reason makes one necessary, and preserve contributor authorship
   when updating or rebasing the branch.
 - Do not rewrite published `main` solely to make its history look cleaner.
-- Stable releases require matching versions in `manifest.json`,
-  `backend/Cargo.toml`, and `backend/Cargo.lock`, plus a matching changelog
-  heading and `vX.Y.Z` tag.
-- Runtime source changes after a stable release must advance the manifest and
-  helper to the next `-dev` version together. Repository-only documentation or
-  CI changes that cannot alter the installed plugin do not require a version
-  bump.
+- Stable plugin releases require matching `manifest.json`, changelog heading
+  and `vX.Y.Z` tag. The helper package follows its own `helper-vX.Y.Z` cycle;
+  its Cargo files, committed release metadata and published artifact must agree.
+- Runtime source changes after a stable release must advance the manifest to
+  the next `-dev` version. Changes to helper behavior must also advance the
+  helper package version and `minHelperVersion`; publish that helper first,
+  then commit its exact release metadata. Repository-only documentation or CI
+  changes that cannot alter the installed plugin do not require a version bump.
 - Never create or move a release tag until the exact target commit has passed
   CI. Release helpers must come from the tagged GitHub Actions workflow, not a
   locally built binary.

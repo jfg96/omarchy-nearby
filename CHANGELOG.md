@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.5-dev
+## 1.2.0-dev
 
 - Bound helper commands, outgoing text and the live peer registry so oversized
   local input or LAN identity churn cannot grow memory without limit.
