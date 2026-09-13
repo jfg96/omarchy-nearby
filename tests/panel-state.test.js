@@ -162,7 +162,7 @@ const functionNames = [
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "clearSecretInputs",
-  "goBack", "selectFiles", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
+  "goBack", "selectFiles", "selectFolder", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
   "retryHelper", "copyText", "copyUpdateCommand", "copyRepositoryLink", "noteHover",
 ]
 
@@ -219,6 +219,7 @@ function panel(initial = {}) {
     Qt: {callLater: callback => callback()},
     engine,
     picker: {running: false, launched: false},
+    folderPicker: {running: false, launched: false},
     clipboard: {running: false, launched: false},
     clipboardWriter: {running: false, launched: false},
     textCopier: {running: false, launched: false, payload: ""},
@@ -479,13 +480,13 @@ function callNames(state) {
 }
 
 {
-  const state = panel({viewState: "target", selectedIndex: 2})
+  const state = panel({viewState: "target", selectedIndex: 3})
   state.activateCursor()
   assert.equal(callNames(state).at(-1), "clearTarget",
     "device actions must expose Back to keyboard users too")
   state.selectedIndex = 0
   state.moveCursor(0, 9)
-  assert.equal(state.selectedIndex, 2, "device action cursor must stop on Back")
+  assert.equal(state.selectedIndex, 3, "device action cursor must stop on Back")
 }
 
 {
@@ -508,20 +509,26 @@ function callNames(state) {
 {
   const state = panel({selectedDevice: null})
   state.selectFiles()
+  state.selectFolder()
   state.sendClipboard()
   assert.equal(state.picker.running, false, "no chooser without a target device")
+  assert.equal(state.folderPicker.running, false, "no folder chooser without a target device")
   assert.equal(state.clipboard.running, false, "no clipboard read without a target device")
   const ready = panel()
   ready.selectFiles()
   assert.equal(ready.picker.running, true)
+  ready.selectFolder()
+  assert.equal(ready.folderPicker.running, true)
   ready.sendClipboard()
   assert.equal(ready.clipboard.running, true)
 }
 
 {
-  const state = panel({picker: {running: true, launched: true}})
+  const state = panel({picker: {running: true, launched: true}, folderPicker: {running: true, launched: true}})
   state.selectFiles()
   assert.equal(state.picker.launched, true, "a chooser already open must not be relaunched")
+  state.selectFolder()
+  assert.equal(state.folderPicker.launched, true, "a folder chooser already open must not be relaunched")
 }
 
 {

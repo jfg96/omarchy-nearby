@@ -3,7 +3,7 @@
 Native nearby sharing for Omarchy Quattro, compatible with the LocalSend protocol.
 
 Nearby turns LocalSend-compatible sharing into a native shell feature: open it
-from the bar, choose a device, and send files or clipboard text without launching
+from the bar, choose a device, and send files, folders, or clipboard text without launching
 a separate application.
 
 Nearby is not a launcher for the LocalSend application. It implements the network
@@ -18,7 +18,7 @@ clipboard text and transfer lifecycle are handled by the widget and its Rust hel
 
 ![Nearby discovering compatible devices on the local network](assets/screenshots/nearby-discovery.png)
 
-### Send files or clipboard text
+### Send files, folders or clipboard text
 
 ![Nearby actions for sending files or clipboard text to a selected device](assets/screenshots/nearby-send-actions.png)
 
@@ -55,9 +55,9 @@ The widget is placed in the right section of the bar by default. Remove it with
 ## Features
 
 - Discover compatible devices on the local network
-- Send one or more files
+- Send one or more files or folders
 - Send clipboard text
-- Receive files and text with explicit accept/decline controls
+- Receive files, folders and text with explicit accept/decline controls
 - Optionally require a persistent PIN for incoming text and file transfers
 - Transfer progress, completion, cancellation and error states
 - Native Omarchy bar widget and popup
@@ -70,7 +70,7 @@ The widget is placed in the right section of the bar by default. Remove it with
 Runtime:
 
 - Omarchy Quattro (Quickshell-based shell)
-- `omarchy-file-select` for file selection, which Omarchy ships
+- `omarchy-file-select` for file and folder selection, which Omarchy ships
 - `wl-clipboard` (`wl-copy` / `wl-paste`) for text sharing
 - `omarchy-notification-send` for desktop notifications, which Omarchy ships
 - Local network connectivity for LocalSend traffic (default TCP/UDP port `53317`)

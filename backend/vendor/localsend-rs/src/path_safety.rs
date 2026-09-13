@@ -22,11 +22,9 @@ pub(crate) fn safe_join(base: &Path, remote_name: &str) -> Result<PathBuf> {
     }
 
     let mut relative = PathBuf::new();
-    let mut normal_components = 0usize;
     for component in remote_path.components() {
         match component {
             Component::Normal(part) => {
-                normal_components += 1;
                 relative.push(part);
             }
             Component::CurDir => {}
@@ -46,13 +44,20 @@ pub(crate) fn safe_join(base: &Path, remote_name: &str) -> Result<PathBuf> {
         )));
     }
 
-    // Remote file names are display names, not directory instructions. Keeping
-    // them to one component also removes symlinked-parent and TOCTOU escapes.
-    if normal_components != 1 {
-        return Err(LocalSendError::invalid_file(format!(
-            "Unsafe nested remote file name: {}",
-            remote_name
-        )));
+    // Remote file names may carry relative directory components for folder
+    // transfers. Ensure no component inside base is an existing symlink to
+    // prevent symlinked-parent directory traversal escapes.
+    let mut check_path = base.to_path_buf();
+    for part in relative.components() {
+        check_path.push(part);
+        if let Ok(meta) = std::fs::symlink_metadata(&check_path) {
+            if meta.file_type().is_symlink() {
+                return Err(LocalSendError::invalid_file(format!(
+                    "Unsafe symlink in remote path: {}",
+                    remote_name
+                )));
+            }
+        }
     }
 
     Ok(base.join(relative))
@@ -64,9 +69,34 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn rejects_nested_relative_paths_to_prevent_symlink_parent_escape() {
+    fn allows_safe_nested_relative_paths() {
         let base = Path::new("/tmp/localsend");
-        assert!(safe_join(base, "nested/file.txt").is_err());
+        assert_eq!(
+            safe_join(base, "nested/file.txt").unwrap(),
+            base.join("nested/file.txt")
+        );
+        assert_eq!(
+            safe_join(base, "a/b/c/file.txt").unwrap(),
+            base.join("a/b/c/file.txt")
+        );
+    }
+
+    #[test]
+    fn rejects_symlink_in_nested_path() {
+        let dir = std::env::temp_dir().join(format!("lsrs-symlink-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let target =
+            std::env::temp_dir().join(format!("lsrs-symlink-target-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&target).unwrap();
+        let link = dir.join("link_dir");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        #[cfg(unix)]
+        assert!(safe_join(&dir, "link_dir/file.txt").is_err());
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&target);
     }
 
     #[test]

@@ -93,9 +93,18 @@ pub async fn commit_temp_file(
                 .extension()
                 .map(|e| format!(".{}", e.to_string_lossy()))
                 .unwrap_or_default();
-            format!("{stem} ({i}){ext}")
+            let numbered = format!("{stem} ({i}){ext}");
+            match p.parent() {
+                Some(par) if !par.as_os_str().is_empty() => {
+                    format!("{}/{}", par.to_string_lossy(), numbered)
+                }
+                _ => numbered,
+            }
         };
         let candidate = crate::path_safety::safe_join(save_dir, &requested)?;
+        if let Some(par) = candidate.parent() {
+            tokio::fs::create_dir_all(par).await?;
+        }
         match tokio::fs::hard_link(temp, &candidate).await {
             Ok(()) => {
                 tokio::fs::remove_file(temp).await?;
@@ -131,6 +140,29 @@ mod tests {
     fn unique_save_path_still_rejects_traversal() {
         let dir = std::env::temp_dir();
         assert!(unique_save_path(&dir, "../evil.txt").is_err());
+    }
+
+    #[tokio::test]
+    async fn commit_temp_file_preserves_nested_directory_structure_on_collision() {
+        let dir = std::env::temp_dir().join(format!("lsrs-nested-col-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let sub = dir.join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("test.txt"), b"existing").unwrap();
+
+        let temp = dir.join(".temp.part");
+        tokio::fs::write(&temp, b"new").await.unwrap();
+
+        let committed = commit_temp_file(&dir, "sub/test.txt", &temp).await.unwrap();
+        assert_eq!(committed, sub.join("test (1).txt"));
+        assert_eq!(tokio::fs::read(&committed).await.unwrap(), b"new");
+        assert_eq!(
+            tokio::fs::read(sub.join("test.txt")).await.unwrap(),
+            b"existing"
+        );
+        assert!(!temp.exists());
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[tokio::test]

@@ -162,6 +162,7 @@ Panel {
   // The chooser and the clipboard belong to the monitor the user acted on, so
   // they stay with the view and hand their result to the engine.
   function selectFiles() { if (!selectedDevice || picker.running) return; picker.launched=false; picker.running = true }
+  function selectFolder() { if (!selectedDevice || folderPicker.running) return; folderPicker.launched=false; folderPicker.running = true }
   function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.launched=false; clipboard.running = true }
   function copyReceivedText() { clipboardWriter.launched=false; clipboardWriter.running=true }
 
@@ -212,7 +213,7 @@ Panel {
       selectedIndex = Math.max(0, Math.min(1, selectedIndex + dx))
       return
     }
-    var count = viewState === "target" ? 3 : ((viewState === "incoming" || viewState === "text" || viewState === "incoming_pin_disable") ? 2 : (viewState === "incoming_pin_settings" ? (incomingPinEnabled ? 3 : 2) : 1))
+    var count = viewState === "target" ? 4 : ((viewState === "incoming" || viewState === "text" || viewState === "incoming_pin_disable") ? 2 : (viewState === "incoming_pin_settings" ? (incomingPinEnabled ? 3 : 2) : 1))
     if (count > 0 && dy !== 0) selectedIndex = Math.max(0, Math.min(count - 1, selectedIndex + dy))
   }
   function activateCursor() {
@@ -227,7 +228,7 @@ Panel {
       else if (receiverEnabled && backendReady && selectedIndex === devices.length) forceFullDiscovery()
       else if (receiverEnabled && backendReady && selectedIndex === devices.length+1) openIncomingPinSettings()
     }
-    else if (viewState === "target") selectedIndex === 0 ? selectFiles() : (selectedIndex === 1 ? sendClipboard() : goBack())
+    else if (viewState === "target") selectedIndex === 0 ? selectFiles() : (selectedIndex === 1 ? selectFolder() : (selectedIndex === 2 ? sendClipboard() : goBack()))
     else if (viewState === "incoming") selectedIndex === 0 ? declineIncoming() : acceptIncoming()
     else if (viewState === "text") { if(selectedIndex===0)copyReceivedText(); else finishText() }
     else if (viewState === "incoming_pin_settings") incomingPinEnabled ? (selectedIndex===0?beginIncomingPinEdit():(selectedIndex===1?requestDisableIncomingPin():goBack())) : (selectedIndex===0?beginIncomingPinEdit():goBack())
@@ -292,6 +293,21 @@ Panel {
       if (code > 1) { root.failWith("The file chooser did not open"); return }
       if (code !== 0 || !root.selectedDevice) return
       var paths=String(pickerOutput.text || "").split("\n").filter(function(v){return v.trim()!==""})
+      if (paths.length) root.beginOutgoing({kind:"files",device:root.selectedDevice,paths:paths})
+    }
+  }
+  Process {
+    id: folderPicker
+    property bool launched: false
+    command: ["omarchy-file-select","--title","Send nearby folder","--directory"]
+    running: false
+    stdout: StdioCollector { id: folderPickerOutput; waitForEnd: true }
+    onStarted: folderPicker.launched=true
+    onRunningChanged: if (!running && !folderPicker.launched) root.failWith("The file chooser could not be started")
+    onExited: function(code) {
+      if (code > 1) { root.failWith("The file chooser did not open"); return }
+      if (code !== 0 || !root.selectedDevice) return
+      var paths=String(folderPickerOutput.text || "").split("\n").filter(function(v){return v.trim()!==""})
       if (paths.length) root.beginOutgoing({kind:"files",device:root.selectedDevice,paths:paths})
     }
   }
@@ -429,8 +445,9 @@ Panel {
           visible: root.viewState === "target"; width:parent.width; spacing:Style.space(6)
           PanelSectionHeader { text:"SEND"; foreground:root.foreground; fontFamily:root.fontFamily }
           Button { width:parent.width; leftAlign:true; iconText:"󰈔"; text:"Send files"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.selectFiles() }
-          Button { width:parent.width; leftAlign:true; iconText:"󰅇"; text:"Send clipboard"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.sendClipboard() }
-          Button { width:parent.width; leftAlign:true; bordered:false; iconText:"󰅁"; text:"Back"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===2; onHovered:function(v){root.noteHover(v,2)}; onClicked:root.goBack() }
+          Button { width:parent.width; leftAlign:true; iconText:"󰉋"; text:"Send folder"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.selectFolder() }
+          Button { width:parent.width; leftAlign:true; iconText:"󰅇"; text:"Send clipboard"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===2; onHovered:function(v){root.noteHover(v,2)}; onClicked:root.sendClipboard() }
+          Button { width:parent.width; leftAlign:true; bordered:false; iconText:"󰅁"; text:"Back"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===3; onHovered:function(v){root.noteHover(v,3)}; onClicked:root.goBack() }
         }
 
         Column {

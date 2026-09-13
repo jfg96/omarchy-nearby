@@ -863,6 +863,13 @@ for (const busy of ["sending", "receiving", "pin"]) {
 }
 
 {
+  const state = engine({viewState: "sending", outgoingTransferId: "tx-1", transferName: "first.txt"})
+  state.handleEvent({event: "outgoing_progress", transferId: "tx-1", name: "second.txt", bytes: 10, total: 100})
+  assert.equal(state.transferName, "second.txt")
+  assert.equal(state.progress, 0.1)
+}
+
+{
   const state = engine()
   state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "outgoing"})
   const transferId = state.outgoingTransferId
