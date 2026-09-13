@@ -7,41 +7,50 @@ on:
 
 permissions:
   contents: write
+  attestations: read
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out the tagged source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
-          components: rustfmt
+          toolchain: 1.97.1
+          components: rustfmt, clippy
 
-      - name: Verify release versions
+      - name: Verify plugin and helper references
         shell: bash
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          manifest_version=$(jq -r '.version' manifest.json)
-          cargo_version=$(cargo metadata --no-deps --format-version 1 --manifest-path backend/Cargo.toml | jq -r '.packages[0].version')
-          [[ "$version" == "$manifest_version" ]]
-          [[ "$version" == "$cargo_version" ]]
+          [[ "$(jq -r '.version' manifest.json)" == "$version" ]]
+          grep -Fqx "## $version" CHANGELOG.md
           [[ "$(git rev-list -n 1 "$GITHUB_REF_NAME")" == "$GITHUB_SHA" ]]
+          helper_version=$(awk -F= '$1 == "NEARBY_HELPER_TAG" {sub(/^helper-v/, "", $2); print $2}' helper-release.env)
+          helper_source=$(awk -F= '$1 == "NEARBY_HELPER_SOURCE_SHA" {print $2}' helper-release.env)
+          cargo_version=$(cargo metadata --no-deps --format-version 1 --manifest-path backend/Cargo.toml | jq -r '.packages[0].version')
+          [[ "$cargo_version" == "$helper_version" ]]
+          [[ "$(jq -r '.minHelperVersion' manifest.json)" == "$helper_version" ]]
+          git diff --quiet "$helper_source" -- backend
 
       - name: Test frontend model
         run: node tests/model.test.js && node tests/panel-state.test.js && node tests/service-state.test.js
 
-      - name: Test helper updater
-        run: bash tests/updater.test.sh
+      - name: Test helper distribution
+        run: bash tests/launcher.test.sh && bash tests/helper-repair.test.sh
 
       - name: Check Rust formatting
         run: cargo fmt --manifest-path backend/Cargo.toml --all -- --check
+
+      - name: Lint Nearby helper
+        run: cargo clippy --all-targets --locked --manifest-path backend/Cargo.toml -- -D warnings
 
       - name: Test Nearby helper
         run: cargo test --locked --manifest-path backend/Cargo.toml
@@ -49,25 +58,36 @@ jobs:
       - name: Test vendored localsend-rs
         run: cargo test --locked --manifest-path backend/vendor/localsend-rs/Cargo.toml --features https
 
-      - name: Build release helper
-        run: cargo build --release --locked --manifest-path backend/Cargo.toml
-
-      - name: Inspect release helper
+      - name: Prefetch and verify referenced helper
+        env:
+          GH_TOKEN: ${{ github.token }}
+          XDG_DATA_HOME: ${{ github.workspace }}/verify-data
+        shell: bash
         run: |
-          file backend/target/release/omarchy-nearby-helper
-          ldd backend/target/release/omarchy-nearby-helper
+          set -euo pipefail
+          bin/nearby-helper-launcher --prefetch
+          tag=$(awk -F= '$1 == "NEARBY_HELPER_TAG" {print $2}' helper-release.env)
+          asset=$(awk -F= '$1 == "NEARBY_HELPER_ASSET" {print $2}' helper-release.env)
+          size=$(awk -F= '$1 == "NEARBY_HELPER_SIZE" {print $2}' helper-release.env)
+          sha=$(awk -F= '$1 == "NEARBY_HELPER_SHA256" {print $2}' helper-release.env)
+          source_sha=$(awk -F= '$1 == "NEARBY_HELPER_SOURCE_SHA" {print $2}' helper-release.env)
+          workflow=$(awk -F= '$1 == "NEARBY_HELPER_RELEASE_WORKFLOW" {print $2}' helper-release.env)
+          helper="$XDG_DATA_HOME/omarchy-nearby/helpers/$tag/$asset"
+          [[ "$(stat -c %s -- "$helper")" == "$size" ]]
+          [[ "$(sha256sum "$helper" | cut -d' ' -f1)" == "$sha" ]]
+          gh attestation verify "$helper" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$workflow" \
+            --source-digest "$source_sha" \
+            --source-ref "refs/tags/$tag" \
+            --deny-self-hosted-runners
 
       - name: Install license generator
         run: cargo install cargo-about --locked --version 0.9.1 --features cli
 
-      - name: Assemble release assets
-        shell: bash
+      - name: Assemble plugin release
         run: |
-          set -euo pipefail
-          asset="omarchy-nearby-helper-${GITHUB_REF_NAME}-linux-x86_64"
           mkdir -p dist
-          install -m755 backend/target/release/omarchy-nearby-helper "dist/$asset"
-          (cd dist && sha256sum "$asset" > "$asset.sha256")
           cargo about generate --manifest-path backend/Cargo.toml about.hbs > dist/THIRD_PARTY_LICENSES.html
 
       - name: Publish GitHub release
@@ -75,7 +95,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh release create "$GITHUB_REF_NAME"
-          dist/*
+          dist/THIRD_PARTY_LICENSES.html
           --verify-tag
           --generate-notes
           --title "$GITHUB_REF_NAME"

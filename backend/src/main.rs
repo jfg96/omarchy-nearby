@@ -2,25 +2,26 @@ use anyhow::{Context, Result, anyhow};
 use localsend_rs::LocalSendServer;
 use localsend_rs::client::{LocalSendClient, ProgressCallback, TlsTrustPolicy};
 use localsend_rs::core::build_file_metadata;
-use localsend_rs::crypto::{TlsCertificate, generate_tls_certificate};
+use localsend_rs::crypto::TlsCertificate;
 use localsend_rs::discovery::{Discovery, HttpDiscovery, MulticastDiscovery};
 use localsend_rs::error::LocalSendError;
 use localsend_rs::protocol::types::FileMetadataDetails;
 use localsend_rs::protocol::{DeviceInfo, FileId, FileMetadata, Protocol};
 use localsend_rs::server::{LocalSendServerBuilder, PendingRequest, ServerEvent};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::future::Future;
-use std::io::Write;
+use std::io::{self, Write};
 use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
 
+mod identity;
 mod settings;
 
 const PEER_TTL: Duration = Duration::from_secs(90);
@@ -30,9 +31,82 @@ const MAX_SUBNET_ADDRESSES: u32 = 1024;
 const STALE_PARTIAL_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 const NEARBY_PORT: u16 = 53317;
 const MAX_OUTGOING_PIN_BYTES: usize = 4096;
+const MAX_COMMAND_LINE_BYTES: usize = 2 * 1024 * 1024;
+const MAX_TEXT_BYTES: usize = 1024 * 1024;
+const MAX_PEERS: usize = 256;
+
+#[derive(Debug, PartialEq, Eq)]
+enum CommandLine {
+    Line(Vec<u8>),
+    TooLong,
+}
+
+struct BoundedLineReader<R> {
+    inner: R,
+    buffer: Vec<u8>,
+    oversized: bool,
+    max_bytes: usize,
+}
+
+impl<R: AsyncBufRead + Unpin> BoundedLineReader<R> {
+    fn new(inner: R, max_bytes: usize) -> Self {
+        Self {
+            inner,
+            buffer: Vec::new(),
+            oversized: false,
+            max_bytes,
+        }
+    }
+
+    async fn next_line(&mut self) -> io::Result<Option<CommandLine>> {
+        loop {
+            let available = self.inner.fill_buf().await?;
+            if available.is_empty() {
+                if self.buffer.is_empty() && !self.oversized {
+                    return Ok(None);
+                }
+                let result = if self.oversized {
+                    CommandLine::TooLong
+                } else {
+                    CommandLine::Line(std::mem::take(&mut self.buffer))
+                };
+                self.oversized = false;
+                return Ok(Some(result));
+            }
+
+            let newline = available.iter().position(|byte| *byte == b'\n');
+            let consumed = newline.map_or(available.len(), |index| index + 1);
+            let content = &available[..newline.unwrap_or(available.len())];
+            if !self.oversized {
+                let remaining = self.max_bytes.saturating_sub(self.buffer.len());
+                if content.len() <= remaining {
+                    self.buffer.extend_from_slice(content);
+                } else {
+                    self.oversized = true;
+                }
+            }
+            self.inner.consume(consumed);
+
+            if newline.is_some() {
+                let result = if self.oversized {
+                    CommandLine::TooLong
+                } else {
+                    CommandLine::Line(std::mem::take(&mut self.buffer))
+                };
+                self.buffer.clear();
+                self.oversized = false;
+                return Ok(Some(result));
+            }
+        }
+    }
+}
 
 fn valid_outgoing_pin(pin: Option<&str>) -> bool {
     pin.is_none_or(|value| !value.is_empty() && value.len() <= MAX_OUTGOING_PIN_BYTES)
+}
+
+fn outgoing_text_within_limit(text: &str) -> bool {
+    text.len() <= MAX_TEXT_BYTES
 }
 
 /// True when a failure was caused by the LocalSend port already being bound.
@@ -128,13 +202,6 @@ struct Peer {
     last_seen: Instant,
 }
 
-#[derive(Serialize, Deserialize)]
-struct StoredIdentity {
-    cert_pem: String,
-    key_pem: String,
-    fingerprint: String,
-}
-
 fn emit(value: Value) {
     println!("{}", value);
 }
@@ -183,13 +250,31 @@ fn record_peer(registry: &Arc<Mutex<HashMap<String, Peer>>>, device: DeviceInfo)
     if device.fingerprint.is_empty() || device.alias.is_empty() {
         return;
     }
-    registry.lock().unwrap().insert(
-        device.fingerprint.clone(),
-        Peer {
-            device: device.clone(),
-            last_seen: Instant::now(),
-        },
-    );
+    {
+        let mut peers = registry.lock().unwrap();
+        peers.retain(|_, peer| peer.last_seen.elapsed() <= PEER_TTL);
+        if !peers.contains_key(&device.fingerprint)
+            && peers.len() >= MAX_PEERS
+            && let Some(oldest) = peers
+                .iter()
+                .min_by(|(fingerprint_a, peer_a), (fingerprint_b, peer_b)| {
+                    peer_a
+                        .last_seen
+                        .cmp(&peer_b.last_seen)
+                        .then_with(|| fingerprint_a.cmp(fingerprint_b))
+                })
+                .map(|(fingerprint, _)| fingerprint.clone())
+        {
+            peers.remove(&oldest);
+        }
+        peers.insert(
+            device.fingerprint.clone(),
+            Peer {
+                device: device.clone(),
+                last_seen: Instant::now(),
+            },
+        );
+    }
     eprintln!("peer registered: {}", valid_remote_text(&device.alias, 128));
     emit(json!({"event":"device","device":event_device(&device)}));
 }
@@ -215,7 +300,6 @@ fn http_scan_targets(interfaces: Vec<(Ipv4Addr, Ipv4Addr)>) -> (Vec<String>, Vec
     let usable: BTreeSet<Ipv4Addr> = interfaces
         .iter()
         .map(|(ip, _)| *ip)
-        .into_iter()
         .filter(|ip| {
             !ip.is_unspecified()
                 && !ip.is_loopback()
@@ -526,6 +610,10 @@ async fn start_active_discovery(
     }
 }
 
+// Identity, target, payload, authorization and cancellation are independent
+// parts of one transfer operation; grouping them would only move this contract
+// into a single-use parameter struct.
+#[allow(clippy::too_many_arguments)]
 async fn send_payload(
     transfer_id: String,
     identity: DeviceInfo,
@@ -729,35 +817,6 @@ async fn cleanup_stale_partial_files(directory: &Path, minimum_age: Duration) ->
     Ok(removed)
 }
 
-fn load_identity(home: &Path) -> Result<TlsCertificate> {
-    let state_dir = settings::state_dir(home);
-    std::fs::create_dir_all(&state_dir)?;
-    let path = state_dir.join("identity.json");
-    if let Ok(data) = std::fs::read(&path) {
-        if let Ok(stored) = serde_json::from_slice::<StoredIdentity>(&data) {
-            return Ok(TlsCertificate {
-                cert_pem: stored.cert_pem,
-                key_pem: stored.key_pem,
-                cert_der: Vec::new(),
-                fingerprint: stored.fingerprint,
-            });
-        }
-    }
-    let cert = generate_tls_certificate()?;
-    let stored = StoredIdentity {
-        cert_pem: cert.cert_pem.clone(),
-        key_pem: cert.key_pem.clone(),
-        fingerprint: cert.fingerprint.clone(),
-    };
-    std::fs::write(&path, serde_json::to_vec_pretty(&stored)?)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
-    }
-    Ok(cert)
-}
-
 fn resolve_device_alias() -> String {
     resolve_device_alias_from(std::env::var("HOSTNAME").ok(), || {
         std::fs::read_to_string("/proc/sys/kernel/hostname")
@@ -818,6 +877,10 @@ fn configure_receiver_pin(
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--version")) {
+        println!("omarchy-nearby-helper {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     let home = PathBuf::from(std::env::var("HOME").context("HOME is not set")?);
     let state_dir = settings::state_dir(&home);
     let settings_path = state_dir.join("settings.json");
@@ -847,7 +910,7 @@ async fn main() -> Result<()> {
         Err(error) => eprintln!("could not clean stale Nearby partial files: {error}"),
     }
     let alias = resolve_device_alias();
-    let certificate = load_identity(&home).context("TLS identity unavailable")?;
+    let certificate = identity::load_or_create(&state_dir).context("TLS identity unavailable")?;
     let mut builder = LocalSendServer::builder()
         .alias(alias)
         .port(NEARBY_PORT)
@@ -961,7 +1024,8 @@ async fn main() -> Result<()> {
             }
         }
     });
-    let mut lines = BufReader::new(tokio::io::stdin()).lines();
+    let mut lines =
+        BoundedLineReader::new(BufReader::new(tokio::io::stdin()), MAX_COMMAND_LINE_BYTES);
     let mut discovery: Option<DiscoveryControl> = None;
     let mut outgoing: Option<OutgoingControl> = None;
     let (out_done_tx, mut out_done_rx) = mpsc::unbounded_channel::<OutgoingDone>();
@@ -985,7 +1049,8 @@ async fn main() -> Result<()> {
             },
             line = lines.next_line() => {
                 let Some(line)=line? else {break};
-                let command: Command = match serde_json::from_str(&line) { Ok(v)=>v, Err(_)=>{emit(json!({"event":"error","message":"Invalid backend command"}));continue;} };
+                let CommandLine::Line(line)=line else {emit(json!({"event":"error","message":"Backend command exceeds 2 MiB limit"}));continue;};
+                let command: Command = match serde_json::from_slice(&line) { Ok(v)=>v, Err(_)=>{emit(json!({"event":"error","message":"Invalid backend command"}));continue;} };
                 match command {
                     Command::DiscoveryStart { force_full } => {
                         if force_full && let Some(control)=discovery.take(){let _=control.stop.send(());}
@@ -1010,6 +1075,7 @@ async fn main() -> Result<()> {
                     }
                     Command::SendText { transfer_id,device,text,pin } => {
                         if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Another transfer is already active"}));continue;}
+                        if !outgoing_text_within_limit(&text){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Text is too large (maximum 1 MiB)"}));continue;}
                         if !valid_outgoing_pin(pin.as_deref()){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Invalid receiver PIN"}));continue;}
                         let (tx,rx)=oneshot::channel(); outgoing=Some(OutgoingControl{id:transfer_id.clone(),cancel:tx});
                         let (identity,certificate,done)=(identity.clone(),certificate.clone(),out_done_tx.clone()); tokio::spawn(async move {
@@ -1022,7 +1088,7 @@ async fn main() -> Result<()> {
                             let _=done.send(OutgoingDone{id:transfer_id,event});
                         });
                     }
-                    Command::CancelOutgoing { transfer_id } => if outgoing.as_ref().is_some_and(|o|o.id==transfer_id) { if let Some(control)=outgoing.take(){let _=control.cancel.send(());} },
+                    Command::CancelOutgoing { transfer_id } => if outgoing.as_ref().is_some_and(|o|o.id==transfer_id) && let Some(control)=outgoing.take(){let _=control.cancel.send(());},
                     Command::SetIncomingPin { pin } => {
                         match update_incoming_pin(&mut server,&settings_path,&mut receiver_settings,Some(pin)).await {
                             Ok(())=>emit(json!({"event":"incoming_pin_state","enabled":true})),
@@ -1054,6 +1120,7 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use localsend_rs::crypto::generate_tls_certificate;
 
     #[test]
     fn device_alias_prefers_environment_hostname() {
@@ -1138,6 +1205,44 @@ mod tests {
     }
 
     #[test]
+    fn outgoing_text_limit_counts_utf8_bytes() {
+        assert!(outgoing_text_within_limit(&"x".repeat(MAX_TEXT_BYTES)));
+        assert!(!outgoing_text_within_limit(&"x".repeat(MAX_TEXT_BYTES + 1)));
+        assert!(outgoing_text_within_limit(&"ñ".repeat(MAX_TEXT_BYTES / 2)));
+        assert!(!outgoing_text_within_limit(
+            &"ñ".repeat(MAX_TEXT_BYTES / 2 + 1)
+        ));
+    }
+
+    #[tokio::test]
+    async fn bounded_command_reader_accepts_the_limit_and_recovers_after_rejection() {
+        let mut input = vec![b' '; MAX_COMMAND_LINE_BYTES];
+        input.push(b'\n');
+        input.extend(std::iter::repeat_n(b'x', MAX_COMMAND_LINE_BYTES + 1));
+        input.push(b'\n');
+        input.extend_from_slice(b"{\"command\":\"shutdown\"}\n");
+        let mut reader =
+            BoundedLineReader::new(BufReader::new(input.as_slice()), MAX_COMMAND_LINE_BYTES);
+
+        assert!(matches!(
+            reader.next_line().await.unwrap(),
+            Some(CommandLine::Line(line)) if line.len() == MAX_COMMAND_LINE_BYTES
+        ));
+        assert_eq!(
+            reader.next_line().await.unwrap(),
+            Some(CommandLine::TooLong)
+        );
+        let Some(CommandLine::Line(line)) = reader.next_line().await.unwrap() else {
+            panic!("reader did not recover after an oversized command");
+        };
+        assert!(matches!(
+            serde_json::from_slice::<Command>(&line).unwrap(),
+            Command::Shutdown
+        ));
+        assert_eq!(reader.next_line().await.unwrap(), None);
+    }
+
+    #[test]
     fn peer_registry_keeps_valid_and_expires_stale() {
         let d = DeviceInfo::new("Phone".into(), 53317, Protocol::Http);
         let key = d.fingerprint.clone();
@@ -1152,6 +1257,38 @@ mod tests {
         map.lock().unwrap().get_mut(&key).unwrap().last_seen =
             Instant::now() - PEER_TTL - Duration::from_secs(1);
         assert!(expire_and_snapshot(&map).is_empty());
+    }
+
+    #[test]
+    fn peer_registry_is_bounded_and_evicts_deterministically() {
+        let same_last_seen = Instant::now() - Duration::from_secs(1);
+        let registry = Arc::new(Mutex::new(HashMap::new()));
+        for index in 0..MAX_PEERS {
+            let mut device = DeviceInfo::new(format!("Peer {index}"), 53317, Protocol::Http);
+            device.fingerprint = format!("peer-{index:03}");
+            registry.lock().unwrap().insert(
+                device.fingerprint.clone(),
+                Peer {
+                    device,
+                    last_seen: same_last_seen,
+                },
+            );
+        }
+
+        let mut refreshed = DeviceInfo::new("Refreshed".into(), 53317, Protocol::Http);
+        refreshed.fingerprint = "peer-001".into();
+        record_peer(&registry, refreshed);
+        assert_eq!(registry.lock().unwrap().len(), MAX_PEERS);
+        assert!(registry.lock().unwrap().contains_key("peer-000"));
+
+        let mut newcomer = DeviceInfo::new("New peer".into(), 53317, Protocol::Http);
+        newcomer.fingerprint = "peer-new".into();
+        record_peer(&registry, newcomer);
+        let peers = registry.lock().unwrap();
+        assert_eq!(peers.len(), MAX_PEERS);
+        assert!(!peers.contains_key("peer-000"));
+        assert!(peers.contains_key("peer-001"));
+        assert!(peers.contains_key("peer-new"));
     }
     #[test]
     fn xdg_downloads_parsing_falls_back() {

@@ -1,0 +1,93 @@
+name: Helper release
+
+on:
+  push:
+    tags:
+      - "helper-v*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    name: Build and publish helper
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+
+      - name: Verify helper tag and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#helper-v}"
+          # Helper tags are stable SemVer only, matching the grammar the
+          # launcher and the repair command accept. A GitHub Release may still
+          # be marked prerelease, but the tag itself must not carry a
+          # prerelease suffix.
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          cargo_version=$(cargo metadata --no-deps --format-version 1 \
+            --manifest-path backend/Cargo.toml | jq -r '.packages[0].version')
+          [[ "$version" == "$cargo_version" ]]
+          [[ "$(git rev-list -n 1 "$GITHUB_REF_NAME")" == "$GITHUB_SHA" ]]
+
+      - name: Test frontend model
+        run: node tests/model.test.js && node tests/panel-state.test.js && node tests/service-state.test.js
+
+      - name: Test helper distribution
+        run: bash tests/launcher.test.sh && bash tests/helper-repair.test.sh
+
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path backend/Cargo.toml --all -- --check
+
+      - name: Lint Nearby helper
+        run: cargo clippy --all-targets --locked --manifest-path backend/Cargo.toml -- -D warnings
+
+      - name: Test Nearby helper
+        run: cargo test --locked --manifest-path backend/Cargo.toml
+
+      - name: Test vendored localsend-rs
+        run: cargo test --locked --manifest-path backend/vendor/localsend-rs/Cargo.toml --features https
+
+      - name: Build release helper
+        run: cargo build --release --locked --manifest-path backend/Cargo.toml
+
+      - name: Install license generator
+        run: cargo install cargo-about --locked --version 0.9.1 --features cli
+
+      - name: Assemble helper release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#helper-v}"
+          asset="omarchy-nearby-helper-v${version}-linux-x86_64"
+          mkdir -p dist
+          install -m755 backend/target/release/omarchy-nearby-helper "dist/$asset"
+          (cd dist && sha256sum "$asset" > "$asset.sha256")
+          cargo about generate --manifest-path backend/Cargo.toml about.hbs > dist/THIRD_PARTY_LICENSES.html
+
+      - name: Attest helper
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: dist/omarchy-nearby-helper-v*-linux-x86_64
+
+      - name: Publish helper release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#helper-v}"
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag --generate-notes --prerelease \
+            --title "Nearby helper v${version}"

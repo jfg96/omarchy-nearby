@@ -59,10 +59,10 @@ Panel {
   // and none are coming, so the section stops calling itself DEVICES.
   readonly property bool helperBlocksNearby: helperUpdateOffered && !backendReady
 
-  // Shown only when the in-panel update cannot do the job, so the user still
-  // has somewhere to go: the repository and the command that does it by hand.
+  // Shown only when helper recovery fails, so the user can refresh the tracked
+  // plugin source through Omarchy or inspect its repository.
   readonly property string repositoryUrl: "https://github.com/jfg96/omarchy-nearby"
-  readonly property string installerCommand: "~/.config/omarchy/plugins/oma.nearby/install.sh"
+  readonly property string updateCommand: "omarchy plugin update oma.nearby"
 
   // The update row sits after the devices and compact action row. If updating
   // fails, its two recovery actions follow it in keyboard order.
@@ -150,9 +150,9 @@ Panel {
   function submitIncomingPin() { if (engine) engine.submitIncomingPin(String(incomingPinInput.text || "")) }
   function confirmDisableIncomingPin() { if (engine) engine.confirmDisableIncomingPin() }
   function clearSecretInputs() { pinInput.text = ""; incomingPinInput.text = "" }
-  function updateHelper() { copyNote=""; if (engine) engine.startHelperUpdate() }
+  function retryHelper() { copyNote=""; if (engine) engine.startHelperUpdate() }
   function copyText(value) { if (textCopier.running) return; copyNote=""; textCopier.payload=String(value); textCopier.launched=false; textCopier.running=true }
-  function copyInstallerCommand() { copyText(installerCommand) }
+  function copyUpdateCommand() { copyText(updateCommand) }
   function copyRepositoryLink() { copyText(repositoryUrl) }
   function failWith(message) { if (engine) engine.failWith(message) }
   function noteTextCopied() { if (engine) engine.noteTextCopied() }
@@ -220,8 +220,8 @@ Panel {
       // Checked before the action row: with the helper unusable that row is
       // hidden, and the update button takes the index rescan would have had.
       if (selectedIndex < 0) toggleReceiver()
-      else if (helperUpdateIndex >= 0 && selectedIndex === helperUpdateIndex) updateHelper()
-      else if (helperCopyCommandIndex >= 0 && selectedIndex === helperCopyCommandIndex) copyInstallerCommand()
+      else if (helperUpdateIndex >= 0 && selectedIndex === helperUpdateIndex) retryHelper()
+      else if (helperCopyCommandIndex >= 0 && selectedIndex === helperCopyCommandIndex) copyUpdateCommand()
       else if (helperCopyLinkIndex >= 0 && selectedIndex === helperCopyLinkIndex) copyRepositoryLink()
       else if (selectedIndex < devices.length) chooseDevice(selectedIndex)
       else if (receiverEnabled && backendReady && selectedIndex === devices.length) forceFullDiscovery()
@@ -368,14 +368,9 @@ Panel {
             Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌾"; text:"PIN · "+(root.incomingPinEnabled?"On":"Off"); tooltipText:"Incoming PIN settings"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){root.noteHover(v,root.devices.length+1)}; onClicked:root.openIncomingPinSettings() }
           }
 
-          // `omarchy plugin update` fast-forwards the checkout and stops there.
-          // The helper is a release asset and bin/ is not tracked, so a source
-          // update always leaves the previous binary in place and there is no
-          // hook that could fetch the new one. That gap is closable from here:
-          // the button replaces only the binary, which is the half Omarchy
-          // does not move. The repository and the manual command appear when
-          // it cannot -- no arch build published, no network, a checkout on a
-          // development version that has no release at all.
+          // The checkout pins immutable helper bytes. The launcher resolves
+          // them outside the plugin tree, and this action retries/prefetches
+          // that exact helper when automatic startup cannot do so.
           Column {
             id: helperUpdate
             visible: root.helperUpdateOffered; width:parent.width; spacing:Style.space(6)
@@ -384,7 +379,7 @@ Panel {
             // separates nothing.
             PanelSeparator { visible:!root.helperBlocksNearby; width:parent.width }
 
-            // The versions, once. Replaced by live progress while the updater
+            // The versions, once. Replaced by live progress while the repair
             // runs so the button is not the only thing that moves.
             Text {
               width:parent.width; textFormat:Text.PlainText; wrapMode:Text.Wrap
@@ -394,7 +389,7 @@ Panel {
             }
             Text {
               visible:!root.helperUpdating; width:parent.width; textFormat:Text.PlainText; wrapMode:Text.Wrap
-              text:"Updating the plugin cannot replace the helper binary."
+              text:"Nearby will fetch and verify the helper selected by this plugin."
               color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body
             }
             Button {
@@ -403,13 +398,13 @@ Panel {
               // After a failure the old label gives no sign the press landed,
               // and the error above it stays put; naming the retry is the only
               // thing that distinguishes "not pressed yet" from "pressed once".
-              text: root.helperUpdating ? "Updating…" : (root.helperUpdateError!=="" ? "Try again" : "Update helper")
-              tooltipText:"Download the helper that matches this version"
+              text: root.helperUpdating ? "Preparing…" : (root.helperUpdateError!=="" ? "Try again" : "Retry helper")
+              tooltipText:"Prepare the verified helper selected by this plugin"
               enabled:!root.helperUpdating
               foreground:root.foreground; fontFamily:root.fontFamily
               hasCursor:root.cursorActive&&root.selectedIndex===root.helperUpdateIndex
               onHovered:function(v){root.noteHover(v,root.helperUpdateIndex)}
-              onClicked:root.updateHelper()
+              onClicked:root.retryHelper()
             }
 
             // The fallback is subordinate to the failure, so it sits under a
@@ -419,13 +414,10 @@ Panel {
               Text { width:parent.width; textFormat:Text.PlainText; text:root.helperUpdateError; wrapMode:Text.Wrap; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body }
               PanelSeparator { width:parent.width }
               Text { width:parent.width; textFormat:Text.PlainText; text:"Or run this in a terminal:"; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
-              // Elided rather than wrapped: wrapping broke the path across two
-              // lines and orphaned the `.sh`, which reads like a typo and is
-              // one. The full text goes to the clipboard, not to the eye.
-              Text { width:parent.width; textFormat:Text.PlainText; text:root.installerCommand; elide:Text.ElideMiddle; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+              Text { width:parent.width; textFormat:Text.PlainText; text:root.updateCommand; elide:Text.ElideMiddle; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
               Row {
                 width:parent.width; spacing:Style.space(8)
-                Button { width:(parent.width-parent.spacing)/2; bordered:true; iconText:"󰆏"; text:"Copy command"; tooltipText:root.installerCommand; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.helperCopyCommandIndex; onHovered:function(v){root.noteHover(v,root.helperCopyCommandIndex)}; onClicked:root.copyInstallerCommand() }
+                Button { width:(parent.width-parent.spacing)/2; bordered:true; iconText:"󰆏"; text:"Copy command"; tooltipText:root.updateCommand; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.helperCopyCommandIndex; onHovered:function(v){root.noteHover(v,root.helperCopyCommandIndex)}; onClicked:root.copyUpdateCommand() }
                 Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌷"; text:"Copy link"; tooltipText:root.repositoryUrl; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.helperCopyLinkIndex; onHovered:function(v){root.noteHover(v,root.helperCopyLinkIndex)}; onClicked:root.copyRepositoryLink() }
               }
               Text { visible:root.copyNote!==""; width:parent.width; textFormat:Text.PlainText; text:root.copyNote; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }

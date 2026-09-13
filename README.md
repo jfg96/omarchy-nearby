@@ -24,24 +24,30 @@ clipboard text and transfer lifecycle are handled by the widget and its Rust hel
 
 ## Install
 
-Download and run the installer:
+Install Nearby through Omarchy's plugin manager:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/jfg96/omarchy-nearby/main/install.sh \
-  -o /tmp/omarchy-nearby-install.sh
-bash /tmp/omarchy-nearby-install.sh
+omarchy plugin add https://github.com/jfg96/omarchy-nearby --enable
 ```
 
-The installer selects a published release, installs the plugin at that exact tag,
-downloads its matching Linux x86_64 helper, verifies the SHA256, and enables
-`oma.nearby`. Nearby never requests administrator privileges. The installer does
-not install packages, require Rust, or compile anything locally.
+Omarchy installs the tracked plugin source. When Nearby is enabled for the first
+time, its tracked launcher downloads the exact Linux x86_64 helper pinned by that
+checkout, verifies its committed size and SHA256, and stores it under
+`$XDG_DATA_HOME/omarchy-nearby/helpers` (falling back to
+`~/.local/share/omarchy-nearby/helpers`). Later starts reuse those verified bytes
+without network access. Turning the receiver off does not start the launcher and
+does not download anything.
 
-Install or reinstall a specific release with:
+For unattended installation, add `--yes`:
 
 ```sh
-bash /tmp/omarchy-nearby-install.sh v1.0.4
+omarchy plugin add https://github.com/jfg96/omarchy-nearby --enable --yes
 ```
+
+Nearby never requests administrator privileges, installs packages, requires
+Rust, or compiles during this flow. Helper downloads are HTTPS-only, limited to
+32 MiB and staged atomically on the same filesystem as their final XDG data
+location.
 
 The widget is placed in the right section of the bar by default. Remove it with
 `omarchy plugin remove oma.nearby`.
@@ -110,11 +116,10 @@ Nearby engine (Service.qml) one per shell session
         │
         ├── Model.js
         │
-        └── JSON over stdin/stdout
+        └── tracked launcher → JSON over stdin/stdout
                  │
                  ▼
-       omarchy-nearby-helper
-              (Rust)
+       verified XDG-data helper (Rust)
                  │
                  ▼
         LocalSend-compatible LAN peer
@@ -178,61 +183,72 @@ omarchy plugin enable oma.nearby
 bin/omarchy-nearby-helper
 ```
 
-Generated helper binaries are not tracked in the repository.
-`bin/nearby-update-helper` is source rather than a build product, so it is
-tracked despite living beside one.
+Generated helper binaries are not tracked in the repository. `build.sh` also
+writes an ignored `bin/.nearby-local-helper` marker, and the launcher only gives
+that local `bin/omarchy-nearby-helper` build priority at runtime when the marker
+is present. An unmarked helper binary left behind by an older published version
+is treated as legacy residue and never shadows the verified helper. Published
+installations contain only the tracked launcher, repair helper and release
+metadata in the checkout.
 
 ## Updates
 
-Prebuilt installations are updated with Nearby's installer, which moves the
-plugin and its helper to the same release together:
+Update the plugin normally through Omarchy:
 
 ```sh
-~/.config/omarchy/plugins/oma.nearby/install.sh
+omarchy plugin update oma.nearby
 ```
 
-`omarchy plugin update oma.nearby` updates source files but cannot update the
-release helper: it fetches and fast-forwards the checkout, and `bin/` is not
-tracked. Nearby therefore states the oldest helper it can drive in
-`manifest.json`:
+For unattended updates, add `--yes`. The updated checkout carries
+`helper-release.env`, which pins an independently published helper by tag, asset
+name, byte size, SHA256, source commit and release workflow. On the next enabled
+start, the launcher verifies and reuses that helper or downloads it atomically.
+
+Nearby states the oldest helper it can drive in `manifest.json`:
 
 ```json
-"minHelperVersion": "1.1.0"
+"minHelperVersion": "1.2.0"
 ```
 
-A helper at or above that version keeps working after a source-only update, so
-a release that does not change what the plugin asks of the helper no longer
-needs the installer run at all. Below it, Nearby stops the backend and reports
-which version it needs and which one is installed. Raise `minHelperVersion` in
-the same change that starts depending on a new helper.
+A helper at or above that version keeps working when plugin-only changes do not
+require a new helper. Below it, Nearby stops the backend and reports which
+version it needs and which one is installed. Raise `minHelperVersion` in the
+same change that starts depending on a new helper.
 
-When the helper does need replacing, the Nearby panel offers to do it. The
-Update helper button fetches the release helper matching `manifest.json`,
-checks it against the release SHA256, replaces `bin/omarchy-nearby-helper` and
-restarts the receiver. The same repair is available without the popup:
+When the helper cache needs repair, the Nearby panel offers to do it. **Retry
+helper** prefetches and verifies the exact helper selected by the checkout,
+without writing an executable into the plugin directory, then restarts the
+receiver. The same repair is available without the popup:
 
 ```sh
-omarchy-shell oma.nearby updateHelper
+omarchy-shell oma.nearby retryHelper
 omarchy-shell oma.nearby status
 ```
 
-That path replaces only the binary. `install.sh` also moves the git checkout
-and refuses to run against a plugin directory with local changes, so it stays
-the way to move plugin and helper to a release together, and the panel falls
-back to it whenever the fetch cannot succeed: no published helper for the
-architecture, no network, or a development checkout with no release at all.
-
 ## Releases
 
-Stable releases use tags such as `v1.0.3`. The tag, `manifest.json`, Rust package,
-and helper all carry the same version. Release helpers are built only by GitHub
-Actions and stored as GitHub Release assets with a SHA256 file and generated
-third-party license notices.
+Stable plugin releases use tags such as `v1.2.0`. Helpers have an independent
+cycle with tags such as `helper-v1.2.0`; these technical releases are public
+prereleases, so they appear in the complete Releases list without replacing the
+latest stable plugin release. A plugin checkout selects one immutable helper in
+`helper-release.env` instead of shipping an ELF in its source tree.
 
-Development on `main` uses the next SemVer prerelease, such as `1.0.4-dev`, as soon
-as it diverges from the preceding stable tag. `manifest.json` and
-`backend/Cargo.toml` are advanced together so a source-only update cannot be
-mistaken for the previous release.
+Helpers are built only by GitHub Actions and published with a SHA256 file,
+third-party license notices and a build-provenance attestation binding the bytes
+to their repository, workflow, commit and helper tag. The stable plugin release
+workflow independently downloads and verifies that exact referenced helper
+before publishing the plugin release.
+
+To independently verify a stable plugin release, run **Verify release** with its
+exact `vX.Y.Z` tag. The workflow reads the helper metadata from that plugin tag,
+downloads the helper again and checks size, SHA256, attestation signer, source
+commit/ref, GitHub-hosted runner and reported version. It does not reuse the job
+that published either release.
+
+Development on `main` uses the next plugin SemVer prerelease, such as
+`1.2.1-dev`, as soon as it diverges from the preceding stable tag. The Rust
+package advances only when helper behavior changes; the manifest's compatibility
+floor and committed helper metadata identify which helper the plugin requires.
 
 ## Tests
 
@@ -249,6 +265,13 @@ Backend tests:
 ```sh
 cargo test --manifest-path backend/Cargo.toml
 cargo test --manifest-path backend/vendor/localsend-rs/Cargo.toml --features https
+```
+
+Helper distribution tests:
+
+```sh
+bash tests/launcher.test.sh
+bash tests/helper-repair.test.sh
 ```
 
 A larger manual interoperability and robustness checklist is kept in

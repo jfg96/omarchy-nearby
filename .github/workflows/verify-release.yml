@@ -1,0 +1,56 @@
+name: Verify release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Stable plugin release tag to verify (vX.Y.Z)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  attestations: read
+
+jobs:
+  verify:
+    name: Verify plugin's referenced helper
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Validate requested tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: '[[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]'
+
+      - name: Check out plugin release
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Verify checksum, provenance and executable version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          XDG_DATA_HOME: ${{ github.workspace }}/verify-data
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin/nearby-helper-launcher --prefetch
+          tag=$(awk -F= '$1 == "NEARBY_HELPER_TAG" {print $2}' helper-release.env)
+          asset=$(awk -F= '$1 == "NEARBY_HELPER_ASSET" {print $2}' helper-release.env)
+          size=$(awk -F= '$1 == "NEARBY_HELPER_SIZE" {print $2}' helper-release.env)
+          sha=$(awk -F= '$1 == "NEARBY_HELPER_SHA256" {print $2}' helper-release.env)
+          source_sha=$(awk -F= '$1 == "NEARBY_HELPER_SOURCE_SHA" {print $2}' helper-release.env)
+          workflow=$(awk -F= '$1 == "NEARBY_HELPER_RELEASE_WORKFLOW" {print $2}' helper-release.env)
+          helper="$XDG_DATA_HOME/omarchy-nearby/helpers/$tag/$asset"
+          [[ -f "$helper" && ! -L "$helper" ]]
+          [[ "$(stat -c %s -- "$helper")" == "$size" ]]
+          [[ "$(sha256sum "$helper" | cut -d' ' -f1)" == "$sha" ]]
+          gh attestation verify "$helper" \
+            --repo "$REPOSITORY" \
+            --signer-workflow "$workflow" \
+            --source-digest "$source_sha" \
+            --source-ref "refs/tags/$tag" \
+            --deny-self-hosted-runners
+          version="${tag#helper-v}"
+          [[ "$("$helper" --version)" == "omarchy-nearby-helper $version" ]]
