@@ -183,9 +183,12 @@ omarchy plugin enable oma.nearby
 bin/omarchy-nearby-helper
 ```
 
-Generated helper binaries are not tracked in the repository. The launcher gives
-an intentional local `bin/omarchy-nearby-helper` build priority at runtime, while
-published installations contain only the tracked launcher, repair helper and release
+Generated helper binaries are not tracked in the repository. `build.sh` also
+writes an ignored `bin/.nearby-local-helper` marker, and the launcher only gives
+that local `bin/omarchy-nearby-helper` build priority at runtime when the marker
+is present. An unmarked helper binary left behind by an older published version
+is treated as legacy residue and never shadows the verified helper. Published
+installations contain only the tracked launcher, repair helper and release
 metadata in the checkout.
 
 ## Updates

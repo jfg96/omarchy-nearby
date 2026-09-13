@@ -1263,6 +1263,20 @@ assert.match(source, /watchChanges:\s*true/,
 assert.match(source, /onFileChanged:\s*reload\(\)/,
   "the watcher must refresh after the shell persists a settings update")
 
+// The Rust registry caps its peers, and the device list is that registry's
+// frontend mirror: both individual `device` events and `peer_snapshot` results
+// must go through the same Model bound so a closed discovery view cannot keep
+// a growing array.
+{
+  const state = engine()
+  for (let i = 0; i < Model.MAX_DEVICES + 100; i++) state.handleEvent({event: "device", device: {fingerprint: "fp-"+i, alias: "Device-"+String(i).padStart(4, "0")}})
+  assert.equal(state.devices.length, Model.MAX_DEVICES)
+  const many = []
+  for (let i = 0; i < Model.MAX_DEVICES + 50; i++) many.push({fingerprint: "snap-"+i, alias: "Snap-"+String(i).padStart(4, "0")})
+  state.handleEvent({event: "peer_snapshot", devices: many})
+  assert.ok(state.devices.length <= Model.MAX_DEVICES)
+}
+
 assert.match(source,
   /function failWith\(message\)\s*\{\s*viewState="error";\s*errorText=message;\s*statusText=errorText\s*\}/,
   "failWith must keep statusText aligned with errorText for every failure that reaches it")

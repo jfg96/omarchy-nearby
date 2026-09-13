@@ -6,8 +6,11 @@
 # Rust build output
 backend/target/
 
-# Locally built helper. The launcher and repair command are source, not build
-# products, so they are tracked despite living beside one.
+# Locally built helper and its developer marker. The launcher and repair
+# command are source, not build products, so they are tracked despite living
+# beside one. The marker is what makes a local bin/omarchy-nearby-helper a
+# deliberate developer override instead of legacy residue from an older
+# published version.
 bin/*
 !bin/.gitkeep
 !bin/nearby-helper-launcher

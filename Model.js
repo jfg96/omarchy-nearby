@@ -2,6 +2,12 @@ function parseLine(line) {
   try { return JSON.parse(String(line || "")) } catch (e) { return null }
 }
 
+// The Rust peer registry keeps at most this many peers, and the QML device
+// array is that registry's frontend mirror. The same bound applies here so
+// LAN identity churn cannot grow the frontend list without limit while the
+// discovery view is closed. One limit, one place.
+var MAX_DEVICES = 256
+
 function upsertDevice(devices, device) {
   if (!device || !device.fingerprint || !device.alias) return devices || []
   var next = (devices || []).slice()
@@ -15,6 +21,7 @@ function upsertDevice(devices, device) {
   }
   if (found < 0) next.push(row); else next[found] = row
   next.sort(function(a, b) { return a.alias.localeCompare(b.alias) })
+  if (next.length > MAX_DEVICES) next.length = MAX_DEVICES
   return next
 }
 
@@ -257,4 +264,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }

@@ -18,11 +18,18 @@ if [[ ${1:-} == --prefetch ]]; then
   (( $# == 0 )) || { printf 'nearby-helper-launcher: usage: nearby-helper-launcher --prefetch\n' >&2; exit 1; }
 fi
 
-# A deliberate local build is an explicit developer override. Published
-# installs never contain this ignored path; prefetch still resolves the
-# published helper so the recovery/update action remains deterministic.
+# A deliberate local build is an explicit developer override. build.sh marks a
+# compiled helper with bin/.nearby-local-helper, both of which are ignored by
+# Git, so published installs never contain either path. An unmarked
+# bin/omarchy-nearby-helper is a leftover from a published version that used to
+# install the ELF into the checkout; it must not shadow the verified helper, or
+# an updated install would keep running the old binary. Prefetch still resolves
+# the published helper so the recovery/update action remains deterministic.
+local_marker="$plugin_dir/bin/.nearby-local-helper"
 local_helper="$plugin_dir/bin/omarchy-nearby-helper"
-if ! $prefetch && [[ -f $local_helper && ! -L $local_helper ]]; then
+if ! $prefetch \
+  && [[ -f $local_helper && ! -L $local_helper && -x $local_helper ]] \
+  && [[ -f $local_marker && ! -L $local_marker ]]; then
   exec "$local_helper" "$@"
 fi
 

@@ -5,6 +5,74 @@ const phone = {alias:"<b>Phone</b>",fingerprint:"fp",deviceType:"mobile",ip:"192
 assert.equal(Model.upsertDevice([], phone).length, 1)
 assert.equal(Model.upsertDevice(Model.upsertDevice([], phone), {...phone, alias:"Phone 2"})[0].alias, "Phone 2")
 assert.deepEqual(Model.snapshotDevices([phone, {...phone, alias:"Newest"}]).map(d => d.alias), ["Newest"])
+
+// The frontend device array is the Rust peer registry's mirror and must never
+// exceed the same bound: LAN identity churn has to stay capped even while the
+// discovery view is closed. One constant drives both event and snapshot paths.
+const MAX_DEVICES = Model.MAX_DEVICES
+assert.equal(typeof MAX_DEVICES, "number")
+assert.ok(MAX_DEVICES > 0)
+
+function deviceAt(fingerprint, alias) {
+  return {fingerprint, alias, deviceType:"desktop", ip:"192.0.2.2"}
+}
+
+// Normal behavior with few devices is unchanged.
+{
+  let list = []
+  for (let i = 0; i < 5; i++) list = Model.upsertDevice(list, deviceAt("fp-"+i, "Alias "+i))
+  assert.equal(list.length, 5)
+}
+
+// More than MAX_DEVICES unique fingerprints never grow the array past the bound.
+{
+  let list = []
+  const extra = 100
+  for (let i = 0; i < MAX_DEVICES + extra; i++) list = Model.upsertDevice(list, deviceAt("fp-"+i, "Device-"+String(i).padStart(4, "0")))
+  assert.equal(list.length, MAX_DEVICES)
+}
+
+// Updating an existing fingerprint does not increase the size at the bound.
+{
+  let list = []
+  for (let i = 0; i < MAX_DEVICES; i++) list = Model.upsertDevice(list, deviceAt("fp-"+i, "Device-"+String(i).padStart(4, "0")))
+  const before = list.length
+  list = Model.upsertDevice(list, deviceAt("fp-0", "Renamed"))
+  assert.equal(list.length, before)
+  const renamed = list.find(device => device.fingerprint === "fp-0")
+  assert.equal(renamed.alias, "Renamed")
+}
+
+// A snapshot of more than MAX_DEVICES devices returns at most MAX_DEVICES.
+{
+  const many = []
+  for (let i = 0; i < MAX_DEVICES + 50; i++) many.push(deviceAt("snap-"+i, "Snap-"+String(i).padStart(4, "0")))
+  const snapshot = Model.snapshotDevices(many)
+  assert.ok(snapshot.length <= MAX_DEVICES)
+}
+
+// Deduplication by fingerprint keeps working, inside and beyond the bound.
+assert.deepEqual(Model.snapshotDevices([deviceAt("x", "A")]).length, 1)
+assert.deepEqual(Model.snapshotDevices([deviceAt("x", "A"), deviceAt("x", "B")]).map(device => device.alias), ["B"])
+{
+  let list = []
+  const branded = {}
+  for (let i = 0; i < MAX_DEVICES + 20; i++) {
+    branded["brand-"+i] = "Branded "+i
+    list = Model.upsertDevice(list, deviceAt("brand-"+i, "Branded "+i))
+  }
+  list = Model.upsertDevice(list, deviceAt("brand-0", "Renamed Brand"))
+  assert.equal(list.length, MAX_DEVICES)
+  assert.equal(list.filter(device => device.fingerprint === "brand-0").length, 1)
+}
+
+// Alias ordering stays deterministic at the bound.
+{
+  let list = []
+  for (let i = 0; i < MAX_DEVICES + 10; i++) list = Model.upsertDevice(list, deviceAt("fp-"+i, "Device-"+String(i).padStart(4, "0")))
+  for (let i = 1; i < list.length; i++) assert.ok(list[i-1].alias.localeCompare(list[i].alias) <= 0)
+}
+
 assert.equal(Model.parseLine("not json"), null)
 const requestA = {requestId:"a",sender:"Alice"}
 const requestB = {requestId:"b",sender:"Bob"}

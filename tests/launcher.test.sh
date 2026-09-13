@@ -132,15 +132,35 @@ assert_eq "$status" "0"
 assert_eq "$output" "omarchy-nearby-helper 1.2.0"
 teardown
 
-announce "normal launch prefers an intentional local build"
+announce "a legacy helper without a developer marker is ignored"
+setup
+printf '#!/usr/bin/env bash\nprintf "legacy 1.1.4 helper\\n"\n' >"$plugin/bin/omarchy-nearby-helper"
+chmod 0755 "$plugin/bin/omarchy-nearby-helper"
+output=$(run_launcher --version); status=$?
+assert_eq "$status" "0"
+assert_eq "$output" "omarchy-nearby-helper 1.2.0"
+assert_eq "$(<"$FAKE_CURL_COUNT")" "1"
+teardown
+
+announce "an intentional developer helper with a marker is preferred"
 setup
 printf '#!/usr/bin/env bash\nprintf "local developer helper\\n"\n' >"$plugin/bin/omarchy-nearby-helper"
 chmod 0755 "$plugin/bin/omarchy-nearby-helper"
+: >"$plugin/bin/.nearby-local-helper"
 export FAKE_CURL_EXIT=6
 output=$(run_launcher --version); status=$?
 assert_eq "$status" "0"
 assert_eq "$output" "local developer helper"
 assert_eq "$(<"$FAKE_CURL_COUNT")" "0"
+teardown
+
+announce "a marked local helper that is a symlink is not preferred"
+setup
+ln -s /bin/true "$plugin/bin/omarchy-nearby-helper"
+: >"$plugin/bin/.nearby-local-helper"
+output=$(run_launcher --version); status=$?
+assert_eq "$status" "0"
+assert_eq "$output" "omarchy-nearby-helper 1.2.0"
 teardown
 
 announce "a corrupt cached helper is replaced"

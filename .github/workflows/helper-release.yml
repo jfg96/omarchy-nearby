@@ -31,7 +31,11 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#helper-v}"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          # Helper tags are stable SemVer only, matching the grammar the
+          # launcher and the repair command accept. A GitHub Release may still
+          # be marked prerelease, but the tag itself must not carry a
+          # prerelease suffix.
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           cargo_version=$(cargo metadata --no-deps --format-version 1 \
             --manifest-path backend/Cargo.toml | jq -r '.packages[0].version')
           [[ "$version" == "$cargo_version" ]]
