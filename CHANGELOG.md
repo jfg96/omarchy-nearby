@@ -9,6 +9,11 @@
   without silently rotating valid key material.
 - Pin the Linux runner, Rust toolchain and CI actions, and reject Clippy
   warnings so local and hosted validation share a stable baseline.
+- Publish build-provenance attestations for release helpers and provide an
+  independent workflow that verifies checksum, source, signer and version.
+- Restrict installer and updater downloads to HTTPS, cap helper artifacts at
+  32 MiB, validate regular files and checksum targets, and stage outside the
+  live plugin checkout.
 
 ## 1.1.4
 

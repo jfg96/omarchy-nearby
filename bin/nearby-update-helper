@@ -23,6 +23,9 @@ set -uo pipefail
 plugin_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly plugin_dir
 readonly repository="jfg96/omarchy-nearby"
+readonly max_helper_bytes=$((32 * 1024 * 1024))
+readonly max_metadata_bytes=$((1024 * 1024))
+readonly max_checksum_bytes=4096
 
 emit() { jq -nc "$@" 2>/dev/null || printf '{"event":"failed","message":"could not report progress"}\n'; }
 step() { emit --arg m "$1" '{event:"step",message:$m}'; }
@@ -32,12 +35,43 @@ fail() {
 }
 
 # jq builds every line above, so a missing jq cannot be reported as JSON.
-for command_name in curl jq sha256sum; do
+for command_name in curl jq sha256sum stat; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     printf '{"event":"failed","message":"required command not found: %s"}\n' "$command_name"
     exit 1
   fi
 done
+
+download_file() {
+  local url="$1" destination="$2" limit="$3" label="$4" status size
+  [[ $url == https://* ]] || fail "$label URL is not HTTPS"
+  curl --fail --location --silent --show-error \
+    --proto '=https' --proto-redir '=https' \
+    --connect-timeout 10 --max-time 300 --max-filesize "$limit" \
+    --output "$destination" "$url"
+  status=$?
+  if (( status != 0 )); then
+    (( status == 63 )) && fail "$label exceeds its download limit"
+    fail "$label download did not finish. Check your connection and try again."
+  fi
+  [[ -f $destination && ! -L $destination ]] || fail "$label is not a regular file"
+  size=$(stat -c %s -- "$destination") || fail "Could not inspect downloaded $label"
+  (( size > 0 && size <= limit )) || fail "$label exceeds its download limit"
+}
+
+verify_checksum() {
+  local checksum_file="$1" asset_file="$2" asset_name="$3"
+  local expected target extra actual
+  read -r expected target extra <"$checksum_file" \
+    || fail "The downloaded checksum is malformed"
+  target=${target#\*}
+  [[ $expected =~ ^[[:xdigit:]]{64}$ && $target == "$asset_name" && -z ${extra:-} ]] \
+    || fail "The downloaded checksum is malformed"
+  actual=$(sha256sum "$asset_file") || fail "Could not hash the downloaded helper"
+  actual=${actual%% *}
+  [[ ${actual,,} == ${expected,,} ]] \
+    || fail "The downloaded helper failed its SHA256 check and was discarded"
+}
 
 case "$(uname -m)" in
 x86_64 | amd64) platform="linux-x86_64" ;;
@@ -82,10 +116,18 @@ trap cleanup EXIT
 step "Looking up Nearby $tag…"
 release_file="$stage_dir/release.json"
 http_status=$(curl --location --silent --output "$release_file" --write-out '%{http_code}' \
+  --proto '=https' --proto-redir '=https' --connect-timeout 10 --max-time 30 \
+  --max-filesize "$max_metadata_bytes" \
   "https://api.github.com/repos/${repository}/releases/tags/${tag}")
 curl_status=$?
-(( curl_status == 0 )) \
-  || fail "Could not reach GitHub (curl error $curl_status). Check your connection and try again."
+if (( curl_status != 0 )); then
+  (( curl_status == 63 )) && fail "GitHub release metadata exceeds its download limit"
+  fail "Could not reach GitHub (curl error $curl_status). Check your connection and try again."
+fi
+[[ -f $release_file && ! -L $release_file ]] || fail "GitHub release metadata is not a regular file"
+release_size=$(stat -c %s -- "$release_file") || fail "Could not inspect GitHub release metadata"
+(( release_size > 0 && release_size <= max_metadata_bytes )) \
+  || fail "GitHub release metadata exceeds its download limit"
 
 case "$http_status" in
 200) ;;
@@ -109,14 +151,11 @@ checksum_url=$(jq -r --arg name "$checksum_name" \
   || fail "Release $tag publishes no $platform helper. Build it with ./build.sh."
 
 step "Downloading helper $tag…"
-curl --fail --location --silent --show-error --output "$stage_dir/$asset_name" "$asset_url" \
-  || fail "The $tag helper download did not finish. Check your connection and try again."
-curl --fail --location --silent --show-error --output "$stage_dir/$checksum_name" "$checksum_url" \
-  || fail "The $tag checksum download did not finish. Check your connection and try again."
+download_file "$asset_url" "$stage_dir/$asset_name" "$max_helper_bytes" "The $tag helper"
+download_file "$checksum_url" "$stage_dir/$checksum_name" "$max_checksum_bytes" "The $tag checksum"
 
 step "Verifying checksum…"
-(cd "$stage_dir" && sha256sum --check --strict "$checksum_name" >/dev/null 2>&1) \
-  || fail "The downloaded helper failed its SHA256 check and was discarded"
+verify_checksum "$stage_dir/$checksum_name" "$stage_dir/$asset_name" "$asset_name"
 
 chmod 0755 "$stage_dir/$asset_name" || fail "Could not make the helper executable"
 

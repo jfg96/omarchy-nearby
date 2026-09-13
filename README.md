@@ -35,7 +35,8 @@ bash /tmp/omarchy-nearby-install.sh
 The installer selects a published release, installs the plugin at that exact tag,
 downloads its matching Linux x86_64 helper, verifies the SHA256, and enables
 `oma.nearby`. Nearby never requests administrator privileges. The installer does
-not install packages, require Rust, or compile anything locally.
+not install packages, require Rust, or compile anything locally. Helper downloads
+are HTTPS-only, limited to 32 MiB and staged outside the live plugin checkout.
 
 Install or reinstall a specific release with:
 
@@ -197,7 +198,7 @@ tracked. Nearby therefore states the oldest helper it can drive in
 `manifest.json`:
 
 ```json
-"minHelperVersion": "1.1.0"
+"minHelperVersion": "1.1.5-dev"
 ```
 
 A helper at or above that version keeps working after a source-only update, so
@@ -227,7 +228,13 @@ architecture, no network, or a development checkout with no release at all.
 Stable releases use tags such as `v1.0.3`. The tag, `manifest.json`, Rust package,
 and helper all carry the same version. Release helpers are built only by GitHub
 Actions and stored as GitHub Release assets with a SHA256 file and generated
-third-party license notices.
+third-party license notices. GitHub Actions also publishes a build-provenance
+attestation binding the helper to its repository, workflow, commit and tag.
+
+To independently verify a published helper, run the **Verify release** workflow
+and provide its exact `vX.Y.Z` tag. The workflow downloads the release again and
+checks its SHA256, attestation signer, source commit/ref, GitHub-hosted runner and
+reported `--version`; it does not reuse the build job that published the asset.
 
 Development on `main` uses the next SemVer prerelease, such as `1.0.4-dev`, as soon
 as it diverges from the preceding stable tag. `manifest.json` and
@@ -249,6 +256,13 @@ Backend tests:
 ```sh
 cargo test --manifest-path backend/Cargo.toml
 cargo test --manifest-path backend/vendor/localsend-rs/Cargo.toml --features https
+```
+
+Installer and updater tests:
+
+```sh
+bash tests/installer.test.sh
+bash tests/updater.test.sh
 ```
 
 A larger manual interoperability and robustness checklist is kept in

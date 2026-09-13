@@ -877,6 +877,10 @@ fn configure_receiver_pin(
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--version")) {
+        println!("omarchy-nearby-helper {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     let home = PathBuf::from(std::env::var("HOME").context("HOME is not set")?);
     let state_dir = settings::state_dir(&home);
     let settings_path = state_dir.join("settings.json");

@@ -81,6 +81,10 @@ fi
 
 sleep "${FAKE_ASSET_DELAY:-0}"
 (( ${FAKE_ASSET_EXIT:-0} == 0 )) || exit "$FAKE_ASSET_EXIT"
+if [[ ${FAKE_ASSET_SYMLINK:-0} == 1 ]]; then
+  ln -s "$FAKE_ASSET_FILE" "$output"
+  exit 0
+fi
 cp "$FAKE_ASSET_FILE" "$output"
 exit 0
 STUB
@@ -102,7 +106,7 @@ STUB
 teardown() {
   [[ -n ${sandbox:-} && -d $sandbox ]] && rm -rf -- "$sandbox"
   unset FAKE_RELEASE_JSON FAKE_ASSET_FILE FAKE_CHECKSUM_FILE
-  unset FAKE_HTTP_STATUS FAKE_LOOKUP_EXIT FAKE_ASSET_EXIT FAKE_CHECKSUM_EXIT FAKE_ASSET_DELAY
+  unset FAKE_HTTP_STATUS FAKE_LOOKUP_EXIT FAKE_ASSET_EXIT FAKE_CHECKSUM_EXIT FAKE_ASSET_DELAY FAKE_ASSET_SYMLINK
 }
 
 manifest() {
@@ -195,6 +199,52 @@ assert_contains "$output" "failed its SHA256 check"
 assert_eq "$(installed_helper)" "old helper" "an unverified binary must never be installed"
 assert_eq "$(staging_in_cache)" "0"
 assert_eq "$(staging_in_plugin)" "0"
+teardown
+
+announce "an oversized helper is discarded before verification"
+setup
+truncate -s $((32 * 1024 * 1024 + 1)) "$sandbox/served/$asset_name"
+output=$(run_updater); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "exceeds its download limit"
+assert_eq "$(installed_helper)" "old helper"
+teardown
+
+announce "a non-HTTPS asset URL is refused"
+setup
+sed -i 's#https://example.invalid/#http://example.invalid/#g' "$FAKE_RELEASE_JSON"
+output=$(run_updater); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "URL is not HTTPS"
+assert_eq "$(installed_helper)" "old helper"
+teardown
+
+announce "a checksum for a different asset is refused"
+setup
+hash=$(sha256sum "$FAKE_ASSET_FILE"); hash=${hash%% *}
+printf '%s  another-helper\n' "$hash" >"$FAKE_CHECKSUM_FILE"
+output=$(run_updater); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "checksum is malformed"
+assert_eq "$(installed_helper)" "old helper"
+teardown
+
+announce "a non-regular downloaded helper is refused"
+setup
+export FAKE_ASSET_SYMLINK=1
+output=$(run_updater); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "not a regular file"
+assert_eq "$(installed_helper)" "old helper"
+teardown
+
+announce "oversized release metadata is refused before parsing"
+setup
+truncate -s $((1024 * 1024 + 1)) "$FAKE_RELEASE_JSON"
+output=$(run_updater); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "metadata exceeds its download limit"
+assert_eq "$(installed_helper)" "old helper"
 teardown
 
 # "no such release" and "no network" are different problems with different

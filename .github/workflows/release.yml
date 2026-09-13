@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -38,8 +40,8 @@ jobs:
       - name: Test frontend model
         run: node tests/model.test.js && node tests/panel-state.test.js && node tests/service-state.test.js
 
-      - name: Test helper updater
-        run: bash tests/updater.test.sh
+      - name: Test installer and helper updater
+        run: bash tests/installer.test.sh && bash tests/updater.test.sh
 
       - name: Check Rust formatting
         run: cargo fmt --manifest-path backend/Cargo.toml --all -- --check
@@ -60,6 +62,8 @@ jobs:
         run: |
           file backend/target/release/omarchy-nearby-helper
           ldd backend/target/release/omarchy-nearby-helper
+          version_output=$(backend/target/release/omarchy-nearby-helper --version)
+          [[ "$version_output" == "omarchy-nearby-helper ${GITHUB_REF_NAME#v}" ]]
 
       - name: Install license generator
         run: cargo install cargo-about --locked --version 0.9.1 --features cli
@@ -73,6 +77,11 @@ jobs:
           install -m755 backend/target/release/omarchy-nearby-helper "dist/$asset"
           (cd dist && sha256sum "$asset" > "$asset.sha256")
           cargo about generate --manifest-path backend/Cargo.toml about.hbs > dist/THIRD_PARTY_LICENSES.html
+
+      - name: Attest release helper
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: dist/omarchy-nearby-helper-*-linux-x86_64
 
       - name: Publish GitHub release
         env:

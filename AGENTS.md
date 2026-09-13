@@ -62,8 +62,9 @@ Run commands from the repository root. Select checks by the changed behavior:
   model logic and inspect/evaluate QML source; they do not launch Quickshell.
 - Rust helper: run formatting, build checks, and helper tests. Vendor changes
   also require the separate vendored crate suite; helper tests do not replace it.
-- Helper updater: run the Bash suite below. It uses a stubbed `curl` to test
-  release lookup, checksum verification, replacement, and cleanup offline.
+- Installer or helper updater: run both Bash suites below. They use stubbed
+  external commands to test release lookup, download policy, checksum
+  verification, replacement, and cleanup offline.
 - Shell scripts: also run `bash -n` on the changed scripts. Syntax checks alone
   do not validate installation or updates on a live system.
 - Documentation only: check referenced paths and commands and run
@@ -76,6 +77,7 @@ when practical:
 node tests/model.test.js
 node tests/panel-state.test.js
 node tests/service-state.test.js
+bash tests/installer.test.sh
 bash tests/updater.test.sh
 cargo fmt --manifest-path backend/Cargo.toml --all -- --check
 cargo check --locked --manifest-path backend/Cargo.toml
