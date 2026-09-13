@@ -18,15 +18,16 @@ concurrency:
 jobs:
   test:
     name: CI checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
-          components: rustfmt
+          toolchain: 1.97.1
+          components: rustfmt, clippy
 
       - name: Test frontend model
         run: node tests/model.test.js && node tests/panel-state.test.js && node tests/service-state.test.js
@@ -39,6 +40,9 @@ jobs:
 
       - name: Check Nearby helper builds
         run: cargo check --locked --manifest-path backend/Cargo.toml
+
+      - name: Lint Nearby helper
+        run: cargo clippy --all-targets --locked --manifest-path backend/Cargo.toml -- -D warnings
 
       - name: Test Nearby helper
         run: cargo test --locked --manifest-path backend/Cargo.toml

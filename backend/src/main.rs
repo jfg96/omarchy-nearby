@@ -300,7 +300,6 @@ fn http_scan_targets(interfaces: Vec<(Ipv4Addr, Ipv4Addr)>) -> (Vec<String>, Vec
     let usable: BTreeSet<Ipv4Addr> = interfaces
         .iter()
         .map(|(ip, _)| *ip)
-        .into_iter()
         .filter(|ip| {
             !ip.is_unspecified()
                 && !ip.is_loopback()
@@ -611,6 +610,10 @@ async fn start_active_discovery(
     }
 }
 
+// Identity, target, payload, authorization and cancellation are independent
+// parts of one transfer operation; grouping them would only move this contract
+// into a single-use parameter struct.
+#[allow(clippy::too_many_arguments)]
 async fn send_payload(
     transfer_id: String,
     identity: DeviceInfo,
@@ -1081,7 +1084,7 @@ async fn main() -> Result<()> {
                             let _=done.send(OutgoingDone{id:transfer_id,event});
                         });
                     }
-                    Command::CancelOutgoing { transfer_id } => if outgoing.as_ref().is_some_and(|o|o.id==transfer_id) { if let Some(control)=outgoing.take(){let _=control.cancel.send(());} },
+                    Command::CancelOutgoing { transfer_id } => if outgoing.as_ref().is_some_and(|o|o.id==transfer_id) && let Some(control)=outgoing.take(){let _=control.cancel.send(());},
                     Command::SetIncomingPin { pin } => {
                         match update_incoming_pin(&mut server,&settings_path,&mut receiver_settings,Some(pin)).await {
                             Ok(())=>emit(json!({"event":"incoming_pin_state","enabled":true})),

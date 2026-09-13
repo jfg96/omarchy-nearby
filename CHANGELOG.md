@@ -7,6 +7,8 @@
 - Validate the persisted TLS certificate and key, derive and repair its
   fingerprint, reject unsafe identity files and replace updates atomically
   without silently rotating valid key material.
+- Pin the Linux runner, Rust toolchain and CI actions, and reject Clippy
+  warnings so local and hosted validation share a stable baseline.
 
 ## 1.1.4
 
