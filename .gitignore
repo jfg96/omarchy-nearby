@@ -10,4 +10,5 @@ backend/target/
 # not a build product, so it is tracked despite living beside one.
 bin/*
 !bin/.gitkeep
+!bin/nearby-helper-launcher
 !bin/nearby-update-helper

@@ -33,12 +33,16 @@ minimal and do not mix unrelated refactors into bug fixes.
   Check both producers and consumers when changing commands or events. Preserve
   request/transfer correlation so late events cannot overwrite a newer transfer.
   Send helper diagnostics to stderr, keeping stdout for protocol messages.
-- `install.sh` manages the release checkout and binary together;
-  `bin/nearby-update-helper` replaces only the binary. Stage updater downloads
-  outside the watched plugin directory and verify checksums before replacement.
-  `build.sh` builds and installs a local helper into `bin/`; generated helper
-  binaries must not be committed.
-- Source updates can leave an older helper installed. Raise
+- `bin/nearby-helper-launcher` strictly parses `helper-release.env`, verifies
+  the exact helper size and SHA256, and stores published helpers under the
+  user's XDG data directory. Keep downloads HTTPS-only, bounded, same-filesystem
+  staged and atomically installed; never write a published ELF into the plugin
+  checkout. `bin/nearby-update-helper` only asks the launcher to prefetch.
+- `install.sh` is the recovery/non-interactive path; normal installation and
+  updates use Omarchy's plugin manager. `build.sh` installs an ignored local
+  developer override into `bin/`; generated helper binaries must not be committed.
+- Source updates can select a different helper through committed release
+  metadata. Raise
   `manifest.json`'s `minHelperVersion` when a change requires a newer helper
   command or behavior; it is a compatibility floor, not the release version.
 - Preserve compatibility with Omarchy Quattro and the LocalSend protocol.
@@ -62,9 +66,9 @@ Run commands from the repository root. Select checks by the changed behavior:
   model logic and inspect/evaluate QML source; they do not launch Quickshell.
 - Rust helper: run formatting, build checks, and helper tests. Vendor changes
   also require the separate vendored crate suite; helper tests do not replace it.
-- Installer or helper updater: run both Bash suites below. They use stubbed
-  external commands to test release lookup, download policy, checksum
-  verification, replacement, and cleanup offline.
+- Launcher, installer or helper updater: run all three Bash suites below. They
+  use stubbed external commands to test immutable metadata, download policy,
+  checksum verification, XDG storage, offline reuse, races and cleanup.
 - Shell scripts: also run `bash -n` on the changed scripts. Syntax checks alone
   do not validate installation or updates on a live system.
 - Documentation only: check referenced paths and commands and run
@@ -78,9 +82,11 @@ node tests/model.test.js
 node tests/panel-state.test.js
 node tests/service-state.test.js
 bash tests/installer.test.sh
+bash tests/launcher.test.sh
 bash tests/updater.test.sh
 cargo fmt --manifest-path backend/Cargo.toml --all -- --check
 cargo check --locked --manifest-path backend/Cargo.toml
+cargo clippy --all-targets --locked --manifest-path backend/Cargo.toml -- -D warnings
 cargo test --locked --manifest-path backend/Cargo.toml
 cargo test --locked --manifest-path backend/vendor/localsend-rs/Cargo.toml --features https
 ```
@@ -114,6 +120,9 @@ passing.
 - Stable plugin releases require matching `manifest.json`, changelog heading
   and `vX.Y.Z` tag. The helper package follows its own `helper-vX.Y.Z` cycle;
   its Cargo files, committed release metadata and published artifact must agree.
+  Publish the helper first, independently verify its size, SHA256, attestation
+  and version, then commit those exact values in `helper-release.env`. A plugin
+  release must verify that reference and must not rebuild or republish the ELF.
 - Runtime source changes after a stable release must advance the manifest to
   the next `-dev` version. Changes to helper behavior must also advance the
   helper package version and `minHelperVersion`; publish that helper first,
@@ -121,4 +130,5 @@ passing.
   changes that cannot alter the installed plugin do not require a version bump.
 - Never create or move a release tag until the exact target commit has passed
   CI. Release helpers must come from the tagged GitHub Actions workflow, not a
-  locally built binary.
+  locally built binary. Helper releases stay prereleases so they cannot replace
+  the latest stable plugin release in GitHub's default release view.

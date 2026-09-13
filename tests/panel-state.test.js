@@ -67,10 +67,9 @@ assert.match(source, /command:\s*\["omarchy-file-select"/,
   "the file chooser must be omarchy-file-select")
 assert.equal(/code\s*===?\s*127/.test(source), false,
   "no shell runs on our behalf, so a missing command never reports exit code 127")
-// The update row exists because `omarchy plugin update` cannot replace the
-// helper: bin/ is not tracked and Omarchy runs no plugin script on update. The
-// panel must therefore offer the action itself, and must keep the repository
-// and the manual command for the cases the action cannot cover.
+// The update row retries the immutable helper selected by the checkout when
+// automatic resolution cannot prepare a compatible cached binary. It keeps
+// the repository and recovery command for failures the action cannot cover.
 assert.match(source, /id: helperUpdate[\s\S]*?visible: root\.helperUpdateOffered/,
   "the update row must appear exactly when the engine says the helper needs one")
 assert.match(source, /text: root\.helperUpdating \? "Updating…" : \(root\.helperUpdateError!=="" \? "Try again" : "Update helper"\)/,

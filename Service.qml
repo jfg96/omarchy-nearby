@@ -93,23 +93,18 @@ Item {
   property string backendStartupFailureCode: ""
   property int backendStartupFailurePort: 0
 
-  // The helper is the one part of the plugin `omarchy plugin update` cannot
-  // move: bin/ is not tracked, so a source update always leaves the previous
-  // binary behind. All three states below are fixed by fetching the release
-  // helper for the version now on disk, so the panel offers that one action
-  // rather than sending the user to a terminal.
+  // The checkout selects immutable helper bytes in helper-release.env. The
+  // launcher keeps those bytes outside the watched plugin tree and can repair
+  // a missing or incompatible cached helper through the action below.
   property bool helperMissing: false
   property bool helperUpdating: false
   property bool helperUpdateInstalled: false
   property string helperUpdateStatus: ""
   property string helperUpdateError: ""
-  // Behind but still usable: the version floor accepts it, so this is a nudge
-  // rather than a stop. Development versions have no release asset, so they
-  // never offer an optional update that is guaranteed to fail.
-  readonly property bool helperOutdated: helperVersion !== "" && pluginVersion !== ""
-    && Model.helperUpdateAvailable(pluginVersion, helperVersion)
+  // Plugin and helper versions have independent release cycles. A compatible
+  // helper is not "behind" merely because the plugin version is higher.
   readonly property bool helperUpdateOffered: pluginVersion !== ""
-    && (backendVersionMismatch || helperMissing || helperOutdated)
+    && (backendVersionMismatch || helperMissing)
   readonly property int maxOutgoingTextBytes: 1024 * 1024
   // One line, and the only place the versions are stated. The hero shows the
   // short status and the panel shows this; saying it in both is what made the
@@ -118,10 +113,8 @@ Item {
     ? ""
     : (helperMissing
       ? "The helper binary is missing."
-      : (backendVersionMismatch
-        ? "Needs helper " + requiredHelperVersion + " · installed "
-          + (helperVersion !== "" ? helperVersion : "unknown")
-        : "Helper " + helperVersion + " is behind plugin " + pluginVersion + "."))
+      : "Needs helper " + requiredHelperVersion + " · installed "
+        + (helperVersion !== "" ? helperVersion : "unknown"))
 
   // Discovery follows the popup, and the popup exists once per monitor, so
   // openness is a count rather than a flag: discovery runs while any view is
@@ -330,11 +323,8 @@ Item {
     incomingPinUpdating=true; pendingIncomingPinEnabled=false; incomingPinError=""
     send({command:"disable_incoming_pin"})
   }
-  // Fetching the release helper is a separate job from moving the checkout,
-  // and install.sh does both. install.sh also refuses to run against a plugin
-  // directory with local changes, so it cannot be what a button calls. The
-  // updater below only replaces bin/omarchy-nearby-helper, and git already
-  // ignores that path.
+  // Source updates and helper releases are independent. The updater asks the
+  // launcher to prefetch the immutable helper selected by this checkout.
   function startHelperUpdate() {
     if (helperUpdating || pluginVersion === "" || helperUpdater.running) return
     helperUpdateError=""
@@ -353,11 +343,7 @@ Item {
   function finishHelperUpdate(code) {
     helperUpdating=false
     helperUpdateStatus=""
-    // The binary landing is what makes the update real, and the updater says
-    // so before it exits. Its exit status can still be lost: replacing the
-    // helper changes the plugin directory, the shell watches that directory
-    // and reloads the plugin, and the reload kills whatever the old service
-    // had running -- including the updater, one line after its work was done.
+    // The updater reports success only after the cached helper verifies.
     if (code !== 0 && !helperUpdateInstalled) {
       if (helperUpdateError === "") helperUpdateError="Nearby could not update the helper."
       return
@@ -567,7 +553,7 @@ Item {
   Process {
     id: backend
     property bool launched: false
-    command: [root.pluginDir + "/bin/omarchy-nearby-helper"]
+    command: [root.pluginDir + "/bin/nearby-helper-launcher"]
     // Not eligible to start until shell.json has been read. Defaulting to on
     // before then would let the helper bind the LocalSend port and announce
     // itself on the network for a user who had turned the receiver off.
@@ -596,8 +582,8 @@ Item {
       if (!root.receiverEnabled || root.pluginVersion === "") return
       root.backendReady=false
       root.helperMissing=true
-      root.reportFailure("Helper missing",
-        "Nearby helper is missing. Run the Nearby installer again or build it with ./build.sh.")
+      root.reportFailure("Helper unavailable",
+        "Nearby could not prepare its verified helper. Connect to the internet and try Update helper, run the installer again, or build it with ./build.sh.")
     }
     onExited: function(code) { root.handleBackendExit(code) }
   }

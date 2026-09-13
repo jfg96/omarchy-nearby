@@ -368,14 +368,9 @@ Panel {
             Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌾"; text:"PIN · "+(root.incomingPinEnabled?"On":"Off"); tooltipText:"Incoming PIN settings"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){root.noteHover(v,root.devices.length+1)}; onClicked:root.openIncomingPinSettings() }
           }
 
-          // `omarchy plugin update` fast-forwards the checkout and stops there.
-          // The helper is a release asset and bin/ is not tracked, so a source
-          // update always leaves the previous binary in place and there is no
-          // hook that could fetch the new one. That gap is closable from here:
-          // the button replaces only the binary, which is the half Omarchy
-          // does not move. The repository and the manual command appear when
-          // it cannot -- no arch build published, no network, a checkout on a
-          // development version that has no release at all.
+          // The checkout pins immutable helper bytes. The launcher resolves
+          // them outside the plugin tree, and this action retries/prefetches
+          // that exact helper when automatic startup cannot do so.
           Column {
             id: helperUpdate
             visible: root.helperUpdateOffered; width:parent.width; spacing:Style.space(6)
@@ -394,7 +389,7 @@ Panel {
             }
             Text {
               visible:!root.helperUpdating; width:parent.width; textFormat:Text.PlainText; wrapMode:Text.Wrap
-              text:"Updating the plugin cannot replace the helper binary."
+              text:"Nearby will fetch and verify the helper selected by this plugin."
               color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body
             }
             Button {

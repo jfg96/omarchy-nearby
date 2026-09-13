@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+
+# Resolve the immutable helper described by helper-release.env into the user's
+# XDG data directory, then either execute it or stop after prefetching it.
+
+set -uo pipefail
+
+plugin_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
+readonly plugin_dir
+readonly metadata_file="$plugin_dir/helper-release.env"
+readonly repository="jfg96/omarchy-nearby"
+readonly max_helper_bytes=$((32 * 1024 * 1024))
+
+prefetch=false
+if [[ ${1:-} == --prefetch ]]; then
+  prefetch=true
+  shift
+  (( $# == 0 )) || { printf 'nearby-helper-launcher: usage: nearby-helper-launcher --prefetch\n' >&2; exit 1; }
+fi
+
+# A deliberate local build is an explicit developer override. Published
+# installs never contain this ignored path; prefetch still resolves the
+# published helper so the recovery/update action remains deterministic.
+local_helper="$plugin_dir/bin/omarchy-nearby-helper"
+if ! $prefetch && [[ -f $local_helper && ! -L $local_helper ]]; then
+  exec "$local_helper" "$@"
+fi
+
+fail() {
+  printf 'nearby-helper-launcher: %s\n' "$*" >&2
+  exit 1
+}
+
+for command_name in sha256sum stat; do
+  command -v "$command_name" >/dev/null 2>&1 \
+    || fail "required command not found: $command_name"
+done
+
+[[ -f $metadata_file && ! -L $metadata_file ]] \
+  || fail "helper-release.env is missing or unsafe"
+
+helper_tag=""
+helper_asset=""
+helper_size=""
+helper_sha256=""
+helper_source_sha=""
+helper_release_workflow=""
+declare -A seen=()
+while IFS='=' read -r key value || [[ -n ${key:-}${value:-} ]]; do
+  [[ -n $key && -n $value && $key != *[[:space:]]* ]] \
+    || fail "helper-release.env is malformed"
+  [[ -z ${seen[$key]+x} ]] || fail "helper-release.env repeats $key"
+  seen[$key]=1
+  case "$key" in
+    NEARBY_HELPER_TAG) helper_tag="$value" ;;
+    NEARBY_HELPER_ASSET) helper_asset="$value" ;;
+    NEARBY_HELPER_SIZE) helper_size="$value" ;;
+    NEARBY_HELPER_SHA256) helper_sha256="$value" ;;
+    NEARBY_HELPER_SOURCE_SHA) helper_source_sha="$value" ;;
+    NEARBY_HELPER_RELEASE_WORKFLOW) helper_release_workflow="$value" ;;
+    *) fail "helper-release.env contains unknown field $key" ;;
+  esac
+done <"$metadata_file"
+
+[[ ${#seen[@]} == 6 ]] || fail "helper-release.env is incomplete"
+[[ $helper_tag =~ ^helper-v([0-9]+\.[0-9]+\.[0-9]+)$ ]] \
+  || fail "helper tag is invalid"
+helper_version="${BASH_REMATCH[1]}"
+[[ $helper_asset == "omarchy-nearby-helper-v${helper_version}-linux-x86_64" ]] \
+  || fail "helper asset does not match its tag"
+[[ $helper_size =~ ^[1-9][0-9]*$ ]] || fail "helper size is invalid"
+(( helper_size <= max_helper_bytes )) || fail "helper size exceeds the safety limit"
+[[ $helper_sha256 =~ ^[0-9a-f]{64}$ ]] || fail "helper SHA256 is invalid"
+[[ $helper_source_sha =~ ^[0-9a-f]{40}$ ]] || fail "helper source commit is invalid"
+[[ $helper_release_workflow == "$repository/.github/workflows/helper-release.yml" ]] \
+  || fail "helper release workflow is invalid"
+
+case "$(uname -s)/$(uname -m)" in
+  Linux/x86_64 | Linux/amd64) ;;
+  *) fail "no prebuilt helper is available for $(uname -s)/$(uname -m)" ;;
+esac
+
+data_root="${XDG_DATA_HOME:-${HOME:?HOME is not set}/.local/share}/omarchy-nearby/helpers"
+version_dir="$data_root/$helper_tag"
+helper_path="$version_dir/$helper_asset"
+
+valid_helper() {
+  local candidate="$1" size actual
+  [[ -f $candidate && ! -L $candidate && -x $candidate ]] || return 1
+  size=$(stat -c %s -- "$candidate") || return 1
+  [[ $size == "$helper_size" ]] || return 1
+  actual=$(sha256sum -- "$candidate") || return 1
+  actual=${actual%% *}
+  [[ $actual == "$helper_sha256" ]]
+}
+
+install_helper() {
+  local stage_dir staged status size url
+  for command_name in curl mktemp; do
+    command -v "$command_name" >/dev/null 2>&1 \
+      || fail "required command not found: $command_name"
+  done
+  mkdir -p -- "$version_dir" || fail "could not create $version_dir"
+  chmod 0700 -- "$data_root" "$version_dir" 2>/dev/null || true
+
+  valid_helper "$helper_path" && return 0
+
+  stage_dir=$(mktemp -d "$version_dir/.stage.XXXXXX") \
+    || fail "could not create a helper staging directory"
+  cleanup_stage() { rm -rf -- "$stage_dir"; }
+  trap cleanup_stage RETURN EXIT
+  staged="$stage_dir/$helper_asset"
+  url="https://github.com/$repository/releases/download/$helper_tag/$helper_asset"
+
+  if curl --fail --location --silent --show-error \
+    --proto '=https' --proto-redir '=https' \
+    --connect-timeout 10 --max-time 300 --max-filesize "$max_helper_bytes" \
+    --output "$staged" "$url"; then
+    :
+  else
+    status=$?
+    (( status == 63 )) && fail "downloaded helper exceeds the safety limit"
+    fail "helper download did not finish; check your connection and try again"
+  fi
+
+  [[ -f $staged && ! -L $staged ]] || fail "downloaded helper is not a regular file"
+  size=$(stat -c %s -- "$staged") || fail "could not inspect downloaded helper"
+  (( size <= max_helper_bytes )) || fail "downloaded helper exceeds the safety limit"
+  [[ $size == "$helper_size" ]] || fail "downloaded helper has an unexpected size"
+  chmod 0755 -- "$staged" || fail "could not make the helper executable"
+  valid_helper "$staged" || fail "downloaded helper failed its SHA256 check"
+
+  # Another launcher may have won the race while this one downloaded. Both
+  # candidates are the same immutable bytes, so keep the installed one if it
+  # is already valid; otherwise replace only the directory entry atomically.
+  if ! valid_helper "$helper_path"; then
+    mv -T -- "$staged" "$helper_path" || fail "could not install the helper"
+    valid_helper "$helper_path" || fail "installed helper did not verify"
+    sync -f "$helper_path" 2>/dev/null || true
+    sync -f "$version_dir" 2>/dev/null || true
+  fi
+
+  trap - RETURN EXIT
+  cleanup_stage
+}
+
+valid_helper "$helper_path" || install_helper
+
+if $prefetch; then
+  printf 'omarchy-nearby-helper %s\n' "$helper_version"
+  exit 0
+fi
+
+exec "$helper_path" "$@"

@@ -10,6 +10,9 @@ cargo test --manifest-path backend/vendor/localsend-rs/Cargo.toml --features htt
 node tests/model.test.js
 node tests/panel-state.test.js
 node tests/service-state.test.js
+bash tests/launcher.test.sh
+bash tests/installer.test.sh
+bash tests/updater.test.sh
 ```
 
 The suites cover peer registry retention/expiry, command correlation, request decisions,
@@ -20,6 +23,11 @@ an upload is still active. Incoming-PIN coverage includes secure startup,
 atomic persistence and rollback, exact `401`/`429` behavior, bounded per-IP
 failure state, text/file authorization before events, live PIN changes and an
 already authorized upload continuing after a change.
+
+The distribution suites additionally cover immutable helper metadata, exact
+size/SHA256 enforcement, XDG data storage, offline reuse, corrupt and symlinked
+cache repair, concurrent launches, failed/oversized downloads, and the rule
+that published helpers never write into the watched plugin checkout.
 
 ## Manual interoperability matrix
 
@@ -70,6 +78,10 @@ non-guest LAN. Confirm TCP and UDP 53317 are allowed.
 15. Configure official LocalSend receiver PINs containing a space, Unicode and
     each of `+`, `&`, `#` and `%`; verify Nearby can send text and files using
     each exact value.
+16. On a clean installation with the receiver off, confirm no helper is
+    downloaded. Turn it on with network access, confirm the pinned helper lands
+    under `$XDG_DATA_HOME/omarchy-nearby/helpers`, then disconnect the network
+    and restart Nearby; the verified cached helper must start offline.
 
 Before publishing a stable release, record the exact Android and iOS LocalSend
 versions used for steps 11–15 here. These real-device checks are not considered

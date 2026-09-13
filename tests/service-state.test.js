@@ -14,8 +14,8 @@ assert.ok(manifest.kinds.includes("service"),
   "the helper is a singleton, so the plugin must declare a service kind")
 assert.equal(manifest.entryPoints.service, "Service.qml",
   "the service kind needs an entry point for the shell to load it")
-assert.match(source, /command:\s*\[root\.pluginDir \+ "\/bin\/omarchy-nearby-helper"\]/,
-  "the helper must be spawned from the service, not from a per-monitor widget")
+assert.match(source, /command:\s*\[root\.pluginDir \+ "\/bin\/nearby-helper-launcher"\]/,
+  "the helper launcher must be spawned from the service, not from a per-monitor widget")
 assert.match(source, /IpcHandler\s*\{\s*target:\s*"oma\.nearby"/,
   "the IPC target must be registered once, from the service")
 
@@ -31,7 +31,7 @@ for (const method of ["summon", "hide", "toggle"]) {
 // command. That is the failure reinstalling actually fixes.
 assert.match(source, /onRunningChanged:\s*\{[\s\S]*?if \(backend\.launched\) return/,
   "a helper that never launched must be reported from onRunningChanged")
-assert.match(source, /Run the Nearby installer again or build it with \.\/build\.sh\./,
+assert.match(source, /run the installer again, or build it with \.\/build\.sh\./,
   "the reinstall hint belongs to the missing-helper case")
 assert.match(source, /onStarted:\s*\{[\s\S]*?backendStartupFailureCode=""[\s\S]*?backendStartupFailurePort=0/,
   "each helper attempt must discard a stale startup cause before it runs")
@@ -40,14 +40,10 @@ assert.match(source, /id: backendRestart[\s\S]*?onTriggered:[^\n]*bindBackendRun
 assert.doesNotMatch(source, /backend\.running\s*=\s*true/,
   "a plain retry assignment would permanently remove the Process.running binding")
 
-// `omarchy plugin update` fetches, fast-forwards, validates and rescans, and
-// runs nothing the plugin ships. bin/ is not tracked, so the release helper
-// cannot arrive that way and there is no hook that could fetch it. The plugin
-// closes that gap itself, with a script that touches only the binary:
-// install.sh also owns the checkout and refuses a plugin directory with local
-// changes, so it cannot be what the panel calls.
+// The tracked updater asks the launcher to prefetch the immutable helper into
+// XDG data. install.sh also owns the checkout, so the panel must not call it.
 assert.match(source, /command:\s*\[root\.pluginDir \+ "\/bin\/nearby-update-helper"\]/,
-  "the in-panel update must run the binary-only updater")
+  "the in-panel update must run the helper prefetch updater")
 assert.doesNotMatch(source, /install\.sh"\]/,
   "install.sh owns the git checkout and declines a dirty one; the panel must not call it")
 assert.match(source, /id: helperUpdater[\s\S]*?onRunningChanged:\s*\{\s*\n\s*if \(running \|\| helperUpdater\.launched\) return/,
@@ -139,7 +135,7 @@ function helperDerived(state) {
     backendVersionMismatch: state.backendVersionMismatch,
     requiredHelperVersion: requiredHelperVersion(state),
   }
-  for (const name of ["helperOutdated", "helperUpdateOffered", "helperUpdateDetail"]) {
+  for (const name of ["helperUpdateOffered", "helperUpdateDetail"]) {
     scope[name] = vm.runInNewContext(`(${extractBinding(name)})`, scope)
   }
   return scope
@@ -240,7 +236,7 @@ function engine(initial = {}) {
     enumerable: true,
     get() { return context.hasLegacyShellConfig ? context.shell.shellConfig : context.fileShellConfig },
   })
-  for (const derived of ["helperOutdated", "helperUpdateOffered", "helperUpdateDetail"]) {
+  for (const derived of ["helperUpdateOffered", "helperUpdateDetail"]) {
     Object.defineProperty(context, derived, {
       enumerable: true,
       get() { return helperDerived(context)[derived] },
@@ -391,12 +387,12 @@ for (const [name, setup] of [
 }
 {
   const state = engine({pluginVersion: "1.1.0", minHelperVersion: "1.0.0", helperVersion: "1.0.7"})
-  assert.equal(state.helperUpdateOffered, true, "a helper above the floor but behind the plugin is still worth updating")
-  assert.match(state.helperUpdateDetail, /behind plugin 1\.1\.0/)
+  assert.equal(state.helperUpdateOffered, false,
+    "independent plugin and helper versions must not create a false update")
+  assert.equal(state.helperUpdateDetail, "")
 }
 {
   const state = engine({pluginVersion: "1.1.1-dev", minHelperVersion: "1.1.0", helperVersion: "1.1.0"})
-  assert.equal(state.helperOutdated, false)
   assert.equal(state.helperUpdateOffered, false,
     "a compatible helper must not offer an impossible optional update for a development checkout")
 }
@@ -465,8 +461,8 @@ for (const [name, setup] of [
   assert.equal(state.backend.running.callback(), true)
 }
 
-// A failed update leaves the old binary in place, so the plugin must stay in
-// the state that says so rather than pretending the helper is new.
+// A failed prefetch leaves the previous cache state in place, so the plugin
+// must stay in the state that says so rather than pretending it is repaired.
 {
   const state = engine({
     pluginVersion: "1.1.0", minHelperVersion: "1.1.0", backendReady: false,
@@ -482,11 +478,8 @@ for (const [name, setup] of [
   assert.equal(state.backend.running, false, "a failed update must not try to start the old helper again")
 }
 
-// Installing the helper changes the plugin directory, the shell watches that
-// directory, and the reload it triggers kills the updater a line after its
-// work is done. The exit status is lost; the binary is not. Reporting a
-// failure there would send the user back to a terminal to redo an update that
-// already succeeded.
+// Preserve the historical tolerance for a late process exit after a reported
+// success. The verified cache is authoritative once the done event arrives.
 {
   const state = engine({
     pluginVersion: "1.1.0", minHelperVersion: "1.1.0", backendReady: false,
