@@ -72,20 +72,20 @@ assert.equal(/code\s*===?\s*127/.test(source), false,
 // the repository and recovery command for failures the action cannot cover.
 assert.match(source, /id: helperUpdate[\s\S]*?visible: root\.helperUpdateOffered/,
   "the update row must appear exactly when the engine says the helper needs one")
-assert.match(source, /text: root\.helperUpdating \? "Updating…" : \(root\.helperUpdateError!=="" \? "Try again" : "Update helper"\)/,
+assert.match(source, /text: root\.helperUpdating \? "Preparing…" : \(root\.helperUpdateError!=="" \? "Try again" : "Retry helper"\)/,
   "the button must name the retry after a failure, and say it is working while it works")
 assert.match(source, /enabled:!root\.helperUpdating/,
-  "a second press while the updater runs must not start a second download")
-assert.match(source, /visible:root\.helperUpdateError!==""[\s\S]*?root\.installerCommand[\s\S]*?onClicked:root\.copyInstallerCommand\(\)[\s\S]*?onClicked:root\.copyRepositoryLink\(\)/,
+  "a second press while helper repair runs must not start a second download")
+assert.match(source, /visible:root\.helperUpdateError!==""[\s\S]*?root\.updateCommand[\s\S]*?onClicked:root\.copyUpdateCommand\(\)[\s\S]*?onClicked:root\.copyRepositoryLink\(\)/,
   "a failed update must offer the command that fixes it, not only the repository link")
 assert.match(source, /text:"Copy command"[^\n]*hasCursor:[^\n]*helperCopyCommandIndex[^\n]*onHovered:[^\n]*helperCopyCommandIndex/,
   "the copy-command fallback must participate in keyboard and hover navigation")
 assert.match(source, /text:"Copy link"[^\n]*hasCursor:[^\n]*helperCopyLinkIndex[^\n]*onHovered:[^\n]*helperCopyLinkIndex/,
   "the copy-link fallback must participate in keyboard and hover navigation")
 assert.match(source, /readonly property string repositoryUrl: "https:\/\/github\.com\/jfg96\/omarchy-nearby"/,
-  "the fallback link must point at the repository the installer pulls from")
-assert.equal(source.includes("install.sh\"]"), false,
-  "install.sh owns the checkout and refuses a dirty one, so the panel must not call it")
+  "the fallback link must point at the plugin repository")
+assert.equal(source.includes("install.sh"), false,
+  "the removed standalone installer must not remain in the panel")
 
 // The popup used to say the same thing three times: the hero, the device
 // empty-state line, and the update row all rendered the version mismatch, and
@@ -101,12 +101,10 @@ assert.match(source, /visible: root\.devices\.length===0 && !root\.helperBlocksN
 assert.equal((source.match(/root\.helperUpdateDetail/g) || []).length, 1,
   "the versions belong in one place: the engine's detail line, rendered once")
 
-// The path is 48 characters in a 360-wide popup. Wrapping it split the
-// extension onto its own line, which reads as a typo and invites one.
-assert.match(source, /text:root\.installerCommand; elide:Text\.ElideMiddle/,
-  "the installer path must elide rather than wrap")
-assert.doesNotMatch(source, /text:root\.installerCommand[^\n]*WrapAnywhere/,
-  "wrapping the path anywhere is what orphaned the .sh")
+assert.match(source, /text:root\.updateCommand; elide:Text\.ElideMiddle/,
+  "the Omarchy update command must elide rather than wrap")
+assert.doesNotMatch(source, /text:root\.updateCommand[^\n]*WrapAnywhere/,
+  "the update command must stay on one visual line")
 
 // Every hover handler must go through noteHover. The originals only handled
 // enter, so `hasCursor` stayed on the last button the pointer crossed and the
@@ -165,7 +163,7 @@ const functionNames = [
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "clearSecretInputs",
   "goBack", "selectFiles", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
-  "updateHelper", "copyText", "copyInstallerCommand", "copyRepositoryLink", "noteHover",
+  "retryHelper", "copyText", "copyUpdateCommand", "copyRepositoryLink", "noteHover",
 ]
 
 // Every call the view makes has to land on the shared engine, so the stub
@@ -227,7 +225,7 @@ function panel(initial = {}) {
     copyNote: "",
     helperUpdateOffered: false,
     helperUpdateError: "",
-    installerCommand: "~/.config/omarchy/plugins/oma.nearby/install.sh",
+    updateCommand: "omarchy plugin update oma.nearby",
     repositoryUrl: "https://github.com/jfg96/omarchy-nearby",
     pinInput: {text: "", forceActiveFocus: () => {}},
     incomingPinInput: {text: "", forceActiveFocus: () => {}},
@@ -275,7 +273,7 @@ function panel(initial = {}) {
   state.moveCursor(0, 1)
   assert.equal(state.selectedIndex, 1)
   state.activateCursor()
-  assert.equal(state.textCopier.payload, state.installerCommand)
+  assert.equal(state.textCopier.payload, state.updateCommand)
 
   state.textCopier.running = false
   state.moveCursor(1, 0)

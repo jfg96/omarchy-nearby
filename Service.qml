@@ -190,7 +190,7 @@ Item {
     function receiverToggle(): string { root.toggleReceiver(); return "ok" }
     // The same repair the panel button runs, for a shell whose bar is not
     // where the user is looking when the helper stops matching.
-    function updateHelper(): string { if (root.helperUpdating) return "busy"; root.startHelperUpdate(); return "ok" }
+    function retryHelper(): string { if (root.helperUpdating) return "busy"; root.startHelperUpdate(); return "ok" }
     // The helper version and the floor it has to clear are reported here
     // because a mismatch otherwise shows up only as a panel that says it is
     // not ready, which is the same thing a port conflict looks like.
@@ -323,7 +323,7 @@ Item {
     incomingPinUpdating=true; pendingIncomingPinEnabled=false; incomingPinError=""
     send({command:"disable_incoming_pin"})
   }
-  // Source updates and helper releases are independent. The updater asks the
+  // Source updates and helper releases are independent. The repair command asks the
   // launcher to prefetch the immutable helper selected by this checkout.
   function startHelperUpdate() {
     if (helperUpdating || pluginVersion === "" || helperUpdater.running) return
@@ -343,7 +343,7 @@ Item {
   function finishHelperUpdate(code) {
     helperUpdating=false
     helperUpdateStatus=""
-    // The updater reports success only after the cached helper verifies.
+    // The repair command reports success only after the cached helper verifies.
     if (code !== 0 && !helperUpdateInstalled) {
       if (helperUpdateError === "") helperUpdateError="Nearby could not update the helper."
       return
@@ -583,25 +583,25 @@ Item {
       root.backendReady=false
       root.helperMissing=true
       root.reportFailure("Helper unavailable",
-        "Nearby could not prepare its verified helper. Connect to the internet and try Update helper, run the installer again, or build it with ./build.sh.")
+        "Nearby could not prepare its verified helper. Connect to the internet and try Retry helper, or build it with ./build.sh.")
     }
     onExited: function(code) { root.handleBackendExit(code) }
   }
   Process {
     id: helperUpdater
     property bool launched: false
-    command: [root.pluginDir + "/bin/nearby-update-helper"]
+    command: [root.pluginDir + "/bin/nearby-repair-helper"]
     running: false
     stdout: SplitParser { onRead: function(line) { root.handleUpdaterEvent(Model.parseLine(line)) } }
-    stderr: SplitParser { onRead: function(line) { console.warn("nearby updater", line) } }
+    stderr: SplitParser { onRead: function(line) { console.warn("nearby helper repair", line) } }
     onStarted: helperUpdater.launched=true
     // Same missing-command signal the helper and the file chooser use: no exit
-    // code ever arrives, so the absent updater has to be caught here.
+    // code ever arrives, so an absent repair command has to be caught here.
     onRunningChanged: {
       if (running || helperUpdater.launched) return
       root.helperUpdating=false
       root.helperUpdateStatus=""
-      root.helperUpdateError="The Nearby updater is missing. Reinstall Nearby with install.sh."
+      root.helperUpdateError="The Nearby helper repair command is missing. Run omarchy plugin update oma.nearby."
     }
     onExited: function(code) { root.finishHelperUpdate(code) }
   }

@@ -44,25 +44,10 @@ For unattended installation, add `--yes`:
 omarchy plugin add https://github.com/jfg96/omarchy-nearby --enable --yes
 ```
 
-The standalone installer remains as a recovery and exact-version path:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/jfg96/omarchy-nearby/main/install.sh \
-  -o /tmp/omarchy-nearby-install.sh
-bash /tmp/omarchy-nearby-install.sh
-```
-
-Install or reinstall a specific stable plugin release with:
-
-```sh
-bash /tmp/omarchy-nearby-install.sh v1.2.0
-```
-
-The recovery installer delegates the checkout to Omarchy and asks the same
-launcher to prefetch the pinned helper. Nearby never requests administrator
-privileges, installs packages, requires Rust, or compiles during this flow.
-Downloads are HTTPS-only, limited to 32 MiB and staged atomically on the same
-filesystem as their final XDG data location.
+Nearby never requests administrator privileges, installs packages, requires
+Rust, or compiles during this flow. Helper downloads are HTTPS-only, limited to
+32 MiB and staged atomically on the same filesystem as their final XDG data
+location.
 
 The widget is placed in the right section of the bar by default. Remove it with
 `omarchy plugin remove oma.nearby`.
@@ -200,7 +185,7 @@ bin/omarchy-nearby-helper
 
 Generated helper binaries are not tracked in the repository. The launcher gives
 an intentional local `bin/omarchy-nearby-helper` build priority at runtime, while
-published installations contain only the tracked launcher, updater and release
+published installations contain only the tracked launcher, repair helper and release
 metadata in the checkout.
 
 ## Updates
@@ -227,19 +212,15 @@ require a new helper. Below it, Nearby stops the backend and reports which
 version it needs and which one is installed. Raise `minHelperVersion` in the
 same change that starts depending on a new helper.
 
-When the helper cache needs repair, the Nearby panel offers to do it. **Update
+When the helper cache needs repair, the Nearby panel offers to do it. **Retry
 helper** prefetches and verifies the exact helper selected by the checkout,
 without writing an executable into the plugin directory, then restarts the
 receiver. The same repair is available without the popup:
 
 ```sh
-omarchy-shell oma.nearby updateHelper
+omarchy-shell oma.nearby retryHelper
 omarchy-shell oma.nearby status
 ```
-
-`install.sh` additionally installs or updates the checkout through Omarchy and
-refuses to replace a dirty checkout. It is a fallback, not the normal update
-path.
 
 ## Releases
 
@@ -287,8 +268,7 @@ Helper distribution tests:
 
 ```sh
 bash tests/launcher.test.sh
-bash tests/installer.test.sh
-bash tests/updater.test.sh
+bash tests/helper-repair.test.sh
 ```
 
 A larger manual interoperability and robustness checklist is kept in

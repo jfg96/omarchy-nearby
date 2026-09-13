@@ -60,10 +60,10 @@ STUB
 }
 
 metadata() {
-  local expected_size="$1" expected_hash="$2"
+  local expected_size="$1" expected_hash="$2" version="${3:-1.2.0}"
   printf '%s\n' \
-    'NEARBY_HELPER_TAG=helper-v1.2.0' \
-    'NEARBY_HELPER_ASSET=omarchy-nearby-helper-v1.2.0-linux-x86_64' \
+    "NEARBY_HELPER_TAG=helper-v$version" \
+    "NEARBY_HELPER_ASSET=omarchy-nearby-helper-v$version-linux-x86_64" \
     "NEARBY_HELPER_SIZE=$expected_size" \
     "NEARBY_HELPER_SHA256=$expected_hash" \
     'NEARBY_HELPER_SOURCE_SHA=0378062e504dee9775da84f00384800c4ce9b55d' \
@@ -103,6 +103,26 @@ output=$(run_launcher --prefetch); status=$?
 assert_eq "$status" "0"
 assert_eq "$output" "omarchy-nearby-helper 1.2.0"
 assert_eq "$(<"$FAKE_CURL_COUNT")" "1"
+teardown
+
+announce "updated checkout metadata selects a new independently versioned helper"
+setup
+run_launcher --prefetch >/dev/null
+new_asset="omarchy-nearby-helper-v1.2.1-linux-x86_64"
+new_served="$sandbox/served/$new_asset"
+printf '#!/usr/bin/env bash\nprintf "omarchy-nearby-helper 1.2.1\\n"\n' >"$new_served"
+chmod 0755 "$new_served"
+new_size=$(stat -c %s -- "$new_served")
+new_hash=$(sha256sum "$new_served"); new_hash=${new_hash%% *}
+metadata "$new_size" "$new_hash" "1.2.1"
+export FAKE_ASSET_FILE="$new_served"
+output=$(run_launcher --prefetch); status=$?
+assert_eq "$status" "0"
+assert_eq "$output" "omarchy-nearby-helper 1.2.1"
+[[ -f $data_home/omarchy-nearby/helpers/helper-v1.2.0/$asset ]] \
+  || report "the previous immutable helper disappeared"
+[[ -f $data_home/omarchy-nearby/helpers/helper-v1.2.1/$new_asset ]] \
+  || report "the helper selected by updated metadata was not installed"
 teardown
 
 announce "normal launch executes the verified helper"

@@ -37,10 +37,11 @@ minimal and do not mix unrelated refactors into bug fixes.
   the exact helper size and SHA256, and stores published helpers under the
   user's XDG data directory. Keep downloads HTTPS-only, bounded, same-filesystem
   staged and atomically installed; never write a published ELF into the plugin
-  checkout. `bin/nearby-update-helper` only asks the launcher to prefetch.
-- `install.sh` is the recovery/non-interactive path; normal installation and
-  updates use Omarchy's plugin manager. `build.sh` installs an ignored local
-  developer override into `bin/`; generated helper binaries must not be committed.
+  checkout. `bin/nearby-repair-helper` only asks the launcher to prefetch.
+- Installation and source updates belong exclusively to Omarchy's plugin
+  manager. Do not add a curl-pipe installer or make plugin code modify its git
+  checkout. `build.sh` installs an ignored local developer override into `bin/`;
+  generated helper binaries must not be committed.
 - Source updates can select a different helper through committed release
   metadata. Raise
   `manifest.json`'s `minHelperVersion` when a change requires a newer helper
@@ -66,7 +67,7 @@ Run commands from the repository root. Select checks by the changed behavior:
   model logic and inspect/evaluate QML source; they do not launch Quickshell.
 - Rust helper: run formatting, build checks, and helper tests. Vendor changes
   also require the separate vendored crate suite; helper tests do not replace it.
-- Launcher, installer or helper updater: run all three Bash suites below. They
+- Launcher or helper repair: run both Bash suites below. They
   use stubbed external commands to test immutable metadata, download policy,
   checksum verification, XDG storage, offline reuse, races and cleanup.
 - Shell scripts: also run `bash -n` on the changed scripts. Syntax checks alone
@@ -81,9 +82,8 @@ when practical:
 node tests/model.test.js
 node tests/panel-state.test.js
 node tests/service-state.test.js
-bash tests/installer.test.sh
 bash tests/launcher.test.sh
-bash tests/updater.test.sh
+bash tests/helper-repair.test.sh
 cargo fmt --manifest-path backend/Cargo.toml --all -- --check
 cargo check --locked --manifest-path backend/Cargo.toml
 cargo clippy --all-targets --locked --manifest-path backend/Cargo.toml -- -D warnings

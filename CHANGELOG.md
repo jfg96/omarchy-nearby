@@ -11,16 +11,14 @@
   warnings so local and hosted validation share a stable baseline.
 - Publish build-provenance attestations for release helpers and provide an
   independent workflow that verifies checksum, source, signer and version.
-- Restrict installer and updater downloads to HTTPS, cap helper artifacts at
-  32 MiB, validate regular files and checksum targets, and stage outside the
-  live plugin checkout.
+- Restrict helper downloads to HTTPS, cap artifacts at 32 MiB, validate regular
+  files and exact hashes, and stage outside the live plugin checkout.
 - Separate plugin and helper releases. The checkout now pins an independently
   attested helper by exact tag, asset, size, SHA256, source and workflow; a
   tracked launcher installs it atomically under XDG data, reuses it offline and
   never places a published ELF in the watched plugin tree.
-- Make Omarchy's native plugin commands the normal install/update path, keeping
-  `install.sh` as a recovery and exact-version helper. The panel updater now
-  prefetches the pinned helper through the same launcher.
+- Make Omarchy's native plugin commands the only install/update path. The panel
+  recovery action only prefetches the pinned helper through the same launcher.
 
 ## 1.1.4
 

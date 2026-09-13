@@ -31,8 +31,8 @@ for (const method of ["summon", "hide", "toggle"]) {
 // command. That is the failure reinstalling actually fixes.
 assert.match(source, /onRunningChanged:\s*\{[\s\S]*?if \(backend\.launched\) return/,
   "a helper that never launched must be reported from onRunningChanged")
-assert.match(source, /run the installer again, or build it with \.\/build\.sh\./,
-  "the reinstall hint belongs to the missing-helper case")
+assert.match(source, /try Retry helper, or build it with \.\/build\.sh\./,
+  "the recovery hint belongs to the unavailable-helper case")
 assert.match(source, /onStarted:\s*\{[\s\S]*?backendStartupFailureCode=""[\s\S]*?backendStartupFailurePort=0/,
   "each helper attempt must discard a stale startup cause before it runs")
 assert.match(source, /id: backendRestart[\s\S]*?onTriggered:[^\n]*bindBackendRunning\(\)/,
@@ -40,14 +40,14 @@ assert.match(source, /id: backendRestart[\s\S]*?onTriggered:[^\n]*bindBackendRun
 assert.doesNotMatch(source, /backend\.running\s*=\s*true/,
   "a plain retry assignment would permanently remove the Process.running binding")
 
-// The tracked updater asks the launcher to prefetch the immutable helper into
-// XDG data. install.sh also owns the checkout, so the panel must not call it.
-assert.match(source, /command:\s*\[root\.pluginDir \+ "\/bin\/nearby-update-helper"\]/,
-  "the in-panel update must run the helper prefetch updater")
-assert.doesNotMatch(source, /install\.sh"\]/,
-  "install.sh owns the git checkout and declines a dirty one; the panel must not call it")
+// The tracked repair command asks the launcher to prefetch the immutable helper into
+// XDG data without modifying the plugin checkout.
+assert.match(source, /command:\s*\[root\.pluginDir \+ "\/bin\/nearby-repair-helper"\]/,
+  "the in-panel action must run the helper repair command")
+assert.doesNotMatch(source, /install\.sh/,
+  "the removed standalone installer must not remain part of the service")
 assert.match(source, /id: helperUpdater[\s\S]*?onRunningChanged:\s*\{\s*\n\s*if \(running \|\| helperUpdater\.launched\) return/,
-  "an updater that never launched must be reported the same way a missing helper is")
+  "a repair command that never launched must be reported like a missing helper")
 assert.match(source, /function finishHelperUpdate[\s\S]*?if \(!backend\.running\) bindBackendRunning\(\)/,
   "a successful update must restore the Process.running binding the mismatch shutdown wrote over")
 assert.match(source, /Model\.helperSatisfies\(requiredHelperVersion, helperVersion\)/,
@@ -445,7 +445,7 @@ for (const [name, setup] of [
   assert.equal(state.helperUpdater.running, true)
   state.startHelperUpdate()
   assert.equal(state.helperUpdater.launched, false,
-    "a second press while the updater runs must not start another download")
+    "a second press while the repair runs must not start another download")
 
   state.handleUpdaterEvent({event: "step", message: "Downloading helper v1.1.0…"})
   assert.equal(state.helperUpdateStatus, "Downloading helper v1.1.0…")
@@ -494,7 +494,7 @@ for (const [name, setup] of [
   assert.equal(typeof state.backend.running.callback, "function")
 }
 
-// An updater that dies without reporting anything still has to say something.
+// A repair command that dies without reporting anything still has to say something.
 {
   const state = engine({pluginVersion: "1.1.0", backend: {running: false, write: () => {}}})
   state.root = state

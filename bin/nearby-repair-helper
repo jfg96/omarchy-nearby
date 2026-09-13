@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Prefetch the immutable helper selected by this checkout. Progress is NDJSON
+# Repair/prefetch the immutable helper selected by this checkout. Progress is NDJSON
 # so Service.qml can present it without parsing human-readable diagnostics.
 
 set -uo pipefail

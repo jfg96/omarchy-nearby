@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# bin/nearby-update-helper, offline.
+# bin/nearby-repair-helper, offline.
 
 set -uo pipefail
 
 tests_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-readonly updater_source="$tests_dir/../bin/nearby-update-helper"
+readonly repair_source="$tests_dir/../bin/nearby-repair-helper"
 readonly launcher_source="$tests_dir/../bin/nearby-helper-launcher"
 failures=0
 current=""
@@ -16,11 +16,11 @@ assert_eq() { [[ $1 == "$2" ]] || report "expected '$2', got '$1'"; }
 assert_contains() { [[ $1 == *"$2"* ]] || report "expected '$2' in: $1"; }
 
 setup() {
-  sandbox=$(mktemp -d "${TMPDIR:-/tmp}/nearby-updater-test.XXXXXX")
+  sandbox=$(mktemp -d "${TMPDIR:-/tmp}/nearby-repair-test.XXXXXX")
   plugin="$sandbox/plugin"
   stub_bin="$sandbox/stub-bin"
   mkdir -p "$plugin/bin" "$stub_bin" "$sandbox/served" "$sandbox/data"
-  cp "$updater_source" "$launcher_source" "$plugin/bin/"
+  cp "$repair_source" "$launcher_source" "$plugin/bin/"
   chmod 0755 "$plugin/bin/"*
   asset="omarchy-nearby-helper-v1.2.0-linux-x86_64"
   served="$sandbox/served/$asset"
@@ -51,29 +51,29 @@ STUB
   chmod 0755 "$stub_bin/curl"
 }
 
-run_updater() {
+run_repair() {
   HOME="$sandbox/home" XDG_DATA_HOME="$sandbox/data" PATH="$stub_bin:$PATH" \
-    "$plugin/bin/nearby-update-helper" 2>/dev/null
+    "$plugin/bin/nearby-repair-helper" 2>/dev/null
 }
 teardown() { [[ -n ${sandbox:-} && -d $sandbox ]] && rm -rf -- "$sandbox"; unset FAKE_ASSET_FILE FAKE_CURL_EXIT; }
 
 announce "success prefetches through the launcher and reports parseable NDJSON"
 setup
-output=$(run_updater); status=$?
+output=$(run_repair); status=$?
 assert_eq "$status" "0"
 assert_contains "$output" '"event":"step"'
 assert_contains "$output" '{"event":"done","version":"1.2.0"}'
 while IFS= read -r line; do
   [[ -z $line ]] || jq -e . >/dev/null <<<"$line" || report "not JSON: $line"
 done <<<"$output"
-[[ ! -e $plugin/bin/omarchy-nearby-helper ]] || report "updater wrote an ELF into the checkout"
+[[ ! -e $plugin/bin/omarchy-nearby-helper ]] || report "repair command wrote an ELF into the checkout"
 teardown
 
 announce "an offline update reuses a previously verified helper"
 setup
-run_updater >/dev/null
+run_repair >/dev/null
 export FAKE_CURL_EXIT=6
-output=$(run_updater); status=$?
+output=$(run_repair); status=$?
 assert_eq "$status" "0"
 assert_contains "$output" '"event":"done"'
 teardown
@@ -81,7 +81,7 @@ teardown
 announce "a launcher failure becomes one failed JSON event"
 setup
 export FAKE_CURL_EXIT=6
-output=$(run_updater); status=$?
+output=$(run_repair); status=$?
 assert_eq "$status" "1"
 last=$(tail -1 <<<"$output")
 assert_eq "$(jq -r .event <<<"$last")" "failed"
@@ -92,13 +92,13 @@ announce "an unsafe launcher is refused"
 setup
 rm -- "$plugin/bin/nearby-helper-launcher"
 ln -s /bin/true "$plugin/bin/nearby-helper-launcher"
-output=$(run_updater); status=$?
+output=$(run_repair); status=$?
 assert_eq "$status" "1"
 assert_contains "$output" "missing or unsafe"
 teardown
 
 if (( failures )); then
-  printf 'updater tests failed: %s\n' "$failures" >&2
+  printf 'helper repair tests failed: %s\n' "$failures" >&2
   exit 1
 fi
-echo "updater tests passed"
+echo "helper repair tests passed"

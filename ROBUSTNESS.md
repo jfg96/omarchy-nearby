@@ -11,8 +11,7 @@ node tests/model.test.js
 node tests/panel-state.test.js
 node tests/service-state.test.js
 bash tests/launcher.test.sh
-bash tests/installer.test.sh
-bash tests/updater.test.sh
+bash tests/helper-repair.test.sh
 ```
 
 The suites cover peer registry retention/expiry, command correlation, request decisions,

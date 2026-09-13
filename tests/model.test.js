@@ -73,17 +73,6 @@ assert.equal(Model.helperSatisfies("1.1.0", "1.1.0-dev"), false, "a prerelease i
 assert.equal(Model.helperSatisfies("1.0.6", ""), false, "no version reported is not a version that passes")
 assert.equal(Model.helperSatisfies("", "1.0.6"), false, "no floor known is not a floor that passes")
 
-// Behind the shipped version but above the floor: offer the update, do not
-// stop for it.
-assert.equal(Model.helperUpdateAvailable("1.1.0", "1.0.7"), true)
-assert.equal(Model.helperUpdateAvailable("1.1.0", "1.1.0"), false)
-assert.equal(Model.helperUpdateAvailable("1.1.0", "1.2.0"), false)
-assert.equal(Model.helperUpdateAvailable("1.1.0", ""), false)
-assert.equal(Model.helperUpdateAvailable("1.1.1-dev", "1.1.0"), false,
-  "a development checkout has no matching release asset to offer")
-assert.equal(Model.helperUpdateAvailable("1.1.1-rc.1", "1.1.0"), false,
-  "prereleases must not offer an optional stable-helper download")
-
 assert.equal(Model.manifestMinHelperVersion('{"id":"oma.nearby","version":"1.1.0","minHelperVersion":"1.0.6"}', "oma.nearby"), "1.0.6")
 assert.equal(Model.manifestMinHelperVersion('{"id":"oma.nearby","version":"1.1.0"}', "oma.nearby"), "",
   "a manifest without the field declares no floor, and the service falls back to its own version")

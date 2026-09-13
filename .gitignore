@@ -6,9 +6,9 @@
 # Rust build output
 backend/target/
 
-# Locally built helper. The updater that fetches the release helper is source,
-# not a build product, so it is tracked despite living beside one.
+# Locally built helper. The launcher and repair command are source, not build
+# products, so they are tracked despite living beside one.
 bin/*
 !bin/.gitkeep
 !bin/nearby-helper-launcher
-!bin/nearby-update-helper
+!bin/nearby-repair-helper

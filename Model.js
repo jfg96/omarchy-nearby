@@ -226,25 +226,11 @@ function compareVersions(left, right) {
 }
 
 // A helper is good enough when it is at least the oldest one this plugin knows
-// how to drive. Requiring the exact shipped version instead broke the plugin on
-// every release: `omarchy plugin update` moves the source and cannot move the
-// binary, because bin/ is not tracked, so a plugin one version ahead of a
-// helper it could still talk to refused to run at all. An unreadable version on
-// either side is still a refusal.
+// how to drive. This keeps plugin-only releases compatible with the independently
+// versioned helper. An unreadable version on either side is still a refusal.
 function helperSatisfies(requiredVersion, helperVersion) {
   const order = compareVersions(helperVersion, requiredVersion)
   return order !== null && order >= 0
-}
-
-// Usable but behind: worth offering an update, not worth stopping for.
-function helperUpdateAvailable(pluginVersion, helperVersion) {
-  // Release assets exist only for stable versions. A compatible helper may be
-  // older than a development checkout, but offering an update in that state
-  // can only lead to the updater's "no published helper" failure.
-  const plugin = parseVersion(pluginVersion)
-  if (!plugin || plugin.prerelease.length !== 0) return false
-  const order = compareVersions(helperVersion, pluginVersion)
-  return order !== null && order < 0
 }
 
 function manifestVersion(text, pluginId) {
@@ -271,4 +257,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, helperVersionMatches, compareVersions, helperSatisfies, helperUpdateAvailable, manifestVersion, manifestMinHelperVersion }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion }
