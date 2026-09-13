@@ -2,13 +2,13 @@ use anyhow::{Context, Result, anyhow};
 use localsend_rs::LocalSendServer;
 use localsend_rs::client::{LocalSendClient, ProgressCallback, TlsTrustPolicy};
 use localsend_rs::core::build_file_metadata;
-use localsend_rs::crypto::{TlsCertificate, generate_tls_certificate};
+use localsend_rs::crypto::TlsCertificate;
 use localsend_rs::discovery::{Discovery, HttpDiscovery, MulticastDiscovery};
 use localsend_rs::error::LocalSendError;
 use localsend_rs::protocol::types::FileMetadataDetails;
 use localsend_rs::protocol::{DeviceInfo, FileId, FileMetadata, Protocol};
 use localsend_rs::server::{LocalSendServerBuilder, PendingRequest, ServerEvent};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::future::Future;
@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
 
+mod identity;
 mod settings;
 
 const PEER_TTL: Duration = Duration::from_secs(90);
@@ -199,13 +200,6 @@ fn pin_failure_outcome(pin_was_provided: bool) -> SendPayloadOutcome {
 struct Peer {
     device: DeviceInfo,
     last_seen: Instant,
-}
-
-#[derive(Serialize, Deserialize)]
-struct StoredIdentity {
-    cert_pem: String,
-    key_pem: String,
-    fingerprint: String,
 }
 
 fn emit(value: Value) {
@@ -820,35 +814,6 @@ async fn cleanup_stale_partial_files(directory: &Path, minimum_age: Duration) ->
     Ok(removed)
 }
 
-fn load_identity(home: &Path) -> Result<TlsCertificate> {
-    let state_dir = settings::state_dir(home);
-    std::fs::create_dir_all(&state_dir)?;
-    let path = state_dir.join("identity.json");
-    if let Ok(data) = std::fs::read(&path) {
-        if let Ok(stored) = serde_json::from_slice::<StoredIdentity>(&data) {
-            return Ok(TlsCertificate {
-                cert_pem: stored.cert_pem,
-                key_pem: stored.key_pem,
-                cert_der: Vec::new(),
-                fingerprint: stored.fingerprint,
-            });
-        }
-    }
-    let cert = generate_tls_certificate()?;
-    let stored = StoredIdentity {
-        cert_pem: cert.cert_pem.clone(),
-        key_pem: cert.key_pem.clone(),
-        fingerprint: cert.fingerprint.clone(),
-    };
-    std::fs::write(&path, serde_json::to_vec_pretty(&stored)?)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
-    }
-    Ok(cert)
-}
-
 fn resolve_device_alias() -> String {
     resolve_device_alias_from(std::env::var("HOSTNAME").ok(), || {
         std::fs::read_to_string("/proc/sys/kernel/hostname")
@@ -938,7 +903,7 @@ async fn main() -> Result<()> {
         Err(error) => eprintln!("could not clean stale Nearby partial files: {error}"),
     }
     let alias = resolve_device_alias();
-    let certificate = load_identity(&home).context("TLS identity unavailable")?;
+    let certificate = identity::load_or_create(&state_dir).context("TLS identity unavailable")?;
     let mut builder = LocalSendServer::builder()
         .alias(alias)
         .port(NEARBY_PORT)
@@ -1148,6 +1113,7 @@ async fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use localsend_rs::crypto::generate_tls_certificate;
 
     #[test]
     fn device_alias_prefers_environment_hostname() {

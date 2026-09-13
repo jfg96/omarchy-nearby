@@ -4,6 +4,9 @@
 
 - Bound helper commands, outgoing text and the live peer registry so oversized
   local input or LAN identity churn cannot grow memory without limit.
+- Validate the persisted TLS certificate and key, derive and repair its
+  fingerprint, reject unsafe identity files and replace updates atomically
+  without silently rotating valid key material.
 
 ## 1.1.4
 
