@@ -12,13 +12,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::future::Future;
-use std::io::Write;
+use std::io::{self, Write};
 use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
 
 mod settings;
@@ -30,9 +30,82 @@ const MAX_SUBNET_ADDRESSES: u32 = 1024;
 const STALE_PARTIAL_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 const NEARBY_PORT: u16 = 53317;
 const MAX_OUTGOING_PIN_BYTES: usize = 4096;
+const MAX_COMMAND_LINE_BYTES: usize = 2 * 1024 * 1024;
+const MAX_TEXT_BYTES: usize = 1024 * 1024;
+const MAX_PEERS: usize = 256;
+
+#[derive(Debug, PartialEq, Eq)]
+enum CommandLine {
+    Line(Vec<u8>),
+    TooLong,
+}
+
+struct BoundedLineReader<R> {
+    inner: R,
+    buffer: Vec<u8>,
+    oversized: bool,
+    max_bytes: usize,
+}
+
+impl<R: AsyncBufRead + Unpin> BoundedLineReader<R> {
+    fn new(inner: R, max_bytes: usize) -> Self {
+        Self {
+            inner,
+            buffer: Vec::new(),
+            oversized: false,
+            max_bytes,
+        }
+    }
+
+    async fn next_line(&mut self) -> io::Result<Option<CommandLine>> {
+        loop {
+            let available = self.inner.fill_buf().await?;
+            if available.is_empty() {
+                if self.buffer.is_empty() && !self.oversized {
+                    return Ok(None);
+                }
+                let result = if self.oversized {
+                    CommandLine::TooLong
+                } else {
+                    CommandLine::Line(std::mem::take(&mut self.buffer))
+                };
+                self.oversized = false;
+                return Ok(Some(result));
+            }
+
+            let newline = available.iter().position(|byte| *byte == b'\n');
+            let consumed = newline.map_or(available.len(), |index| index + 1);
+            let content = &available[..newline.unwrap_or(available.len())];
+            if !self.oversized {
+                let remaining = self.max_bytes.saturating_sub(self.buffer.len());
+                if content.len() <= remaining {
+                    self.buffer.extend_from_slice(content);
+                } else {
+                    self.oversized = true;
+                }
+            }
+            self.inner.consume(consumed);
+
+            if newline.is_some() {
+                let result = if self.oversized {
+                    CommandLine::TooLong
+                } else {
+                    CommandLine::Line(std::mem::take(&mut self.buffer))
+                };
+                self.buffer.clear();
+                self.oversized = false;
+                return Ok(Some(result));
+            }
+        }
+    }
+}
 
 fn valid_outgoing_pin(pin: Option<&str>) -> bool {
     pin.is_none_or(|value| !value.is_empty() && value.len() <= MAX_OUTGOING_PIN_BYTES)
+}
+
+fn outgoing_text_within_limit(text: &str) -> bool {
+    text.len() <= MAX_TEXT_BYTES
 }
 
 /// True when a failure was caused by the LocalSend port already being bound.
@@ -183,13 +256,31 @@ fn record_peer(registry: &Arc<Mutex<HashMap<String, Peer>>>, device: DeviceInfo)
     if device.fingerprint.is_empty() || device.alias.is_empty() {
         return;
     }
-    registry.lock().unwrap().insert(
-        device.fingerprint.clone(),
-        Peer {
-            device: device.clone(),
-            last_seen: Instant::now(),
-        },
-    );
+    {
+        let mut peers = registry.lock().unwrap();
+        peers.retain(|_, peer| peer.last_seen.elapsed() <= PEER_TTL);
+        if !peers.contains_key(&device.fingerprint)
+            && peers.len() >= MAX_PEERS
+            && let Some(oldest) = peers
+                .iter()
+                .min_by(|(fingerprint_a, peer_a), (fingerprint_b, peer_b)| {
+                    peer_a
+                        .last_seen
+                        .cmp(&peer_b.last_seen)
+                        .then_with(|| fingerprint_a.cmp(fingerprint_b))
+                })
+                .map(|(fingerprint, _)| fingerprint.clone())
+        {
+            peers.remove(&oldest);
+        }
+        peers.insert(
+            device.fingerprint.clone(),
+            Peer {
+                device: device.clone(),
+                last_seen: Instant::now(),
+            },
+        );
+    }
     eprintln!("peer registered: {}", valid_remote_text(&device.alias, 128));
     emit(json!({"event":"device","device":event_device(&device)}));
 }
@@ -961,7 +1052,8 @@ async fn main() -> Result<()> {
             }
         }
     });
-    let mut lines = BufReader::new(tokio::io::stdin()).lines();
+    let mut lines =
+        BoundedLineReader::new(BufReader::new(tokio::io::stdin()), MAX_COMMAND_LINE_BYTES);
     let mut discovery: Option<DiscoveryControl> = None;
     let mut outgoing: Option<OutgoingControl> = None;
     let (out_done_tx, mut out_done_rx) = mpsc::unbounded_channel::<OutgoingDone>();
@@ -985,7 +1077,8 @@ async fn main() -> Result<()> {
             },
             line = lines.next_line() => {
                 let Some(line)=line? else {break};
-                let command: Command = match serde_json::from_str(&line) { Ok(v)=>v, Err(_)=>{emit(json!({"event":"error","message":"Invalid backend command"}));continue;} };
+                let CommandLine::Line(line)=line else {emit(json!({"event":"error","message":"Backend command exceeds 2 MiB limit"}));continue;};
+                let command: Command = match serde_json::from_slice(&line) { Ok(v)=>v, Err(_)=>{emit(json!({"event":"error","message":"Invalid backend command"}));continue;} };
                 match command {
                     Command::DiscoveryStart { force_full } => {
                         if force_full && let Some(control)=discovery.take(){let _=control.stop.send(());}
@@ -1010,6 +1103,7 @@ async fn main() -> Result<()> {
                     }
                     Command::SendText { transfer_id,device,text,pin } => {
                         if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Another transfer is already active"}));continue;}
+                        if !outgoing_text_within_limit(&text){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Text is too large (maximum 1 MiB)"}));continue;}
                         if !valid_outgoing_pin(pin.as_deref()){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Invalid receiver PIN"}));continue;}
                         let (tx,rx)=oneshot::channel(); outgoing=Some(OutgoingControl{id:transfer_id.clone(),cancel:tx});
                         let (identity,certificate,done)=(identity.clone(),certificate.clone(),out_done_tx.clone()); tokio::spawn(async move {
@@ -1138,6 +1232,44 @@ mod tests {
     }
 
     #[test]
+    fn outgoing_text_limit_counts_utf8_bytes() {
+        assert!(outgoing_text_within_limit(&"x".repeat(MAX_TEXT_BYTES)));
+        assert!(!outgoing_text_within_limit(&"x".repeat(MAX_TEXT_BYTES + 1)));
+        assert!(outgoing_text_within_limit(&"ñ".repeat(MAX_TEXT_BYTES / 2)));
+        assert!(!outgoing_text_within_limit(
+            &"ñ".repeat(MAX_TEXT_BYTES / 2 + 1)
+        ));
+    }
+
+    #[tokio::test]
+    async fn bounded_command_reader_accepts_the_limit_and_recovers_after_rejection() {
+        let mut input = vec![b' '; MAX_COMMAND_LINE_BYTES];
+        input.push(b'\n');
+        input.extend(std::iter::repeat_n(b'x', MAX_COMMAND_LINE_BYTES + 1));
+        input.push(b'\n');
+        input.extend_from_slice(b"{\"command\":\"shutdown\"}\n");
+        let mut reader =
+            BoundedLineReader::new(BufReader::new(input.as_slice()), MAX_COMMAND_LINE_BYTES);
+
+        assert!(matches!(
+            reader.next_line().await.unwrap(),
+            Some(CommandLine::Line(line)) if line.len() == MAX_COMMAND_LINE_BYTES
+        ));
+        assert_eq!(
+            reader.next_line().await.unwrap(),
+            Some(CommandLine::TooLong)
+        );
+        let Some(CommandLine::Line(line)) = reader.next_line().await.unwrap() else {
+            panic!("reader did not recover after an oversized command");
+        };
+        assert!(matches!(
+            serde_json::from_slice::<Command>(&line).unwrap(),
+            Command::Shutdown
+        ));
+        assert_eq!(reader.next_line().await.unwrap(), None);
+    }
+
+    #[test]
     fn peer_registry_keeps_valid_and_expires_stale() {
         let d = DeviceInfo::new("Phone".into(), 53317, Protocol::Http);
         let key = d.fingerprint.clone();
@@ -1152,6 +1284,38 @@ mod tests {
         map.lock().unwrap().get_mut(&key).unwrap().last_seen =
             Instant::now() - PEER_TTL - Duration::from_secs(1);
         assert!(expire_and_snapshot(&map).is_empty());
+    }
+
+    #[test]
+    fn peer_registry_is_bounded_and_evicts_deterministically() {
+        let same_last_seen = Instant::now() - Duration::from_secs(1);
+        let registry = Arc::new(Mutex::new(HashMap::new()));
+        for index in 0..MAX_PEERS {
+            let mut device = DeviceInfo::new(format!("Peer {index}"), 53317, Protocol::Http);
+            device.fingerprint = format!("peer-{index:03}");
+            registry.lock().unwrap().insert(
+                device.fingerprint.clone(),
+                Peer {
+                    device,
+                    last_seen: same_last_seen,
+                },
+            );
+        }
+
+        let mut refreshed = DeviceInfo::new("Refreshed".into(), 53317, Protocol::Http);
+        refreshed.fingerprint = "peer-001".into();
+        record_peer(&registry, refreshed);
+        assert_eq!(registry.lock().unwrap().len(), MAX_PEERS);
+        assert!(registry.lock().unwrap().contains_key("peer-000"));
+
+        let mut newcomer = DeviceInfo::new("New peer".into(), 53317, Protocol::Http);
+        newcomer.fingerprint = "peer-new".into();
+        record_peer(&registry, newcomer);
+        let peers = registry.lock().unwrap();
+        assert_eq!(peers.len(), MAX_PEERS);
+        assert!(!peers.contains_key("peer-000"));
+        assert!(peers.contains_key("peer-001"));
+        assert!(peers.contains_key("peer-new"));
     }
     #[test]
     fn xdg_downloads_parsing_falls_back() {

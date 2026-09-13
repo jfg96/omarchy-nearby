@@ -110,6 +110,7 @@ Item {
     && Model.helperUpdateAvailable(pluginVersion, helperVersion)
   readonly property bool helperUpdateOffered: pluginVersion !== ""
     && (backendVersionMismatch || helperMissing || helperOutdated)
+  readonly property int maxOutgoingTextBytes: 1024 * 1024
   // One line, and the only place the versions are stated. The hero shows the
   // short status and the panel shows this; saying it in both is what made the
   // popup repeat itself three times over four lines.
@@ -228,6 +229,21 @@ Item {
   function send(command) {
     if (!backend.running) return
     backend.write(JSON.stringify(command) + "\n")
+  }
+  function utf8ByteLength(value) {
+    var text=String(value || "")
+    var bytes=0
+    for (var index=0; index<text.length; index++) {
+      var code=text.charCodeAt(index)
+      if (code<=0x7f) bytes++
+      else if (code<=0x7ff) bytes+=2
+      else if (code>=0xd800 && code<=0xdbff && index+1<text.length
+               && text.charCodeAt(index+1)>=0xdc00 && text.charCodeAt(index+1)<=0xdfff) {
+        bytes+=4
+        index++
+      } else bytes+=3
+    }
+    return bytes
   }
   function bindBackendRunning() {
     // Assigning a plain `true` here removes the declarative binding from
@@ -380,7 +396,15 @@ Item {
     pinError=""
     send(command)
   }
-  function beginOutgoing(pending) { if(pendingOutgoing||!backend.running)return; pendingOutgoing=pending; dispatchPendingOutgoing(null) }
+  function beginOutgoing(pending) {
+    if(pendingOutgoing||!backend.running)return
+    if(pending && pending.kind==="text" && utf8ByteLength(pending.text)>maxOutgoingTextBytes) {
+      failWith("Text is too large (maximum 1 MiB)")
+      return
+    }
+    pendingOutgoing=pending
+    dispatchPendingOutgoing(null)
+  }
   function retryWithPin(pin) {
     if (outgoingTransferId !== "") return
     var entered=String(pin || "")

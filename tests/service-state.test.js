@@ -147,7 +147,7 @@ function helperDerived(state) {
 
 const functionNames = [
   "viewOpened", "viewClosed", "notificationNeeded",
-  "send", "bindBackendRunning", "persistReceiverEnabled", "toggleReceiver", "finishReceiverShutdown",
+  "send", "utf8ByteLength", "bindBackendRunning", "persistReceiverEnabled", "toggleReceiver", "finishReceiverShutdown",
   "startDiscovery", "forceFullDiscovery", "stopDiscovery", "chooseDevice", "clearTarget",
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
@@ -224,6 +224,7 @@ function engine(initial = {}) {
     pendingIncomingPinEnabled: null,
     incomingPinError: "",
     transferSequence: 0,
+    maxOutgoingTextBytes: 1024 * 1024,
     ...initial,
   }
   Object.defineProperty(context, "incoming", {get() { return Model.currentIncoming(context.incomingQueue) }})
@@ -262,6 +263,23 @@ function notificationTitles(state) {
 
 function notificationCommands(state) {
   return state.notified.map(command => Array.from(command))
+}
+
+{
+  const exact = engine()
+  exact.beginOutgoing({kind: "text", device: exact.selectedDevice, text: "x".repeat(1024 * 1024)})
+  assert.equal(exact.sent.length, 1, "text at the byte limit must be sent")
+
+  const oversized = engine()
+  oversized.beginOutgoing({kind: "text", device: oversized.selectedDevice, text: "x".repeat(1024 * 1024 + 1)})
+  assert.equal(oversized.sent.length, 0, "text above the byte limit must not reach the helper")
+  assert.equal(oversized.pendingOutgoing, null)
+  assert.match(oversized.errorText, /maximum 1 MiB/)
+
+  assert.equal(exact.utf8ByteLength("ñ".repeat(512 * 1024)), 1024 * 1024,
+    "the UI limit must count UTF-8 bytes rather than JavaScript code units")
+  assert.equal(exact.utf8ByteLength("😀"), 4,
+    "a surrogate pair must count as one four-byte UTF-8 scalar")
 }
 
 {

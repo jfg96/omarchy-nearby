@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.5-dev
+
+- Bound helper commands, outgoing text and the live peer registry so oversized
+  local input or LAN identity churn cannot grow memory without limit.
+
 ## 1.1.4
 
 - Dim the Nearby bar icon while the receiver is disabled, while preserving the
