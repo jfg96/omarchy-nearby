@@ -43,6 +43,12 @@ Install and enable through Omarchy's plugin manager:
 omarchy plugin add https://github.com/jfg96/omarchy-nearby --enable
 ```
 
+To uninstall Nearby:
+
+```sh
+omarchy plugin remove oma.nearby
+```
+
 Add `--yes` for unattended installation. The widget appears in the right section
 of the bar by default.
 
