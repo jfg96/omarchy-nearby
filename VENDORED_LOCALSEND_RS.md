@@ -1,5 +1,8 @@
 # Vendored `localsend-rs` maintenance record
 
+[Documentation index](README.md#documentation) ·
+[Development and validation](CONTRIBUTING.md)
+
 ## Purpose
 
 Nearby vendors a locally modified copy of `localsend-rs` at

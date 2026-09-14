@@ -9,15 +9,17 @@ minimal and do not mix unrelated refactors into bug fixes.
 - Check `git status --short` and the existing diff before editing; preserve
   unrelated work. Trace the affected behavior and its tests before choosing
   which layer to change.
-- Read `README.md` for installation, supported runtime, lifecycle, and helper
-  compatibility. Use `ROBUSTNESS.md` for the relevant manual regression cases.
+- Read `README.md` for installation and supported runtime,
+  `docs/USAGE.md` for lifecycle, and `docs/ARCHITECTURE.md` for helper
+  compatibility. Use `CONTRIBUTING.md` for development setup and
+  `ROBUSTNESS.md` for manual regression cases and result records.
 - Before editing `backend/vendor/localsend-rs/`, read
   `VENDORED_LOCALSEND_RS.md`. The dependency is intentionally frozen; preserve
   local patches and document intentional divergences there in the same change.
   Keep Nearby-specific orchestration in the helper, not in the vendor.
 - Consult `.github/workflows/ci.yml` for automated checks and
-  `.github/workflows/release.yml` when working on releases. Keep the validation
-  commands below aligned with those workflows.
+  `docs/RELEASING.md` and the release workflows when working on releases.
+  Keep the validation commands below and in `CONTRIBUTING.md` aligned with CI.
 
 ## Architecture and compatibility
 
