@@ -76,7 +76,7 @@ a Nearby popup is open.
 See the [user guide](docs/USAGE.md) for PIN settings, storage locations and shell
 commands, or [troubleshooting](docs/TROUBLESHOOTING.md) if a device does not appear.
 
-## Update or remove
+## Update
 
 ```sh
 omarchy plugin update oma.nearby
@@ -85,12 +85,6 @@ omarchy plugin update oma.nearby
 Add `--yes` for unattended updates. The next receiver start resolves the helper
 selected by the updated checkout. Deliberate local builds take priority until
 their [developer override is disabled](CONTRIBUTING.md#return-to-the-published-helper).
-
-To remove the plugin:
-
-```sh
-omarchy plugin remove oma.nearby
-```
 
 ## Documentation
 
