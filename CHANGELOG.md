@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.1-dev
+## 1.2.1
 
 - Reject symlinked, non-regular or foreign-owned receiver settings before
   reading them, including FIFOs that could block helper startup.

@@ -46,6 +46,16 @@ tests and vendored `localsend-rs` tests all passed. Local Markdown link paths
 and `git diff --check` also passed. This records automated checks only; the
 manual scenarios below remain **Not run** for this change.
 
+### 1.2.1 release preparation, 2026-09-23
+
+The `helper-v1.2.1` GitHub Actions workflow passed on source commit
+`04ab359a8ff850578beddca482d638bbac516e62`. Its published Linux x86_64
+artifact was independently checked for byte size, SHA256, attestation signer,
+source digest, tag and reported version before pinning it. The isolated launcher
+prefetch check also passed. Android and iOS peer interoperability, live Omarchy
+settings recovery and the manual scenarios below remain **Not run** for 1.2.1;
+no peer app versions or manual outcomes are recorded.
+
 ## Manual interoperability matrix
 
 Run applicable transfer and PIN scenarios with both Android and iOS LocalSend
