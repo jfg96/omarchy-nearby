@@ -1015,6 +1015,8 @@ for (const busy of ["sending", "receiving", "pin"]) {
   assert.match(state.errorText, /security settings are invalid/i)
   assert.match(state.errorText, /settings\.json/)
   assert.match(state.errorText, /XDG state directory/i)
+  assert.match(state.errorText, /preserving your incoming PIN/i)
+  assert.doesNotMatch(state.errorText, /remove|delete/i)
   assert.deepEqual(restarts, [],
     "a persistent security configuration error must fail closed without a retry loop")
 }
