@@ -21,7 +21,14 @@ authenticated pairing mechanism. Use Nearby on networks you trust.
 
 The incoming PIN is stored in a private settings file; it is not shown again in
 the UI. This is local credential storage, not a claim that the PIN is encrypted
-at rest. Do not share the settings file.
+at rest. Do not share the settings file. Before starting the receiver, the helper
+opens `settings.json` without following its final path component and checks that
+the opened object is a regular file owned by its effective user. It rejects
+FIFOs and reads at most 16 KiB. Invalid or unsafe settings stop startup without
+silently disabling the PIN or deleting the file.
+
+These checks do not prohibit symlinks in ancestor XDG directories or protect
+against a malicious process running as the same user.
 
 Nearby validates the saved TLS certificate and private key and preserves a valid
 identity across restarts. The helper also reuses that identity when an HTTPS peer

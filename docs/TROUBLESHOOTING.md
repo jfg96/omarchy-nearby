@@ -113,6 +113,12 @@ accessible and writable. Invalid or unsafe PIN settings or TLS identity files
 can stop startup. Preserve those files for diagnosis rather than deleting them
 as a generic reset.
 
+For `settings.json`, startup rejects a final symlink, a FIFO or other non-regular
+file, a file owned by another user, JSON larger than 16 KiB, and malformed or
+unsupported settings. Repair the file while preserving the intended incoming
+PIN; do not share its contents in a report. **Retry helper** repairs only the
+published executable and cannot repair invalid receiver settings.
+
 ## Report a reproducible problem
 
 Include the Nearby plugin and helper versions, Omarchy version, peer app version,

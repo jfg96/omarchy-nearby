@@ -28,11 +28,23 @@ an upload is still active. Incoming-PIN coverage includes secure startup,
 atomic persistence and rollback, exact `401`/`429` behavior, bounded per-IP
 failure state, text/file authorization before events, live PIN changes and an
 already authorized upload continuing after a change.
+Settings tests also cover rejected symlinks, non-regular files and mismatched
+ownership, a FIFO without a writer under a subprocess deadline, the 16 KiB
+boundary and a bounded read when the input exceeds the inspected size. A helper
+process test checks fail-closed startup before `ready` with unsafe settings.
 
 The distribution suites additionally cover immutable helper metadata, exact
 size/SHA256 enforcement, XDG data storage, offline reuse, corrupt and symlinked
 cache repair, concurrent launches, failed/oversized downloads, and the rule
 that published helpers never write into the watched plugin checkout.
+
+### Local automated result, 2026-09-22
+
+On `fix/secure-settings-load`, the three Node suites, two Bash suites, Rust
+formatting check, `cargo check --locked`, Clippy with warnings denied, helper
+tests and vendored `localsend-rs` tests all passed. Local Markdown link paths
+and `git diff --check` also passed. This records automated checks only; the
+manual scenarios below remain **Not run** for this change.
 
 ## Manual interoperability matrix
 
@@ -109,6 +121,11 @@ complete until those versions and results are written down.
     Confirm the selected published helper runs after restarting the receiver.
 20. Exercise file selection and received-text copying. Check incoming notifications
     with the panel closed, with the request visible, and with Do Not Disturb on.
+21. In an isolated test installation, start with unsafe `settings.json` and
+    confirm a visible error without retries or a listener. Restore a regular,
+    valid file while preserving its incoming PIN; enable Nearby again and
+    confirm that the PIN still applies. Never replace personal settings with
+    a FIFO or delete them as a generic recovery step.
 
 ## Result record
 
@@ -134,6 +151,7 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 16, 18–19: helper distribution | Omarchy | Not run | |
 | 17: multiple monitors | Omarchy | Not run | |
 | 20: desktop integration | Omarchy + peer | Not run | |
+| 21: unsafe settings and recovery | Isolated Omarchy installation | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.

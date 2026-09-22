@@ -106,7 +106,9 @@ is distinct from the stricter [stable release checks](RELEASING.md).
 ## Persistent state
 
 [settings.rs](../backend/src/settings.rs) loads receiver security settings before
-the listener starts and persists changes atomically.
+the listener starts, validating the opened file and bounding reads to 16 KiB;
+it persists changes atomically. Invalid settings stop startup before the
+listener is built without changing the helper protocol.
 [identity.rs](../backend/src/identity.rs) validates and preserves the TLS identity,
 which is reused for outgoing HTTPS client authentication.
 

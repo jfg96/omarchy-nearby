@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1-dev
+
+- Reject symlinked, non-regular or foreign-owned receiver settings before
+  reading them, including FIFOs that could block helper startup.
+- Limit receiver settings to 16 KiB on the opened file while preserving valid
+  version-1 settings and incoming PIN behavior.
+- Guide users to repair invalid settings while preserving their incoming PIN.
+
 ## 1.2.0
 
 - Bound helper commands, outgoing text and the live peer registry so oversized
