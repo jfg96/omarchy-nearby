@@ -124,4 +124,3 @@ version. Helper behavior changes also advance the helper package and compatibili
 floor. Repository-only documentation or CI changes that cannot alter the installed
 plugin do not require a version bump. Follow the
 [release procedure](docs/RELEASING.md) before preparing tags or helper metadata.
-

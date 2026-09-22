@@ -100,4 +100,3 @@ Resolve failed checks before creating a release tag. Do not move an existing tag
 or rewrite published `main` to hide a release problem. Diagnose failed workflows
 against their exact source and artifact, and prepare a corrective release when
 published contents need to change.
-
