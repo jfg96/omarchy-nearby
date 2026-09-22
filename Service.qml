@@ -462,7 +462,7 @@ Item {
       // bounded retry schedule so a transient conflict can recover.
       if (backendStartupFailureCode === "receiver_security_settings_invalid") {
         reportFailure("Security settings invalid",
-          "Nearby security settings are invalid. Repair or remove Nearby's settings.json in your XDG state directory.")
+          "Nearby security settings are invalid. Repair settings.json in your XDG state directory while preserving your incoming PIN; then enable Nearby again.")
       } else if (backendRestart.attempts < 4) {
         reportFailure("Retrying…", "Nearby receiver could not start. Retrying…")
       } else if (backendStartupFailureCode === "receiver_port_in_use") {
