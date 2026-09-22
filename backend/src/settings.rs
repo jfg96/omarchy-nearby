@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 const SETTINGS_VERSION: u32 = 1;
 const MAX_INCOMING_PIN_LENGTH: usize = 64;
+const MAX_SETTINGS_BYTES: usize = 16 * 1024;
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -85,6 +86,18 @@ fn validate_opened_file(file: &File, expected_uid: u32) -> Result<Metadata> {
     Ok(metadata)
 }
 
+fn read_bounded(reader: impl Read) -> Result<Vec<u8>> {
+    let mut data = Vec::new();
+    reader
+        .take((MAX_SETTINGS_BYTES + 1) as u64)
+        .read_to_end(&mut data)
+        .context("could not read security settings")?;
+    if data.len() > MAX_SETTINGS_BYTES {
+        return Err(anyhow!("security settings exceed 16 KiB"));
+    }
+    Ok(data)
+}
+
 pub fn load(path: &Path) -> Result<Settings> {
     let mut options = OpenOptions::new();
     options.read(true);
@@ -102,10 +115,11 @@ pub fn load(path: &Path) -> Result<Settings> {
     let expected_uid = unsafe { libc::geteuid() };
     #[cfg(not(unix))]
     let expected_uid = 0;
-    validate_opened_file(&file, expected_uid)?;
-    let mut data = Vec::new();
-    file.read_to_end(&mut data)
-        .context("could not read security settings")?;
+    let metadata = validate_opened_file(&file, expected_uid)?;
+    if metadata.len() > MAX_SETTINGS_BYTES as u64 {
+        return Err(anyhow!("security settings exceed 16 KiB"));
+    }
+    let data = read_bounded(&mut file)?;
     let settings: Settings =
         serde_json::from_slice(&data).context("could not parse security settings")?;
     validate(&settings)?;
@@ -244,7 +258,53 @@ mod tests {
         )
         .unwrap();
         assert_eq!(load(&path).unwrap().incoming_pin.as_deref(), Some("Safe-1"));
+        for data in [
+            br#"{"version":1}"#.as_slice(),
+            br#"{"version":1,"incomingPin":null}"#,
+        ] {
+            fs::write(&path, data).unwrap();
+            assert_eq!(load(&path).unwrap(), Settings::default());
+        }
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn settings_size_boundary_and_compatible_json_are_preserved() {
+        let directory = test_directory("size");
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("settings.json");
+        let mut data = br#"{"version":1,"incomingPin":null,"futureField":true}"#.to_vec();
+        data.resize(MAX_SETTINGS_BYTES, b' ');
+        fs::write(&path, &data).unwrap();
+        assert_eq!(load(&path).unwrap(), Settings::default());
+
+        data.push(b' ');
+        fs::write(&path, &data).unwrap();
+        assert!(load(&path).is_err(), "valid JSON beyond the cap must fail");
+        assert_eq!(fs::read(&path).unwrap(), data);
+
+        let settings = updated(&Settings::default(), Some("x".repeat(64))).unwrap();
+        save(&path, &settings).unwrap();
+        save(&path, &settings).unwrap();
+        assert!(fs::metadata(&path).unwrap().len() < MAX_SETTINGS_BYTES as u64);
+        assert_eq!(load(&path).unwrap(), settings);
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn bounded_reader_stops_after_cap_plus_one_bytes() {
+        struct CountingReader(usize);
+        impl Read for CountingReader {
+            fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+                buffer.fill(b' ');
+                self.0 += buffer.len();
+                Ok(buffer.len())
+            }
+        }
+        let mut reader = CountingReader(0);
+        assert!(read_bounded(&mut reader).is_err());
+        assert_eq!(reader.0, MAX_SETTINGS_BYTES + 1);
     }
 
     #[cfg(unix)]
