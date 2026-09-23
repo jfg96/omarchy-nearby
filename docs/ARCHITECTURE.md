@@ -105,11 +105,13 @@ is distinct from the stricter [stable release checks](RELEASING.md).
 
 ## Persistent state
 
-[settings.rs](../backend/src/settings.rs) loads receiver security settings before
-the listener starts, validating the opened file and bounding reads to 16 KiB;
-it persists changes atomically. Invalid settings stop startup before the
-listener is built without changing the helper protocol.
-[identity.rs](../backend/src/identity.rs) validates and preserves the TLS identity,
-which is reused for outgoing HTTPS client authentication.
+[secure_state.rs](../backend/src/secure_state.rs) opens the private state
+directory component by component without following symlinks and keeps its
+descriptor for file reads and atomic, synced publication. [settings.rs](../backend/src/settings.rs)
+loads receiver security settings before the listener starts and bounds reads to
+16 KiB. Invalid settings stop startup before the listener is built without
+changing the helper protocol. [identity.rs](../backend/src/identity.rs) uses the
+same state transaction to validate and preserve the TLS identity, which is
+reused for outgoing HTTPS client authentication.
 
 See [storage locations](USAGE.md#storage) and [security](SECURITY.md).

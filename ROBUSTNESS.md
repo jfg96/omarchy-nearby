@@ -32,6 +32,11 @@ Settings tests also cover rejected symlinks, non-regular files and mismatched
 ownership, a FIFO without a writer under a subprocess deadline, the 16 KiB
 boundary and a bounded read when the input exceeds the inspected size. A helper
 process test checks fail-closed startup before `ready` with unsafe settings.
+The 1.2.2 development tests also cover symlinked state ancestors, private
+directory ownership and modes, descriptor binding after path substitution,
+random exclusive temporary files, collision retries, failed publication
+cleanup, concurrent settings saves, and identity FIFO rejection under a
+subprocess deadline.
 
 The distribution suites additionally cover immutable helper metadata, exact
 size/SHA256 enforcement, XDG data storage, offline reuse, corrupt and symlinked
@@ -55,6 +60,14 @@ source digest, tag and reported version before pinning it. The isolated launcher
 prefetch check also passed. Android and iOS peer interoperability, live Omarchy
 settings recovery and the manual scenarios below remain **Not run** for 1.2.1;
 no peer app versions or manual outcomes are recorded.
+
+### 1.2.2 development validation, 2026-09-23
+
+On local branch `fix/filesystem-hardening`, all three Node suites, both Bash
+suites, Rust formatting, `cargo check --locked`, Clippy with warnings denied,
+helper tests, vendored `localsend-rs` tests and `git diff --check` passed.
+This is automated validation only. The manual scenarios below remain **Not run**
+for this change.
 
 ## Manual interoperability matrix
 

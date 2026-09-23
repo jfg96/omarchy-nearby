@@ -21,14 +21,34 @@ authenticated pairing mechanism. Use Nearby on networks you trust.
 
 The incoming PIN is stored in a private settings file; it is not shown again in
 the UI. This is local credential storage, not a claim that the PIN is encrypted
-at rest. Do not share the settings file. Before starting the receiver, the helper
-opens `settings.json` without following its final path component and checks that
-the opened object is a regular file owned by its effective user. It rejects
-FIFOs and reads at most 16 KiB. Invalid or unsafe settings stop startup without
-silently disabling the PIN or deleting the file.
+at rest. Do not share the settings file. The helper walks the absolute state
+path from the filesystem root using directory descriptors and refuses symlinks
+at every component. Root-owned system ancestors and ancestors owned by the
+effective user are accepted; the final `omarchy-nearby` directory must belong
+to the effective user and is set to mode `0700`. A relative `XDG_STATE_HOME`
+therefore fails closed.
 
-These checks do not prohibit symlinks in ancestor XDG directories or protect
-against a malicious process running as the same user.
+Settings and TLS identity files are opened relative to that trusted directory
+without following symlinks. The opened file must be regular and owned by the
+effective user. Nonblocking opens reject FIFOs without waiting for a writer.
+Reads are capped at 16 KiB for settings and 128 KiB for identity. Updates use
+random, exclusive mode-`0600` temporary files, sync their contents, rename
+relative to the same directory descriptor, then sync the directory. Invalid or
+unsafe settings stop startup without silently disabling the PIN or deleting the
+file. A missing final settings file uses defaults only after the directory has
+been validated.
+
+These controls do not protect against a malicious process already running as
+the same user. A storage failure during the final directory sync can also be
+reported after an atomic rename has occurred; in that case durability is not
+guaranteed.
+
+Incoming downloads use a configured download directory and vendored LocalSend
+file handling. Remote file names are restricted to one component, partial
+uploads use exclusive creation, and final names use collision-safe hard links.
+The receiver and launcher still use pathnames for their user-selected download
+and XDG data directories. Local processes able to replace those directories
+while Nearby runs are outside the persistent security-state guarantee above.
 
 Nearby validates the saved TLS certificate and private key and preserves a valid
 identity across restarts. The helper also reuses that identity when an HTTPS peer

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.2-dev
+
+- Walk receiver security-state directories without following symlinks, check
+  ownership on opened objects, and reject relative state roots.
+- Persist settings and TLS identity through random exclusive temporary files
+  and descriptor-relative atomic publication with file and directory sync.
+- Reject unsafe identity files before reading or repairing them, including
+  FIFOs and files owned by another user, while retaining valid key material.
+
 ## 1.2.1
 
 - Reject symlinked, non-regular or foreign-owned receiver settings before
