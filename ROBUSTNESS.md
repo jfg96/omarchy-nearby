@@ -33,10 +33,11 @@ ownership, a FIFO without a writer under a subprocess deadline, the 16 KiB
 boundary and a bounded read when the input exceeds the inspected size. A helper
 process test checks fail-closed startup before `ready` with unsafe settings.
 The 1.2.2 development tests also cover symlinked state ancestors, private
-directory ownership and modes, descriptor binding after path substitution,
-random exclusive temporary files, collision retries, failed publication
-cleanup, concurrent settings saves, and identity FIFO rejection under a
-subprocess deadline.
+directory ownership and modes, rejected writable non-sticky ancestors,
+descriptor binding after path substitution, exact `0600` publication under a
+restrictive umask, random exclusive temporary files, collision retries,
+failed publication cleanup, concurrent settings saves, and identity FIFO
+rejection under a subprocess deadline.
 
 The distribution suites additionally cover immutable helper metadata, exact
 size/SHA256 enforcement, XDG data storage, offline reuse, corrupt and symlinked

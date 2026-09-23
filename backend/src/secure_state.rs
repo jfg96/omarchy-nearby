@@ -87,6 +87,12 @@ fn valid_directory_owner(metadata: &Metadata, expected_uid: u32, private: bool) 
     if metadata.uid() != expected_uid && (private || metadata.uid() != 0) {
         return Err(anyhow!("Nearby state directory has an unexpected owner"));
     }
+    // In a non-sticky writable ancestor, another user can rename an entry
+    // after it is checked. Sticky directories such as /tmp protect entries
+    // owned by this user or root; the next opened component is owner-checked.
+    if !private && metadata.mode() & 0o022 != 0 && metadata.mode() & 0o1000 == 0 {
+        return Err(anyhow!("Nearby state ancestor is writable by another user"));
+    }
     Ok(())
 }
 
@@ -136,6 +142,16 @@ impl StateDir {
     pub fn open_or_create(path: &Path) -> Result<Self> {
         if !path.is_absolute() {
             return Err(anyhow!("Nearby state directory must be absolute"));
+        }
+        // Path::components normalizes interior `.` segments, so inspect the
+        // original bytes before walking any component.
+        if path
+            .as_os_str()
+            .as_bytes()
+            .split(|byte| *byte == b'/')
+            .any(|part| part == b"." || part == b"..")
+        {
+            return Err(anyhow!("Nearby state directory contains dot components"));
         }
         let components: Vec<_> = path.components().collect();
         if components.len() < 2 {
@@ -291,6 +307,10 @@ impl StateDir {
             .ok_or_else(|| anyhow!("could not find an unused Nearby state staging name"))?;
         let mut file = file.expect("a staging name has an opened file");
         let result = (|| -> Result<()> {
+            // openat's creation mode is still reduced by umask. Set the exact
+            // final mode on the opened object before writing any state bytes.
+            file.set_permissions(Permissions::from_mode(MODE_PRIVATE_FILE))
+                .context("could not protect temporary Nearby state file")?;
             file.write_all(bytes)
                 .context("could not write Nearby state file")?;
             file.sync_all()
@@ -317,6 +337,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::os::unix::fs::{FileTypeExt, symlink};
+    use std::process::{Command, Stdio};
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -405,6 +426,63 @@ mod tests {
         assert_eq!(fs::read(&regular).unwrap(), b"keep");
         assert!(StateDir::open_or_create(Path::new("relative/state")).is_err());
         assert!(StateDir::open_or_create(&base.join("../other")).is_err());
+        assert!(StateDir::open_or_create(&base.join("./other")).is_err());
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn writable_non_sticky_ancestor_is_rejected() {
+        let base = directory("writable-ancestor");
+        fs::create_dir(&base).unwrap();
+        fs::set_permissions(&base, Permissions::from_mode(0o777)).unwrap();
+        let private = base.join("omarchy-nearby");
+        assert!(StateDir::open_or_create(&private).is_err());
+        assert!(!private.exists());
+        fs::set_permissions(&base, Permissions::from_mode(0o1777)).unwrap();
+        assert!(StateDir::open_or_create(&private).is_ok());
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn restrictive_umask_child() {
+        let Some(path) = std::env::var_os("NEARBY_TEST_RESTRICTIVE_UMASK") else {
+            return;
+        };
+        struct RestoreUmask(libc::mode_t);
+        impl Drop for RestoreUmask {
+            fn drop(&mut self) {
+                unsafe { libc::umask(self.0) };
+            }
+        }
+        let original = unsafe { libc::umask(0o777) };
+        let _restore = RestoreUmask(original);
+        let state = StateDir::open_or_create(Path::new(&path)).unwrap();
+        state.replace("settings.json", b"private").unwrap();
+        let (_, metadata) = state.open_regular("settings.json").unwrap().unwrap();
+        assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
+    }
+
+    #[test]
+    fn restrictive_umask_still_publishes_mode_0600() {
+        let base = directory("umask");
+        let private = base.join("omarchy-nearby");
+        StateDir::open_or_create(&private).unwrap();
+        let status = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "secure_state::tests::restrictive_umask_child"])
+            .env("NEARBY_TEST_RESTRICTIVE_UMASK", &private)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .unwrap();
+        assert!(status.success());
+        assert_eq!(
+            fs::metadata(private.join("settings.json"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
         fs::remove_dir_all(base).unwrap();
     }
 

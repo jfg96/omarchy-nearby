@@ -24,9 +24,10 @@ the UI. This is local credential storage, not a claim that the PIN is encrypted
 at rest. Do not share the settings file. The helper walks the absolute state
 path from the filesystem root using directory descriptors and refuses symlinks
 at every component. Root-owned system ancestors and ancestors owned by the
-effective user are accepted; the final `omarchy-nearby` directory must belong
-to the effective user and is set to mode `0700`. A relative `XDG_STATE_HOME`
-therefore fails closed.
+effective user are accepted when others cannot rename their entries; sticky
+directories such as `/tmp` are allowed. The final `omarchy-nearby` directory
+must belong to the effective user and is set to mode `0700`. A relative
+`XDG_STATE_HOME` therefore fails closed.
 
 Settings and TLS identity files are opened relative to that trusted directory
 without following symlinks. The opened file must be regular and owned by the
