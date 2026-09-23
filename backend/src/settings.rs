@@ -1,13 +1,17 @@
+use crate::secure_state::StateDir;
 use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
-use std::fs::{self, File, Metadata, OpenOptions};
-use std::io::{ErrorKind, Read, Write};
+#[cfg(test)]
+use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
+#[cfg(test)]
 use std::sync::atomic::{AtomicU64, Ordering};
 
 const SETTINGS_VERSION: u32 = 1;
 const MAX_INCOMING_PIN_LENGTH: usize = 64;
 const MAX_SETTINGS_BYTES: usize = 16 * 1024;
+#[cfg(test)]
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,36 +60,6 @@ pub fn state_dir(home: &Path) -> PathBuf {
         .join("omarchy-nearby")
 }
 
-pub fn ensure_private_state_dir(path: &Path) -> Result<()> {
-    fs::create_dir_all(path).context("could not create Nearby state directory")?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-            .context("could not protect Nearby state directory")?;
-    }
-    Ok(())
-}
-
-fn validate_opened_file(file: &File, expected_uid: u32) -> Result<Metadata> {
-    let metadata = file
-        .metadata()
-        .context("could not inspect opened security settings")?;
-    if !metadata.is_file() {
-        return Err(anyhow!("security settings must be a regular file"));
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        if metadata.uid() != expected_uid {
-            return Err(anyhow!("security settings must belong to the current user"));
-        }
-    }
-    #[cfg(not(unix))]
-    let _ = expected_uid;
-    Ok(metadata)
-}
-
 fn read_bounded(reader: impl Read) -> Result<Vec<u8>> {
     let mut data = Vec::new();
     reader
@@ -99,23 +73,17 @@ fn read_bounded(reader: impl Read) -> Result<Vec<u8>> {
 }
 
 pub fn load(path: &Path) -> Result<Settings> {
-    let mut options = OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
-    }
-    let mut file = match options.open(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Settings::default()),
-        Err(error) => return Err(error).context("could not open security settings"),
+    let parent = path
+        .parent()
+        .ok_or_else(|| anyhow!("security settings path has no parent"))?;
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| anyhow!("invalid security settings file name"))?;
+    let state = StateDir::open_or_create(parent)?;
+    let Some((mut file, metadata)) = state.open_regular(name)? else {
+        return Ok(Settings::default());
     };
-    #[cfg(unix)]
-    let expected_uid = unsafe { libc::geteuid() };
-    #[cfg(not(unix))]
-    let expected_uid = 0;
-    let metadata = validate_opened_file(&file, expected_uid)?;
     if metadata.len() > MAX_SETTINGS_BYTES as u64 {
         return Err(anyhow!("security settings exceed 16 KiB"));
     }
@@ -131,46 +99,14 @@ pub fn save(path: &Path, settings: &Settings) -> Result<()> {
     let parent = path
         .parent()
         .ok_or_else(|| anyhow!("security settings path has no parent"))?;
-    ensure_private_state_dir(parent)?;
-    let sequence = TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let temporary = parent.join(format!(
-        ".settings.json.tmp-{}-{sequence}",
-        std::process::id()
-    ));
-    let data = serde_json::to_vec_pretty(settings).context("could not serialize settings")?;
-
-    let result = (|| -> Result<()> {
-        let mut options = OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let mut file = options
-            .open(&temporary)
-            .context("could not create temporary security settings")?;
-        file.write_all(&data)
-            .context("could not write security settings")?;
-        file.write_all(b"\n")
-            .context("could not finish security settings")?;
-        file.sync_all()
-            .context("could not flush security settings")?;
-        drop(file);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600))
-                .context("could not protect security settings")?;
-        }
-        fs::rename(&temporary, path).context("could not replace security settings")?;
-        Ok(())
-    })();
-
-    if result.is_err() {
-        let _ = fs::remove_file(&temporary);
-    }
-    result
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| anyhow!("invalid security settings file name"))?;
+    let state = StateDir::open_or_create(parent)?;
+    let mut data = serde_json::to_vec_pretty(settings).context("could not serialize settings")?;
+    data.push(b'\n');
+    state.replace(name, &data)
 }
 
 pub fn updated(current: &Settings, incoming_pin: Option<String>) -> Result<Settings> {
@@ -338,7 +274,8 @@ mod tests {
         );
 
         fs::remove_file(&link).unwrap();
-        assert!(load(&directory).is_err(), "a directory is not settings");
+        fs::create_dir(&link).unwrap();
+        assert!(load(&link).is_err(), "a directory is not settings");
         fs::remove_dir_all(directory).unwrap();
     }
 
@@ -349,10 +286,17 @@ mod tests {
         fs::create_dir_all(&directory).unwrap();
         let path = directory.join("settings.json");
         fs::write(&path, br#"{"version":1}"#).unwrap();
-        let file = File::open(&path).unwrap();
+        let file = fs::File::open(&path).unwrap();
         let current_uid = unsafe { libc::geteuid() };
-        assert!(validate_opened_file(&file, current_uid).is_ok());
-        assert!(validate_opened_file(&file, current_uid.wrapping_add(1)).is_err());
+        let metadata = file.metadata().unwrap();
+        assert!(crate::secure_state::validate_owned_regular_file(&metadata, current_uid).is_ok());
+        assert!(
+            crate::secure_state::validate_owned_regular_file(
+                &metadata,
+                current_uid.wrapping_add(1)
+            )
+            .is_err()
+        );
         assert_eq!(fs::read(&path).unwrap(), br#"{"version":1}"#);
         fs::remove_dir_all(directory).unwrap();
     }
@@ -403,5 +347,44 @@ mod tests {
             status.is_some_and(|status| status.success()),
             "FIFO load blocked or failed"
         );
+    }
+
+    #[test]
+    fn ancestor_symlink_and_relative_xdg_state_are_rejected() {
+        use std::os::unix::fs::symlink;
+
+        let base = test_directory("ancestor");
+        let target = base.join("target");
+        fs::create_dir_all(&target).unwrap();
+        let link = base.join("linked");
+        symlink(&target, &link).unwrap();
+        let path = link.join("omarchy-nearby/settings.json");
+        assert!(load(&path).is_err());
+        assert!(save(&path, &Settings::default()).is_err());
+        assert!(fs::read_dir(&target).unwrap().next().is_none());
+        assert!(StateDir::open_or_create(Path::new("relative/omarchy-nearby")).is_err());
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn concurrent_saves_leave_a_complete_settings_document() {
+        let directory = test_directory("concurrent");
+        let path = directory.join("settings.json");
+        save(&path, &Settings::default()).unwrap();
+        std::thread::scope(|scope| {
+            for index in 0..8 {
+                let path = &path;
+                scope.spawn(move || {
+                    let next = updated(&Settings::default(), Some(format!("Pin-{index}"))).unwrap();
+                    for _ in 0..16 {
+                        save(path, &next).unwrap();
+                    }
+                });
+            }
+        });
+        let loaded = load(&path).unwrap();
+        assert!(loaded.incoming_pin.unwrap().starts_with("Pin-"));
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+        fs::remove_dir_all(directory).unwrap();
     }
 }

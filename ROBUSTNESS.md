@@ -32,10 +32,17 @@ Settings tests also cover rejected symlinks, non-regular files and mismatched
 ownership, a FIFO without a writer under a subprocess deadline, the 16 KiB
 boundary and a bounded read when the input exceeds the inspected size. A helper
 process test checks fail-closed startup before `ready` with unsafe settings.
+The 1.2.2 development tests also cover symlinked state ancestors, private
+directory ownership and modes, rejected writable non-sticky ancestors,
+descriptor binding after path substitution, exact `0600` publication under a
+restrictive umask, random exclusive temporary files, collision retries,
+failed publication cleanup, concurrent settings saves, and identity FIFO
+rejection under a subprocess deadline.
 
 The distribution suites additionally cover immutable helper metadata, exact
 size/SHA256 enforcement, XDG data storage, offline reuse, corrupt and symlinked
-cache repair, concurrent launches, failed/oversized downloads, and the rule
+cache repair, rejected symlinked or other-user-writable cache ancestors,
+concurrent launches, failed/oversized downloads, and the rule
 that published helpers never write into the watched plugin checkout.
 
 ### Local automated result, 2026-09-22
@@ -55,6 +62,24 @@ source digest, tag and reported version before pinning it. The isolated launcher
 prefetch check also passed. Android and iOS peer interoperability, live Omarchy
 settings recovery and the manual scenarios below remain **Not run** for 1.2.1;
 no peer app versions or manual outcomes are recorded.
+
+### 1.2.2 development validation, 2026-09-23
+
+On local branch `fix/filesystem-hardening`, all three Node suites, both Bash
+suites, Rust formatting, `cargo check --locked`, Clippy with warnings denied,
+helper tests, vendored `localsend-rs` tests and `git diff --check` passed.
+This is automated validation only. The manual scenarios below remain **Not run**
+for this change.
+
+### 1.2.2 helper preparation, 2026-09-23
+
+The pull-request CI passed on helper source commit
+`5905ecd4e666e7d98e853c1f8e6f05890e4ebe30`. The `helper-v1.2.2`
+GitHub Actions workflow built and published its Linux x86_64 prerelease.
+The downloaded executable independently matched the release checksum and
+9,040,128-byte size; `gh attestation verify` matched the helper-release workflow,
+source digest and tag, and `--version` reported `omarchy-nearby-helper 1.2.2`.
+Android/iOS interoperability and live Omarchy scenarios remain **Not run**.
 
 ## Manual interoperability matrix
 

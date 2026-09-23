@@ -87,9 +87,54 @@ case "$(uname -s)/$(uname -m)" in
   *) fail "no prebuilt helper is available for $(uname -s)/$(uname -m)" ;;
 esac
 
-data_root="${XDG_DATA_HOME:-${HOME:?HOME is not set}/.local/share}/omarchy-nearby/helpers"
+data_home="${XDG_DATA_HOME:-${HOME:?HOME is not set}/.local/share}"
+while [[ $data_home == */ && $data_home != / ]]; do data_home=${data_home%/}; done
+[[ $data_home == /* ]] || fail "XDG data directory must be absolute"
+[[ $data_home != / && $data_home != *//* && $data_home != *$'\n'* ]] \
+  || fail "XDG data directory is invalid"
+data_root="$data_home/omarchy-nearby/helpers"
 version_dir="$data_root/$helper_tag"
 helper_path="$version_dir/$helper_asset"
+
+# A different user must not be able to replace a checked pathname between
+# verification and execution. Walk each component before any cache read/write:
+# root-owned or user-owned ancestors may be used only when others cannot rename
+# their entries. Sticky directories such as /tmp are safe for user-owned entries.
+ensure_cache_path() {
+  local path="$1" current=/ component owner mode details private
+  local -a components
+  [[ $path == /* ]] || fail "helper cache path must be absolute"
+  IFS=/ read -r -a components <<< "$path"
+  for component in "${components[@]}"; do
+    [[ $component != . && $component != .. ]] || fail "helper cache path contains dot components"
+  done
+  for component in "${components[@]}"; do
+    [[ -n $component ]] || continue
+    if [[ $current == / ]]; then current="/$component"; else current="$current/$component"; fi
+    private=false
+    [[ $current == "$data_home/omarchy-nearby" || $current == "$data_root" || $current == "$version_dir" ]] && private=true
+    if [[ ! -e $current && ! -L $current ]]; then
+      mkdir -m 0700 -- "$current" 2>/dev/null || [[ -d $current ]] \
+        || fail "could not create helper cache directory"
+    fi
+    [[ -d $current && ! -L $current ]] || fail "helper cache path contains a symlink or non-directory"
+    details=$(stat -c '%u %a' -- "$current") || fail "could not inspect helper cache directory"
+    read -r owner mode <<< "$details"
+    [[ $owner == "$EUID" || $owner == 0 ]] || fail "helper cache directory has an unexpected owner"
+    if $private; then
+      [[ $owner == "$EUID" ]] || fail "helper cache directory must belong to the current user"
+      chmod 0700 -- "$current" || fail "could not protect helper cache directory"
+      mode=700
+    fi
+    # Group/world-writable ancestors can be swapped by another user. The
+    # sticky bit blocks replacement of entries owned by this user.
+    if (( (8#$mode & 0022) != 0 && (8#$mode & 01000) == 0 )); then
+      fail "helper cache ancestor is writable by another user"
+    fi
+  done
+}
+
+ensure_cache_path "$version_dir"
 
 valid_helper() {
   local candidate="$1" size actual
@@ -107,9 +152,6 @@ install_helper() {
     command -v "$command_name" >/dev/null 2>&1 \
       || fail "required command not found: $command_name"
   done
-  mkdir -p -- "$version_dir" || fail "could not create $version_dir"
-  chmod 0700 -- "$data_root" "$version_dir" 2>/dev/null || true
-
   valid_helper "$helper_path" && return 0
 
   stage_dir=$(mktemp -d "$version_dir/.stage.XXXXXX") \

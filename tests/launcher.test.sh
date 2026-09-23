@@ -184,6 +184,55 @@ assert_eq "$status" "0"
 assert_eq "$(<"$sandbox/victim")" "keep me"
 teardown
 
+announce "a symlinked XDG data ancestor cannot redirect automatic installation"
+setup
+real_data="$sandbox/redirect-target"
+mkdir "$real_data"
+rm -r "$data_home"
+ln -s "$real_data" "$data_home"
+output=$(run_launcher --prefetch); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "symlink or non-directory"
+assert_eq "$(find "$real_data" -mindepth 1 | wc -l)" "0"
+assert_eq "$(<"$FAKE_CURL_COUNT")" "0"
+teardown
+
+announce "a writable cache ancestor is rejected before download"
+setup
+chmod 0777 "$data_home"
+output=$(run_launcher --prefetch); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "writable by another user"
+assert_eq "$(<"$FAKE_CURL_COUNT")" "0"
+teardown
+
+announce "relative and dot-component XDG roots fail before cache writes"
+setup
+data_home=relative-data
+output=$(run_launcher --prefetch); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "must be absolute"
+data_home="$sandbox/new-parent/../data"
+output=$(run_launcher --prefetch); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "dot components"
+[[ ! -e $sandbox/new-parent ]] || report "an invalid root created an ancestor"
+assert_eq "$(<"$FAKE_CURL_COUNT")" "0"
+teardown
+
+announce "offline reuse also refuses a substituted cache ancestor"
+setup
+run_launcher --prefetch >/dev/null
+real_data="$sandbox/cached-data"
+mv "$data_home" "$real_data"
+ln -s "$real_data" "$data_home"
+export FAKE_CURL_EXIT=6
+output=$(run_launcher --version); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "symlink or non-directory"
+assert_eq "$(<"$FAKE_CURL_COUNT")" "1"
+teardown
+
 announce "an oversized download is rejected"
 setup
 truncate -s $((32 * 1024 * 1024 + 1)) "$served"

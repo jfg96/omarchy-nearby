@@ -1,12 +1,16 @@
+use crate::secure_state::StateDir;
 use anyhow::{Context, Result, anyhow};
 use localsend_rs::crypto::{TlsCertificate, generate_tls_certificate, sha256_from_bytes};
 use serde::{Deserialize, Serialize};
-use std::fs::{self, OpenOptions};
-use std::io::{ErrorKind, Read, Write};
+#[cfg(test)]
+use std::fs;
+use std::io::Read;
 use std::path::Path;
+#[cfg(test)]
 use std::sync::atomic::{AtomicU64, Ordering};
 
 const MAX_IDENTITY_BYTES: usize = 128 * 1024;
+#[cfg(test)]
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Serialize, Deserialize)]
@@ -16,54 +20,17 @@ struct StoredIdentity {
     fingerprint: String,
 }
 
-fn ensure_private_directory(path: &Path) -> Result<()> {
-    fs::create_dir_all(path).context("could not create Nearby state directory")?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-            .context("could not protect Nearby state directory")?;
-    }
-    Ok(())
-}
-
-fn read_identity(path: &Path) -> Result<Option<Vec<u8>>> {
-    let metadata = match fs::symlink_metadata(path) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error).context("could not inspect TLS identity"),
+fn read_identity(state: &StateDir) -> Result<Option<Vec<u8>>> {
+    let Some((file, metadata)) = state.open_regular("identity.json")? else {
+        return Ok(None);
     };
-    if metadata.file_type().is_symlink() {
-        return Err(anyhow!("TLS identity must not be a symbolic link"));
-    }
-    if !metadata.is_file() {
-        return Err(anyhow!("TLS identity must be a regular file"));
-    }
     if metadata.len() > MAX_IDENTITY_BYTES as u64 {
         return Err(anyhow!("TLS identity exceeds 128 KiB"));
     }
 
-    let mut options = OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW);
-    }
-    let file = options.open(path).context("could not open TLS identity")?;
-    if !file
-        .metadata()
-        .context("could not inspect opened TLS identity")?
-        .is_file()
-    {
-        return Err(anyhow!("TLS identity must be a regular file"));
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        file.set_permissions(fs::Permissions::from_mode(0o600))
-            .context("could not protect TLS identity")?;
-    }
+    use std::os::unix::fs::PermissionsExt;
+    file.set_permissions(std::fs::Permissions::from_mode(0o600))
+        .context("could not protect TLS identity")?;
 
     let mut data = Vec::with_capacity(metadata.len() as usize);
     file.take((MAX_IDENTITY_BYTES + 1) as u64)
@@ -108,10 +75,7 @@ fn validate(stored: &StoredIdentity) -> Result<TlsCertificate> {
     })
 }
 
-fn save(path: &Path, certificate: &TlsCertificate) -> Result<()> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| anyhow!("TLS identity path has no parent"))?;
+fn save(state: &StateDir, certificate: &TlsCertificate) -> Result<()> {
     let stored = StoredIdentity {
         cert_pem: certificate.cert_pem.clone(),
         key_pem: certificate.key_pem.clone(),
@@ -124,44 +88,14 @@ fn save(path: &Path, certificate: &TlsCertificate) -> Result<()> {
         return Err(anyhow!("TLS identity exceeds 128 KiB"));
     }
 
-    let sequence = TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let temporary = parent.join(format!(
-        ".identity.json.tmp-{}-{sequence}",
-        std::process::id()
-    ));
-    let result = (|| -> Result<()> {
-        let mut options = OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let mut file = options
-            .open(&temporary)
-            .context("could not create temporary TLS identity")?;
-        file.write_all(&data)
-            .context("could not write TLS identity")?;
-        file.sync_all().context("could not flush TLS identity")?;
-        drop(file);
-        fs::rename(&temporary, path).context("could not replace TLS identity")?;
-        fs::File::open(parent)
-            .and_then(|directory| directory.sync_all())
-            .context("could not flush Nearby state directory")?;
-        Ok(())
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(&temporary);
-    }
-    result
+    state.replace("identity.json", &data)
 }
 
 pub fn load_or_create(state_dir: &Path) -> Result<TlsCertificate> {
-    ensure_private_directory(state_dir)?;
-    let path = state_dir.join("identity.json");
-    let Some(data) = read_identity(&path)? else {
+    let state = StateDir::open_or_create(state_dir)?;
+    let Some(data) = read_identity(&state)? else {
         let certificate = generate_tls_certificate().context("could not generate TLS identity")?;
-        save(&path, &certificate)?;
+        save(&state, &certificate)?;
         return Ok(certificate);
     };
 
@@ -169,7 +103,7 @@ pub fn load_or_create(state_dir: &Path) -> Result<TlsCertificate> {
         serde_json::from_slice(&data).context("could not parse TLS identity")?;
     let certificate = validate(&stored)?;
     if stored.fingerprint != certificate.fingerprint {
-        save(&path, &certificate).context("could not repair TLS identity fingerprint")?;
+        save(&state, &certificate).context("could not repair TLS identity fingerprint")?;
     }
     Ok(certificate)
 }
@@ -287,5 +221,77 @@ mod tests {
         assert!(load_or_create(&directory).is_err());
         assert_eq!(fs::read(&path).unwrap(), bytes);
         remove_test_directory(&directory);
+    }
+
+    #[test]
+    fn ancestor_symlink_is_rejected_without_creating_identity() {
+        use std::os::unix::fs::symlink;
+        let base = test_directory("ancestor");
+        let target = base.join("target");
+        fs::create_dir_all(&target).unwrap();
+        let link = base.join("linked");
+        symlink(&target, &link).unwrap();
+        assert!(load_or_create(&link.join("omarchy-nearby")).is_err());
+        assert!(fs::read_dir(&target).unwrap().next().is_none());
+        remove_test_directory(&base);
+    }
+
+    #[test]
+    fn identity_owner_validator_rejects_wrong_uid() {
+        let directory = test_directory("owner");
+        load_or_create(&directory).unwrap();
+        let state = StateDir::open_or_create(&directory).unwrap();
+        let (_, metadata) = state.open_regular("identity.json").unwrap().unwrap();
+        let uid = unsafe { libc::geteuid() };
+        assert!(
+            crate::secure_state::validate_owned_regular_file(&metadata, uid.wrapping_add(1))
+                .is_err()
+        );
+        remove_test_directory(&directory);
+    }
+
+    #[test]
+    fn identity_fifo_child() {
+        if let Some(path) = std::env::var_os("NEARBY_TEST_IDENTITY_FIFO") {
+            assert!(load_or_create(Path::new(&path)).is_err());
+        }
+    }
+
+    #[test]
+    fn identity_fifo_without_writer_does_not_block() {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+        use std::process::{Command, Stdio};
+        use std::time::{Duration, Instant};
+
+        let directory = test_directory("fifo");
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("identity.json");
+        let c_path = CString::new(path.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "identity::tests::identity_fifo_child"])
+            .env("NEARBY_TEST_IDENTITY_FIFO", &directory)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let status = loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                break Some(status);
+            }
+            if Instant::now() >= deadline {
+                child.kill().unwrap();
+                child.wait().unwrap();
+                break None;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        remove_test_directory(&directory);
+        assert!(
+            status.is_some_and(|status| status.success()),
+            "FIFO identity load blocked or failed"
+        );
     }
 }

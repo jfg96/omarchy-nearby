@@ -21,14 +21,32 @@ authenticated pairing mechanism. Use Nearby on networks you trust.
 
 The incoming PIN is stored in a private settings file; it is not shown again in
 the UI. This is local credential storage, not a claim that the PIN is encrypted
-at rest. Do not share the settings file. Before starting the receiver, the helper
-opens `settings.json` without following its final path component and checks that
-the opened object is a regular file owned by its effective user. It rejects
-FIFOs and reads at most 16 KiB. Invalid or unsafe settings stop startup without
-silently disabling the PIN or deleting the file.
+at rest. Do not share the settings file. The helper walks the absolute state
+path from the filesystem root using directory descriptors and refuses symlinks
+at every component. Root-owned system ancestors and ancestors owned by the
+effective user are accepted when others cannot rename their entries; sticky
+directories such as `/tmp` are allowed. The final `omarchy-nearby` directory
+must belong to the effective user and is set to mode `0700`. A relative
+`XDG_STATE_HOME` therefore fails closed.
 
-These checks do not prohibit symlinks in ancestor XDG directories or protect
-against a malicious process running as the same user.
+Settings and TLS identity files are opened relative to that trusted directory
+without following symlinks. The opened file must be regular and owned by the
+effective user. Nonblocking opens reject FIFOs without waiting for a writer.
+Reads are capped at 16 KiB for settings and 128 KiB for identity. Updates use
+random, exclusive mode-`0600` temporary files, sync their contents, rename
+relative to the same directory descriptor, then sync the directory. Invalid or
+unsafe settings stop startup without silently disabling the PIN or deleting the
+file. A missing final settings file uses defaults only after the directory has
+been validated.
+
+These controls do not protect against a malicious process already running as
+the same user. A storage failure during the final directory sync can also be
+reported after an atomic rename has occurred; in that case durability is not
+guaranteed.
+
+The descriptor-based guarantees above apply to Nearby's private persistent
+security state. Incoming downloads follow the configured Downloads location
+and the vendored LocalSend receive path.
 
 Nearby validates the saved TLS certificate and private key and preserves a valid
 identity across restarts. The helper also reuses that identity when an HTTPS peer
@@ -43,6 +61,9 @@ See [storage locations](USAGE.md#storage).
 The launcher checks the exact size and SHA256 committed in the plugin checkout.
 Downloads and redirects are restricted to HTTPS and artifacts are capped at
 32 MiB. Published helpers are installed atomically outside the plugin directory.
+The cache path must be absolute, owned by the user or root as appropriate,
+and free of symlinked or other-user-writable ancestors. Nearby's own cache
+directories are restricted to the current user.
 
 Build-provenance attestation verification happens in the release workflows, not
 on every user startup. The independent verification workflow additionally checks
