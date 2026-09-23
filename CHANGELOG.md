@@ -8,6 +8,8 @@
   and descriptor-relative atomic publication with file and directory sync.
 - Reject unsafe identity files before reading or repairing them, including
   FIFOs and files owned by another user, while retaining valid key material.
+- Refuse symlinked or other-user-writable helper-cache ancestors before
+  downloading, reusing or replacing a pinned executable.
 
 ## 1.2.1
 

@@ -43,12 +43,9 @@ the same user. A storage failure during the final directory sync can also be
 reported after an atomic rename has occurred; in that case durability is not
 guaranteed.
 
-Incoming downloads use a configured download directory and vendored LocalSend
-file handling. Remote file names are restricted to one component, partial
-uploads use exclusive creation, and final names use collision-safe hard links.
-The receiver and launcher still use pathnames for their user-selected download
-and XDG data directories. Local processes able to replace those directories
-while Nearby runs are outside the persistent security-state guarantee above.
+The descriptor-based guarantees above apply to Nearby's private persistent
+security state. Incoming downloads follow the configured Downloads location
+and the vendored LocalSend receive path.
 
 Nearby validates the saved TLS certificate and private key and preserves a valid
 identity across restarts. The helper also reuses that identity when an HTTPS peer
@@ -63,6 +60,9 @@ See [storage locations](USAGE.md#storage).
 The launcher checks the exact size and SHA256 committed in the plugin checkout.
 Downloads and redirects are restricted to HTTPS and artifacts are capped at
 32 MiB. Published helpers are installed atomically outside the plugin directory.
+The cache path must be absolute, owned by the user or root as appropriate,
+and free of symlinked or other-user-writable ancestors. Nearby's own cache
+directories are restricted to the current user.
 
 Build-provenance attestation verification happens in the release workflows, not
 on every user startup. The independent verification workflow additionally checks

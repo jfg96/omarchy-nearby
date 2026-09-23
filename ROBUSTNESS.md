@@ -40,7 +40,8 @@ subprocess deadline.
 
 The distribution suites additionally cover immutable helper metadata, exact
 size/SHA256 enforcement, XDG data storage, offline reuse, corrupt and symlinked
-cache repair, concurrent launches, failed/oversized downloads, and the rule
+cache repair, rejected symlinked or other-user-writable cache ancestors,
+concurrent launches, failed/oversized downloads, and the rule
 that published helpers never write into the watched plugin checkout.
 
 ### Local automated result, 2026-09-22
