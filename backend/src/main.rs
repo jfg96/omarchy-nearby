@@ -22,6 +22,7 @@ use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
 
 mod identity;
+mod secure_state;
 mod settings;
 
 const PEER_TTL: Duration = Duration::from_secs(90);
@@ -884,9 +885,7 @@ async fn main() -> Result<()> {
     let home = PathBuf::from(std::env::var("HOME").context("HOME is not set")?);
     let state_dir = settings::state_dir(&home);
     let settings_path = state_dir.join("settings.json");
-    let mut receiver_settings = match settings::ensure_private_state_dir(&state_dir)
-        .and_then(|_| settings::load(&settings_path))
-    {
+    let mut receiver_settings = match settings::load(&settings_path) {
         Ok(settings) => settings,
         Err(error) => {
             emit(json!({
