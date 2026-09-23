@@ -242,8 +242,19 @@ impl StateDir {
         &self,
         name: &str,
         bytes: &[u8],
+        next_name: impl FnMut() -> Result<String>,
+        publish: impl FnOnce(&File, &OsStr, &OsStr) -> Result<()>,
+    ) -> Result<()> {
+        self.replace_with_hooks(name, bytes, next_name, publish, File::sync_all)
+    }
+
+    fn replace_with_hooks(
+        &self,
+        name: &str,
+        bytes: &[u8],
         mut next_name: impl FnMut() -> Result<String>,
         publish: impl FnOnce(&File, &OsStr, &OsStr) -> Result<()>,
+        sync_directory: impl FnOnce(&File) -> std::io::Result<()>,
     ) -> Result<()> {
         name_cstr(OsStr::new(name))?;
         // Fail closed for an existing unsafe object before attempting to
@@ -284,20 +295,20 @@ impl StateDir {
                 .context("could not write Nearby state file")?;
             file.sync_all()
                 .context("could not flush Nearby state file")?;
-            drop(file);
-            publish(&self.directory, OsStr::new(&temporary), OsStr::new(name))
-                .context("could not publish Nearby state file")?;
-            self.directory
-                .sync_all()
-                .context("could not flush Nearby state directory")?;
             Ok(())
         })();
-        if result.is_err() {
-            // This only targets the unpredictable entry successfully created
-            // by this transaction. After rename it no longer exists.
+        drop(file);
+        if let Err(error) = result {
             let _ = unlinkat(&self.directory, OsStr::new(&temporary));
+            return Err(error);
         }
-        result
+        if let Err(error) = publish(&self.directory, OsStr::new(&temporary), OsStr::new(name)) {
+            let _ = unlinkat(&self.directory, OsStr::new(&temporary));
+            return Err(error).context("could not publish Nearby state file");
+        }
+        // The temporary name no longer belongs to this transaction. In
+        // particular, a later directory-sync failure must not unlink it.
+        sync_directory(&self.directory).context("could not flush Nearby state directory")
     }
 }
 
@@ -452,6 +463,35 @@ mod tests {
         assert_eq!(fs::read(path.join("settings.json")).unwrap(), b"previous");
         assert_eq!(fs::read(unrelated).unwrap(), b"other");
         assert!(!path.join(".settings.json.tmp-owned").exists());
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn failed_directory_sync_does_not_unlink_a_reused_temp_name() {
+        let base = directory("sync-failure");
+        let path = base.join("omarchy-nearby");
+        let state = StateDir::open_or_create(&path).unwrap();
+        let temporary = ".settings.json.tmp-owned";
+        let result = state.replace_with_hooks(
+            "settings.json",
+            b"published",
+            || Ok(temporary.into()),
+            renameat,
+            |directory| {
+                let mut reused = openat_file(
+                    directory,
+                    OsStr::new(temporary),
+                    libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_CLOEXEC,
+                    MODE_PRIVATE_FILE,
+                )
+                .unwrap();
+                reused.write_all(b"another entry").unwrap();
+                Err(std::io::Error::other("injected directory sync failure"))
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(fs::read(path.join("settings.json")).unwrap(), b"published");
+        assert_eq!(fs::read(path.join(temporary)).unwrap(), b"another entry");
         fs::remove_dir_all(base).unwrap();
     }
 
