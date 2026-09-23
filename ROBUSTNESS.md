@@ -71,6 +71,16 @@ helper tests, vendored `localsend-rs` tests and `git diff --check` passed.
 This is automated validation only. The manual scenarios below remain **Not run**
 for this change.
 
+### 1.2.2 helper preparation, 2026-09-23
+
+The pull-request CI passed on helper source commit
+`5905ecd4e666e7d98e853c1f8e6f05890e4ebe30`. The `helper-v1.2.2`
+GitHub Actions workflow built and published its Linux x86_64 prerelease.
+The downloaded executable independently matched the release checksum and
+9,040,128-byte size; `gh attestation verify` matched the helper-release workflow,
+source digest and tag, and `--version` reported `omarchy-nearby-helper 1.2.2`.
+Android/iOS interoperability and live Omarchy scenarios remain **Not run**.
+
 ## Manual interoperability matrix
 
 Run applicable transfer and PIN scenarios with both Android and iOS LocalSend

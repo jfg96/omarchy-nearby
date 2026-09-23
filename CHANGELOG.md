@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.2-dev
+## 1.2.2
 
 - Walk receiver security-state directories without following symlinks, check
   ownership on opened objects, and reject relative state roots.
