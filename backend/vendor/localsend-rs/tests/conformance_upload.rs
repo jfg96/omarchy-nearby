@@ -427,3 +427,60 @@ async fn remote_file_id_does_not_shape_the_partial_path() {
     );
     assert_eq!(saved_names(save.path()), vec!["a.bin"]);
 }
+
+/// Cancelling a session stops its upload at the next chunk. Previously the
+/// writer kept consuming and storing the body until EOF after the cancel.
+#[tokio::test]
+async fn cancel_stops_an_upload_in_progress() {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::time::{Duration, timeout};
+
+    let save = tempfile::tempdir().unwrap();
+    let (_server, mut events, port) = auto_accept_server(save.path()).await;
+    let (session_id, tokens) = prepare_files(port, &[("f1", "a.bin", 1_048_576)]).await;
+    let token = &tokens["f1"];
+
+    let mut socket = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .unwrap();
+    let headers = format!(
+        "POST /api/localsend/v2/upload?sessionId={session_id}&fileId=f1&token={token} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: 1048576\r\nConnection: close\r\n\r\n"
+    );
+    socket.write_all(headers.as_bytes()).await.unwrap();
+    socket.write_all(b"abc").await.unwrap();
+    let progress = timeout(Duration::from_secs(5), events.recv())
+        .await
+        .expect("upload must start writing")
+        .unwrap();
+    assert!(matches!(
+        progress,
+        ServerEvent::FileReceiveProgress {
+            bytes_received: 3,
+            ..
+        }
+    ));
+
+    let cancelled = reqwest::Client::new()
+        .post(format!(
+            "http://127.0.0.1:{port}/api/localsend/v2/cancel?sessionId={session_id}"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cancelled.status(), 200);
+
+    // The next chunk must end the upload without waiting for the rest of the
+    // advertised body.
+    socket.write_all(b"d").await.unwrap();
+    let mut response = BufReader::new(socket);
+    let mut status_line = String::new();
+    timeout(Duration::from_secs(5), response.read_line(&mut status_line))
+        .await
+        .expect("a cancelled upload must stop before EOF")
+        .unwrap();
+    assert!(!status_line.starts_with("HTTP/1.1 200"), "{status_line:?}");
+    assert!(
+        saved_names(save.path()).is_empty(),
+        "neither the final file nor a .part may remain"
+    );
+}

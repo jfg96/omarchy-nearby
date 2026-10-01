@@ -294,6 +294,38 @@ requires a prompt `413` with no event; it failed before the change because the
 request waited for a decision. A boundary test accepts exactly 10,000 files.
 Upstream status: not submitted.
 
+### 10. Stop upload writers when their session ends
+
+- Nearby change: `fix: stop incoming uploads when their session ends`.
+- Files: `src/core/session.rs`, `src/server/state.rs`, `src/server/handlers.rs`,
+  and `tests/conformance_upload.rs`.
+- Public API: `Session` gains an `alive` marker; the internal writer takes a
+  `keep_writing` check.
+
+Cancelling, failing, sweeping or replacing a session removed it from the
+server state, but an upload already streaming kept writing until the body
+ended. Its file was then discarded because the session was no longer current,
+so the bytes were wasted disk I/O and space for the rest of the body.
+
+Each session now owns an `Arc<()>` marker. The upload writer holds a weak
+reference and checks it before every chunk, so it stops at the first chunk
+after the session is dropped by any removal path, without writing that chunk
+or consuming the rest of the body. The existing failure path rolls back
+progress and removes the partial file. Sessions are not cloned elsewhere, so
+the marker's lifetime matches the server's current session.
+
+A related condition was reviewed and left unchanged: a pending accept decision
+replaces or clears `current_session` without checking that it still holds its
+own reservation. That needs the reservation to be swept while the decision is
+pending, which takes at least 300 seconds of idleness, while Nearby's accept
+timeout is 60 seconds. It is not reachable with Nearby's configuration and has
+no deterministic regression without injecting time.
+
+Regression coverage cancels a 1 MiB upload over HTTP, sends one more byte and
+requires a prompt non-success response with no file left; it failed before the
+change because the writer waited for the rest of the body. Upstream status:
+not submitted.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the

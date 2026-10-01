@@ -347,6 +347,7 @@ pub(crate) async fn handle_upload(
         file_count,
         receive_rate_limit_bytes_per_second,
         active_uploads,
+        session_alive,
     ) = if let Some(session) = &state.current_session {
         if session.id != params.session_id {
             tracing::warn!(
@@ -382,6 +383,7 @@ pub(crate) async fn handle_upload(
                 session.files.len(),
                 state.receive_rate_limit_bytes_per_second,
                 session.active_uploads.clone(),
+                Arc::downgrade(&session.alive),
             )
         } else {
             tracing::warn!(
@@ -456,6 +458,7 @@ pub(crate) async fn handle_upload(
         &temp_path,
         declared_size,
         receive_rate_limit_bytes_per_second,
+        move || session_alive.strong_count() > 0,
         move |file_bytes| {
             let delta = file_bytes.saturating_sub(previous_file_bytes);
             previous_file_bytes = file_bytes;

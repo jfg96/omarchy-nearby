@@ -23,7 +23,7 @@ bash tests/helper-repair.test.sh
 The suites cover peer registry retention/expiry, command correlation, request decisions,
 cancel/completed/failed event separation, oversized, truncated and checksum-mismatched uploads,
 repeated and concurrent uploads of one file, sender-supplied file ids in partial paths,
-the incoming file-count limit,
+the incoming file-count limit, cancellation stopping an upload in progress,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -150,6 +150,18 @@ decision is requested. A regression offers 10,001 small entries, well under the
 seconds and emit no event. Against commit `7c08592` it failed because the
 request waited for a decision. A boundary test confirms that exactly 10,000
 files are still accepted. Live interoperability remains **Not run**.
+
+### Upload cancellation development validation, 2026-10-01
+
+On `fix/receive-hardening`, an upload writer stops before its next chunk once
+its session has ended. An HTTP regression starts a 1 MiB upload, cancels the
+session and sends one more byte while keeping the advertised body open: the
+upload must answer within five seconds with a non-success status and leave no
+file. Against commit `ec1b460` it failed because the writer kept waiting for
+the rest of the body. A writer unit test checks that the chunk arriving after
+the session ends is not written. The rollback progress event emitted after a
+cancel was already possible on other failure paths; `Service.qml` ignores it
+once the transfer has finished. Live interoperability remains **Not run**.
 
 ## Manual interoperability matrix
 

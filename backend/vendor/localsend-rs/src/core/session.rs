@@ -19,6 +19,9 @@ pub struct Session {
     pub last_activity: Instant,
     /// Upload handlers currently consuming request bodies. Active I/O is not idle.
     pub active_uploads: Arc<AtomicUsize>,
+    /// Upload writers hold weak references and stop once every copy of the
+    /// session has been dropped (cancelled, failed, swept or replaced).
+    pub alive: Arc<()>,
 }
 
 impl Session {
@@ -45,6 +48,7 @@ impl Session {
             created_at: now,
             last_activity: now,
             active_uploads: Arc::new(AtomicUsize::new(0)),
+            alive: Arc::new(()),
         }
     }
 

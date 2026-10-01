@@ -9,6 +9,8 @@
   instead of from sender-supplied identifiers.
 - Reject incoming requests offering more than 10,000 files before reserving a
   transfer or asking for approval.
+- Stop writing an incoming upload at its next chunk once the sender cancels or
+  the transfer otherwise ends, discarding the partial file.
 
 ## 1.2.2
 
