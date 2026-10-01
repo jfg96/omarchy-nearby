@@ -17,6 +17,12 @@ changes or the receiver restarts.
 LocalSend discovery itself is LAN discovery and should not be treated as an
 authenticated pairing mechanism. Use Nearby on networks you trust.
 
+The receiver bounds the connections, time and request bodies a LAN peer can
+make it hold, so memory use stays limited and recovers once a peer stops. These
+limits do not prevent denial of service while an attack is ongoing: a peer
+that keeps opening connections can occupy the receiver's slots and delay other
+devices until it stops.
+
 ## Persistent security state
 
 The incoming PIN is stored in a private settings file; it is not shown again in

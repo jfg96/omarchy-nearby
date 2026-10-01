@@ -24,6 +24,7 @@ The suites cover peer registry retention/expiry, command correlation, request de
 cancel/completed/failed event separation, oversized, truncated and checksum-mismatched uploads,
 repeated and concurrent uploads of one file, sender-supplied file ids in partial paths,
 the incoming file-count limit, cancellation stopping an upload in progress,
+connection limits, request head/body timeouts and upload idle timeouts,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -162,6 +163,36 @@ the rest of the body. A writer unit test checks that the chunk arriving after
 the session ends is not written. The rollback progress event emitted after a
 cancel was already possible on other failure paths; `Service.qml` ignores it
 once the transfer has finished. Live interoperability remains **Not run**.
+
+### Connection and timeout limits development validation, 2026-10-01
+
+Before the change, an experiment against the HTTPS receiver showed no timeout
+after the TLS handshake: an idle connection, a partial request head and a
+partial `/register` body all stayed open past 40 seconds, and 100 connections
+holding 1.9 MB partial bodies raised the process from 13 MB to 248 MB
+indefinitely. The receiver also negotiated HTTP/2 with a client offering it.
+
+`conformance_limits` adds nine HTTP tests with one-second limits. Seven
+regressions failed with the limits configured but not enforced: idle and
+partial-head connections stayed open, a trickled body and a stalled upload got
+no answer, connections over the per-IP and global limits stayed open, and
+HTTPS negotiated `h2`. Two guards passed before and after: an accept decision
+taking longer than the body timeout still succeeds, and an upload sending one
+byte every 400 ms completes although it outlasts both timeouts. A unit test
+covers slot accounting.
+
+With the default limits, an experiment opening 100 connections from distinct
+loopback addresses, each holding a 1.9 MB partial prepare-upload body, admitted
+64 and refused 36; memory peaked at 135 MB and returned to 26 MB once all held
+connections were answered or closed within 32 seconds. Both experiments were
+temporary and not committed; their numbers include the in-process test client.
+
+Not covered automatically: hashing a multi-gigabyte upload, which happens after
+the body is read and outside the idle timeout by construction. Interoperability
+of the HTTP/1.1-only receiver with official Android/iOS clients, including
+reconnection after an idle keep-alive connection closes, and Nearby-to-Nearby
+transfers between live installations remain **Not run** and must be checked
+manually before release.
 
 ## Manual interoperability matrix
 

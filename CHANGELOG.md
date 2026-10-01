@@ -11,6 +11,9 @@
   transfer or asking for approval.
 - Stop writing an incoming upload at its next chunk once the sender cancels or
   the transfer otherwise ends, discarding the partial file.
+- Bound what LAN peers can make the receiver hold: at most 64 connections, 16
+  per address; 30 seconds for a request head or a non-upload body; and 120
+  seconds without data during an upload. The receiver now serves HTTP/1.1 only.
 
 ## 1.2.2
 

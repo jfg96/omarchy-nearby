@@ -19,7 +19,7 @@ cli = [
     "dep:comfy-table",
 ]
 https = [
-    "dep:axum-server",
+    "axum-server/tls-rustls",
     "dep:tokio-rustls",
     "dep:rustls-pemfile",
     "dep:rcgen",
@@ -46,7 +46,8 @@ uuid = { version = "1.19", features = ["v4", "serde"] }
 
 # HTTP
 axum = { version = "0.8", features = ["macros"] }
-axum-server = { version = "0.8", features = ["tls-rustls"], optional = true }
+axum-server = "0.8"
+hyper-util = { version = "0.1", features = ["tokio"] }
 reqwest = { version = "0.13", features = ["json", "stream", "rustls"] }
 tower = "0.5"
 rustls = { version = "0.23.36", features = ["ring"] }

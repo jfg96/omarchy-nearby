@@ -326,6 +326,50 @@ requires a prompt non-success response with no file left; it failed before the
 change because the writer waited for the rest of the body. Upstream status:
 not submitted.
 
+### 11. Bound connections, request heads and request bodies
+
+- Nearby change: `fix: bound receiver connections and request timing`.
+- Files: `Cargo.toml`, `Cargo.lock`, `src/server/limits.rs`,
+  `src/server/mod.rs`, `src/server/routes.rs`, `src/server/server.rs`, and
+  `tests/conformance_limits.rs`.
+- Public API: `ServerLimits` and `LocalSendServerBuilder::limits`.
+- Dependencies: `axum-server` is no longer optional; the `https` feature now
+  enables its `tls-rustls` feature. `hyper-util` becomes a direct dependency
+  for `TokioTimer`; it was already in the dependency graph, so no new crate is
+  introduced.
+
+After the TLS handshake, which `axum-server` bounds to 10 seconds, nothing
+bounded a connection. Hyper's default 30-second header read timeout requires a
+timer, and neither `axum::serve` nor `axum-server` configured one, so hyper
+disabled it. Bodies had no time limit, `axum`'s `Json` extractor buffers up to
+2 MB, and connections were unlimited. Any LAN peer, without a PIN or approval,
+could hold unbounded memory by keeping connections with partial bodies open.
+The server also negotiated HTTP/2, whose streams had no header timeout.
+
+Both protocols now serve through `axum-server` with the same configuration:
+
+- HTTP/1.1 only, with a `TokioTimer` and a 30-second header read timeout,
+  which also closes idle kept-alive connections. HTTPS advertises only
+  `http/1.1` over ALPN, so clients that offer HTTP/2, including Nearby's own
+  `reqwest` client, fall back to HTTP/1.1. LocalSend clients use HTTP/1.1.
+- A connection acceptor admitting at most 64 connections, 16 per IP address,
+  ahead of TLS. Refused connections are dropped; each slot is released when its
+  stream is dropped.
+- Every route except upload must receive its whole body within 30 seconds of
+  the request head. Handler work afterwards, notably the accept decision in
+  prepare-upload, is not limited. `/register` bodies are limited to 64 KiB.
+- Upload bodies may pause for at most 120 seconds between chunks. The timer
+  runs only while the writer waits for the next chunk, so disk writes and the
+  SHA256 check after the body are not counted.
+
+The limits bound memory but do not prevent a peer from occupying connection
+slots while it keeps opening connections; `docs/SECURITY.md` states this.
+
+Regression coverage is listed in `ROBUSTNESS.md`. Seven regressions failed with
+the limits configured but not enforced; two guards confirm that a slow accept
+decision and a slow but steady upload are unaffected. Upstream status: not
+submitted.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the

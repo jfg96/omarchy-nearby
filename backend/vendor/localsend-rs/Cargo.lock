@@ -1561,6 +1561,7 @@ dependencies = [
  "comfy-table",
  "crossterm",
  "futures-util",
+ "hyper-util",
  "if-addrs",
  "indicatif",
  "inquire",

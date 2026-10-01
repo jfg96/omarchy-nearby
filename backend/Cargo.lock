@@ -1016,6 +1016,7 @@ dependencies = [
  "bytes",
  "chrono",
  "futures-util",
+ "hyper-util",
  "if-addrs",
  "lru",
  "mime_guess",

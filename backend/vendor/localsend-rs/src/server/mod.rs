@@ -1,6 +1,7 @@
 #![allow(clippy::module_inception)]
 
 pub mod events;
+pub mod limits;
 pub mod server;
 pub mod web_share;
 
@@ -10,5 +11,6 @@ pub(crate) mod routes;
 pub(crate) mod state;
 
 pub use events::{PendingRequest, PendingWebShareRequest, ServerEvent, TransferDecision};
+pub use limits::ServerLimits;
 pub use server::{LocalSendServer, LocalSendServerBuilder};
 pub use web_share::{WebShareFile, WebShareSource};

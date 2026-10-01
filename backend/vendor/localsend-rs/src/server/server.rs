@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use tokio::net::TcpListener;
 use tokio::sync::{RwLock, mpsc, oneshot};
 use tokio::task::JoinHandle;
 
@@ -29,6 +28,7 @@ pub struct LocalSendServer {
     receive_rate_limit_bytes_per_second: Option<u64>,
     /// Receiver-side PIN, enforced by `pin::PinGate` in the request handler.
     pin: Option<String>,
+    limits: super::limits::ServerLimits,
     state: Option<Arc<RwLock<ServerState>>>,
 }
 
@@ -57,6 +57,7 @@ impl LocalSendServer {
             accept_timeout,
             receive_rate_limit_bytes_per_second,
             pin,
+            limits: super::limits::ServerLimits::default(),
             state: None,
         })
     }
@@ -82,6 +83,7 @@ impl LocalSendServer {
             auto_accept: false,
             accept_timeout: Duration::from_secs(60),
             receive_rate_limit_bytes_per_second: None,
+            limits: super::limits::ServerLimits::default(),
             #[cfg(feature = "https")]
             tls_certificate: None,
         }
@@ -154,6 +156,11 @@ impl LocalSendServer {
                                 e
                             ))
                         })?;
+                // The receiver serves HTTP/1.1 only (see `serve_http1`), so it
+                // must not offer HTTP/2 during the TLS handshake.
+                let mut server_config = (*tls_config.get_inner()).clone();
+                server_config.alpn_protocols = vec![b"http/1.1".to_vec()];
+                tls_config.reload_from_config(Arc::new(server_config));
 
                 // Bind before spawn so the real (possibly OS-assigned) port is
                 // known before the ServerState/router are built.
@@ -174,8 +181,9 @@ impl LocalSendServer {
                     web_share: None,
                 }));
                 self.state = Some(state.clone());
-                let router = super::routes::create_router(state.clone());
+                let router = super::routes::create_router(state.clone(), self.limits);
 
+                let connection_limit = super::limits::ConnectionLimit::new(&self.limits);
                 let server = axum_server::from_tcp_rustls(std_listener, tls_config)
                     .map_err(|e| {
                         crate::error::LocalSendError::network(format!(
@@ -183,6 +191,8 @@ impl LocalSendServer {
                             e
                         ))
                     })?
+                    .map(|tls| tls.acceptor(connection_limit));
+                let server = serve_http1(server, &self.limits)
                     .serve(router.into_make_service_with_connect_info::<std::net::SocketAddr>());
 
                 let handle = tokio::spawn(async move {
@@ -213,8 +223,9 @@ impl LocalSendServer {
         } else {
             // Bind before spawn so the real (possibly OS-assigned) port is
             // known before the ServerState/router are built.
-            let listener = TcpListener::bind(&addr).await?;
-            let bound_port = listener.local_addr()?.port();
+            let std_listener = std::net::TcpListener::bind(&addr)?;
+            std_listener.set_nonblocking(true)?;
+            let bound_port = std_listener.local_addr()?.port();
             self.device.port = bound_port;
             tracing::info!("Starting HTTP server on port {}", bound_port);
 
@@ -230,19 +241,23 @@ impl LocalSendServer {
                 web_share: None,
             }));
             self.state = Some(state.clone());
-            let router = super::routes::create_router(state.clone());
+            let router = super::routes::create_router(state.clone(), self.limits);
+
+            let connection_limit = super::limits::ConnectionLimit::new(&self.limits);
+            let server = axum_server::from_tcp(std_listener)?.acceptor(connection_limit);
+            let server = serve_http1(server, &self.limits)
+                .serve(router.into_make_service_with_connect_info::<std::net::SocketAddr>());
 
             let handle = tokio::spawn(async move {
-                let server = axum::serve(
-                    listener,
-                    router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
-                )
-                .with_graceful_shutdown(async {
-                    let _ = shutdown_rx.await;
-                });
-
-                if let Err(e) = server.await {
-                    tracing::error!("HTTP server error: {}", e);
+                tokio::select! {
+                    res = server => {
+                        if let Err(e) = res {
+                            tracing::error!("HTTP server error: {}", e);
+                        }
+                    }
+                    _ = shutdown_rx => {
+                        tracing::info!("Stopping HTTP server");
+                    }
                 }
             });
 
@@ -328,6 +343,24 @@ impl LocalSendServer {
     }
 }
 
+/// Serve HTTP/1.1 only, with a timer so request heads, including the wait for
+/// the next request on a kept-alive connection, are bounded by
+/// `header_read_timeout`. Without a timer hyper silently disables its default
+/// header timeout. HTTP/2 is not served: its streams have no equivalent bound
+/// and LocalSend peers use HTTP/1.1.
+fn serve_http1<Acc>(
+    server: axum_server::Server<std::net::SocketAddr, Acc>,
+    limits: &super::limits::ServerLimits,
+) -> axum_server::Server<std::net::SocketAddr, Acc> {
+    let mut server = server.http1_only();
+    server
+        .http_builder()
+        .http1()
+        .timer(hyper_util::rt::TokioTimer::new())
+        .header_read_timeout(limits.header_read_timeout);
+    server
+}
+
 /// Every 60s, reclaim a session that's been idle past its 300s TTL (R5: a
 /// sender that vanishes mid-transfer must not permanently wedge the single
 /// upload slot). The lock is only held for the duration of the check itself
@@ -368,6 +401,7 @@ pub struct LocalSendServerBuilder {
     auto_accept: bool,
     accept_timeout: Duration,
     receive_rate_limit_bytes_per_second: Option<u64>,
+    limits: super::limits::ServerLimits,
     #[cfg(feature = "https")]
     tls_certificate: Option<crate::crypto::TlsCertificate>,
 }
@@ -413,6 +447,15 @@ impl LocalSendServerBuilder {
     pub fn receive_rate_limit(mut self, bytes_per_second: u64) -> Self {
         self.receive_rate_limit_bytes_per_second =
             (bytes_per_second > 0).then_some(bytes_per_second);
+        self
+    }
+
+    /// Override connection and request limits. Tests use short values;
+    /// production callers should keep [`ServerLimits::default`].
+    ///
+    /// [`ServerLimits::default`]: super::limits::ServerLimits::default
+    pub fn limits(mut self, limits: super::limits::ServerLimits) -> Self {
+        self.limits = limits;
         self
     }
 
@@ -476,6 +519,7 @@ impl LocalSendServerBuilder {
             self.accept_timeout,
             self.receive_rate_limit_bytes_per_second,
         )?;
+        server.limits = self.limits;
         #[cfg(feature = "https")]
         if let Some(cert) = tls_cert {
             server.set_tls_certificate(cert);
