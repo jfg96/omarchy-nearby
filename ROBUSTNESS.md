@@ -203,7 +203,7 @@ manually before release.
 | Helper version and published/local build | `1.2.3`, local `build.sh` override |
 | Omarchy version | `4.0.0.r6691.g8b4eae6-1` |
 | Android device, OS and LocalSend version | Not run |
-| iOS device, OS and LocalSend version | iPhone; exact model, iOS and LocalSend versions not recorded |
+| iOS device, OS and LocalSend version | iPhone 15, iOS 27.0.1, LocalSend 1.18.2 |
 | Network, VPN/firewall and monitor arrangement | Not recorded |
 
 Nearby 1.2.2 was removed with `omarchy plugin remove`, reinstalled through the
@@ -226,8 +226,7 @@ The failure was reproduced with an automated sender that drops its connection
 while awaiting a decision, against both this branch and `v1.2.2`; the new offer
 received `409` for at least 25 seconds, beyond the accept timeout. It is fixed
 by the pending-reservation guard recorded in `VENDORED_LOCALSEND_RS.md` and
-passed the manual iPhone retest at `b6546d0`. Exact iOS and LocalSend versions
-must be recorded before a stable release.
+passed the manual iPhone retest at `b6546d0`. Android remains **Not run**.
 
 ## Manual interoperability matrix
 
