@@ -21,7 +21,7 @@ bash tests/helper-repair.test.sh
 ```
 
 The suites cover peer registry retention/expiry, command correlation, request decisions,
-cancel/completed/failed event separation, truncated and checksum-mismatched uploads,
+cancel/completed/failed event separation, oversized, truncated and checksum-mismatched uploads,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -80,6 +80,40 @@ The downloaded executable independently matched the release checksum and
 9,040,128-byte size; `gh attestation verify` matched the helper-release workflow,
 source digest and tag, and `--version` reported `omarchy-nearby-helper 1.2.2`.
 Android/iOS interoperability and live Omarchy scenarios remain **Not run**.
+
+### Upload-size development validation, 2026-10-01
+
+On `fix/receive-upload-size`, the incoming upload writer checks the negotiated
+size before each chunk is written. New regression coverage checks immediate
+rejection without EOF, no excess bytes or progress, zero-byte limits and checked
+arithmetic overflow. The HTTP regression additionally checks partial cleanup,
+terminal failure, old-token rejection and receiver recovery through a fresh
+session. Existing truncation and checksum tests now assert that no `.part` file
+remains either.
+
+The nonterminating-stream regression failed against the pre-fix writer with
+`must reject excess bytes without waiting for EOF: Elapsed(())`. The raw HTTP
+regression was also run against pre-fix commit
+`5b7c5b6d8f8726c4ee7e9d888757cea1201d5470` in an isolated worktree: it failed
+with `oversized upload must be rejected before EOF: Elapsed(())`, while keeping
+the sending half of the socket open. Both regressions pass with the fix.
+
+An initial sandboxed run prevented localhost sockets and remapped filesystem
+owners, blocking network and protected-state tests. After enabling full access,
+the complete supported suite passed with Rust 1.97.1:
+
+- All three Node suites and both Bash suites.
+- Helper and vendor formatting checks, `cargo check --locked`, and helper
+  Clippy with warnings denied.
+- Helper tests: 71 unit tests and 1 startup integration test passed.
+- Vendor tests: 76 library tests and 38 integration tests passed; 1 pre-existing
+  library test remains ignored. The three `conformance_upload` tests also
+  passed in a separate focused run, including the raw HTTP regression.
+- `git diff --check`.
+
+The HTTP regression was validated over a real localhost TCP socket, with real
+file writes and partial cleanup. Android/iOS interoperability and live Omarchy
+scenarios remain **Not run**. No release or tag has been created for this change.
 
 ## Manual interoperability matrix
 

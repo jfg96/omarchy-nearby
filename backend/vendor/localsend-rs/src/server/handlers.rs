@@ -409,6 +409,7 @@ pub(crate) async fn handle_upload(
     let body_result = write_body_to_file_with_progress(
         body,
         &temp_path,
+        declared_size,
         receive_rate_limit_bytes_per_second,
         move |file_bytes| {
             let delta = file_bytes.saturating_sub(previous_file_bytes);
@@ -425,7 +426,12 @@ pub(crate) async fn handle_upload(
             progress.rollback(file_reported.load(Ordering::Relaxed));
             let _ = tokio::fs::remove_file(&temp_path).await;
             tracing::error!("Failed to save file to {:?}: {}", temp_path, e);
-            fail_receive_session(&state_ref, &session_id, "Connection lost during transfer").await;
+            let message = if e.kind() == std::io::ErrorKind::InvalidData {
+                "Received size did not match the request"
+            } else {
+                "Connection lost during transfer"
+            };
+            fail_receive_session(&state_ref, &session_id, message).await;
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
@@ -435,9 +441,9 @@ pub(crate) async fn handle_upload(
     // that illegally splits the upload into multiple POSTs) would otherwise
     // be saved as a partial file and the session wrongly marked complete.
     // On any mismatch: discard the partial, return 500 ("Unknown error by
-    // receiver", per the LocalSend v2.1 spec's upload error table), and leave
-    // the session untouched so it is neither recorded nor completed -- the
-    // sender can retry the same file id against the still-open session.
+    // receiver", per the LocalSend v2.1 spec's upload error table), and fail
+    // the session without recording or completing the rejected file. The
+    // sender must prepare a new session before retrying.
     if body_len != declared_size {
         progress.rollback(body_len);
         tracing::warn!(

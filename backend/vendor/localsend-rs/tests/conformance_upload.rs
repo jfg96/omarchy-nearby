@@ -100,6 +100,11 @@ async fn short_body_is_rejected_and_partial_discarded() {
         "partial upload must be deleted"
     );
 
+    assert_eq!(
+        std::fs::read_dir(save.path()).unwrap().count(),
+        0,
+        "rejected upload must leave no partial or final files"
+    );
     assert_rejected_upload_only_emits_rolled_back_progress(&mut events);
 }
 
@@ -139,5 +144,94 @@ async fn sha256_mismatch_is_rejected_and_partial_discarded() {
         !save.path().join("big.bin").exists(),
         "partial upload must be deleted"
     );
+    assert_eq!(
+        std::fs::read_dir(save.path()).unwrap().count(),
+        0,
+        "rejected upload must leave no partial or final files"
+    );
     assert_rejected_upload_only_emits_rolled_back_progress(&mut events);
+}
+
+/// Reject excess bytes before EOF, including a sender that keeps a much larger
+/// HTTP body open. Previously the receiver waited for the entire body and kept
+/// writing it to disk before checking the negotiated size.
+#[tokio::test]
+async fn oversized_body_is_rejected_before_eof_and_partial_discarded() {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::time::{Duration, timeout};
+
+    let save = tempfile::tempdir().unwrap();
+    let (server, mut events) = LocalSendServer::builder()
+        .alias("R")
+        .port(0)
+        .save_dir(save.path())
+        .protocol(Protocol::Http)
+        .auto_accept(true)
+        .build()
+        .await
+        .unwrap();
+    let port = server.port();
+    let (session_id, token) = prepare_single(port, 3, None).await;
+    let mut socket = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .unwrap();
+    let headers = format!(
+        "POST /api/localsend/v2/upload?sessionId={session_id}&fileId=f1&token={token} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: 1048576\r\nConnection: close\r\n\r\n"
+    );
+    socket.write_all(headers.as_bytes()).await.unwrap();
+    socket.write_all(b"abc").await.unwrap();
+
+    // Wait for the accepted chunk to be written so the excess arrives in a
+    // later chunk and exercises progress rollback as well as early rejection.
+    let progress = timeout(Duration::from_secs(5), events.recv())
+        .await
+        .expect("accepted chunk must report progress")
+        .unwrap();
+    assert!(matches!(
+        progress,
+        ServerEvent::FileReceiveProgress {
+            bytes_received: 3,
+            ..
+        }
+    ));
+    socket.write_all(b"d").await.unwrap();
+    // Do not finish the advertised HTTP body or close the sending half.
+    let mut response = BufReader::new(socket);
+    let mut status_line = String::new();
+    timeout(Duration::from_secs(5), response.read_line(&mut status_line))
+        .await
+        .expect("oversized upload must be rejected before EOF")
+        .unwrap();
+    assert!(status_line.starts_with("HTTP/1.1 500"), "{status_line:?}");
+
+    assert_eq!(
+        std::fs::read_dir(save.path()).unwrap().count(),
+        0,
+        "neither the final file nor a .part may remain"
+    );
+    assert_rejected_upload_only_emits_rolled_back_progress(&mut events);
+
+    // A rejected upload terminates its session; its old token cannot retry.
+    let rejected_retry = reqwest::Client::new()
+        .post(format!(
+            "http://127.0.0.1:{port}/api/localsend/v2/upload?sessionId={session_id}&fileId=f1&token={token}"
+        ))
+        .body("abc")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(rejected_retry.status(), 403);
+
+    // The receiver remains available for a fresh, exact-size transfer.
+    let (next_session, next_token) = prepare_single(port, 3, None).await;
+    let accepted = reqwest::Client::new()
+        .post(format!(
+            "http://127.0.0.1:{port}/api/localsend/v2/upload?sessionId={next_session}&fileId=f1&token={next_token}"
+        ))
+        .body("abc")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(accepted.status(), 200);
+    assert_eq!(std::fs::read(save.path().join("big.bin")).unwrap(), b"abc");
 }

@@ -201,6 +201,49 @@ instead of arriving as part of the PIN. Nearby now builds the URL with
 `reqwest::Url` and appends `pin` through its query serializer. Tests cover
 spaces, Unicode, `+`, `&`, `#` and `%` round-tripping unchanged.
 
+### 7. Bound incoming upload writes to the accepted file size
+
+- Nearby change: `fix: reject oversized uploads before writing`.
+- Files: `src/server/state.rs`, `src/server/handlers.rs`, and
+  `tests/conformance_upload.rs`.
+- Internal API: `write_body_to_file_with_progress` now takes the accepted file
+  size from the authorized session metadata.
+
+Previously, the receiver streamed the complete HTTP body to a `.part` file
+before comparing its length with the negotiated size. An accepted sender could
+therefore consume disk space beyond the approved size, including by keeping an
+oversized body open indefinitely.
+
+The writer now converts each chunk length safely and checks the cumulative size
+with `checked_add` before writing. A chunk that would exceed the accepted size
+or overflow the counter is rejected in full, without writing any of its bytes,
+reporting them as progress, or consuming the rest of the body. Progress advances
+only after a successful write. The final exact-size check still rejects truncated
+bodies, and SHA256 verification remains before final publication.
+
+The handler retains HTTP `500`, progress rollback, `.part` cleanup and terminal
+`SessionFailed` behavior for size failures, without `FileReceived` or
+`SessionCompleted`. An oversized upload reports the existing size-mismatch
+message rather than a connection-loss message. As with truncated uploads, the
+failed session is closed and the sender must prepare a new one before retrying.
+The old comment claiming an in-session retry was possible has been corrected;
+no retry behavior was changed.
+
+Regression coverage includes a nonterminating stream that exceeds the size in a
+later chunk, an oversized first chunk, zero-byte limits, exact-size writes,
+checked arithmetic overflow, unchanged progress and throttling, and a raw HTTP
+request that must receive rejection before EOF. The HTTP test also checks no
+final or partial file remains, progress rolls back, the old token is rejected,
+and a fresh exact-size session succeeds.
+
+The direct nonterminating-stream regression was run against the pre-fix writer
+and failed because the receiver waited for EOF. The raw HTTP regression also
+failed against the pre-fix commit for the same reason and passes with the fix.
+Validation results are recorded in `ROBUSTNESS.md`. No new dependencies or public
+LocalSend API changes are introduced. Upstream status: not submitted or verified
+against a newer upstream revision; retain this patch unless an equivalent
+pre-write size bound and its cleanup semantics have been confirmed upstream.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the
