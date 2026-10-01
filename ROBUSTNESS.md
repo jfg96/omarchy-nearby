@@ -219,14 +219,15 @@ the existing identity and settings and negotiated only `http/1.1`.
 | Nearby → iPhone, file and clipboard | iOS | Pass | Reported by tester |
 | Incoming PIN | iOS | Pass | Reported by tester |
 | Large-file cancel from iPhone (matrix 4) | iOS | Not run | No large file available |
-| Cancel while awaiting approval, then resend | iOS | Fail | Next offer refused as busy; also in 1.2.2 |
+| Cancel while awaiting approval, then resend | iOS | Fail at `5cc66c0` | Next offer refused as busy; also in 1.2.2 |
+| Same retest after the fix | iOS | Pass at `b6546d0` | Prompt withdrawn; immediate resend asks for approval |
 
 The failure was reproduced with an automated sender that drops its connection
 while awaiting a decision, against both this branch and `v1.2.2`; the new offer
 received `409` for at least 25 seconds, beyond the accept timeout. It is fixed
-by the pending-reservation guard recorded in `VENDORED_LOCALSEND_RS.md`; the
-fix still requires a manual retest with the iPhone. Exact iOS and LocalSend
-versions must be recorded before a stable release.
+by the pending-reservation guard recorded in `VENDORED_LOCALSEND_RS.md` and
+passed the manual iPhone retest at `b6546d0`. Exact iOS and LocalSend versions
+must be recorded before a stable release.
 
 ## Manual interoperability matrix
 
