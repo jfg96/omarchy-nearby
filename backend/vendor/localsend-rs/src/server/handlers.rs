@@ -297,13 +297,28 @@ async fn fail_receive_session(
     }
 }
 
+async fn end_upload(
+    state_ref: &Arc<RwLock<ServerState>>,
+    session_id: &SessionId,
+    file_id: &FileId,
+) {
+    let mut state = state_ref.write().await;
+    if let Some(session) = state
+        .current_session
+        .as_mut()
+        .filter(|session| session.id == *session_id)
+    {
+        session.end_upload(file_id);
+    }
+}
+
 #[axum::debug_handler]
 pub(crate) async fn handle_upload(
     State(state_ref): State<Arc<RwLock<ServerState>>>,
     Query(params): Query<UploadParams>,
     body: Body,
 ) -> Response {
-    let state = state_ref.write().await;
+    let mut state = state_ref.write().await;
 
     // Verify session
     let (
@@ -375,6 +390,20 @@ pub(crate) async fn handle_upload(
         }
     };
 
+    // A token authorizes one upload of its file. Reject repeats of a received
+    // file and concurrent requests for a file in progress before touching disk.
+    if !state
+        .current_session
+        .as_mut()
+        .is_some_and(|session| session.begin_upload(&params.file_id))
+    {
+        tracing::warn!(
+            "Upload rejected: File ID {} is already uploading or received",
+            params.file_id
+        );
+        return StatusCode::CONFLICT.into_response();
+    }
+
     // Release the lock before async I/O operations
     drop(state);
 
@@ -383,11 +412,13 @@ pub(crate) async fn handle_upload(
         && let Err(e) = tokio::fs::create_dir_all(parent).await
     {
         tracing::error!("Failed to create directory {:?}: {}", parent, e);
+        end_upload(&state_ref, &session_id, &params.file_id).await;
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
-    let temp_path = save_dir.join(format!(".nearby-{}-{}.part", session_id, params.file_id));
-    let _ = tokio::fs::remove_file(&temp_path).await;
+    // Remote session and file ids are opaque protocol values, never path
+    // components. A random name also keeps each upload's partial file private.
+    let temp_path = save_dir.join(format!(".nearby-{}.part", uuid::Uuid::new_v4().simple()));
     let progress = ReceiveProgressContext {
         session_id: session_id.clone(),
         file_id: params.file_id.clone(),

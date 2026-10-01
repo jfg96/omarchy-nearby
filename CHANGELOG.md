@@ -4,6 +4,9 @@
 
 - Reject incoming upload chunks before writing if they exceed the accepted
   file size, discard partial files and roll back receive progress on failure.
+- Accept each incoming file at most once per session: reject uploads of a
+  file already received or still uploading, and name partial files randomly
+  instead of from sender-supplied identifiers.
 
 ## 1.2.2
 

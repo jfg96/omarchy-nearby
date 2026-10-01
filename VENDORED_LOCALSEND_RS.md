@@ -244,6 +244,35 @@ LocalSend API changes are introduced. Upstream status: not submitted or verified
 against a newer upstream revision; retain this patch unless an equivalent
 pre-write size bound and its cleanup semantics have been confirmed upstream.
 
+### 8. Accept each incoming file once and name partial files randomly
+
+- Nearby change: `fix: accept each incoming file once per session`.
+- Files: `src/core/session.rs`, `src/server/handlers.rs`, and
+  `tests/conformance_upload.rs`.
+- Public API: `Session` gains an `uploading` set with `begin_upload` and
+  `end_upload`; `mark_received` also clears the reservation.
+
+Previously a per-file token stayed valid after its file was received. While
+any other file of the session was pending, an accepted sender could upload the
+same file again and again, and each repeat was committed as a new copy, so
+disk use was bounded only by the sender. Two concurrent requests for one file
+also shared a `.part` path derived from the session and file ids: the second
+removed and recreated it, and the first then hashed and published the second
+request's partial file.
+
+The upload handler now reserves the file under the session lock before any
+disk work. A file outside the session, already received or already uploading
+gets `409` without writing. Terminal failures still end the whole session,
+which drops its reservations; a directory-creation failure releases its own.
+Successful receipt moves the file from uploading to received. Partial files
+are named `.nearby-<random>.part`, independent of remote identifiers, which also
+keeps them within the existing stale-partial cleanup pattern.
+
+Regression coverage uses real HTTP requests for a repeated upload in a
+two-file session, a concurrent request against an upload in progress, and a
+file id containing `/` and `..`; all three failed before the change. Upstream
+status: not submitted or verified against a newer upstream revision.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the

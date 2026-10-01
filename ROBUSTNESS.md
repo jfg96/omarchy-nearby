@@ -22,6 +22,7 @@ bash tests/helper-repair.test.sh
 
 The suites cover peer registry retention/expiry, command correlation, request decisions,
 cancel/completed/failed event separation, oversized, truncated and checksum-mismatched uploads,
+repeated and concurrent uploads of one file, sender-supplied file ids in partial paths,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -83,7 +84,7 @@ Android/iOS interoperability and live Omarchy scenarios remain **Not run**.
 
 ### Upload-size development validation, 2026-10-01
 
-On `fix/receive-upload-size`, the incoming upload writer checks the negotiated
+On `fix/receive-hardening`, the incoming upload writer checks the negotiated
 size before each chunk is written. New regression coverage checks immediate
 rejection without EOF, no excess bytes or progress, zero-byte limits and checked
 arithmetic overflow. The HTTP regression additionally checks partial cleanup,
@@ -120,6 +121,24 @@ The development checkout advances to plugin `1.2.3-dev` and helper/floor `1.2.3`
 after publishing and independently verifying a matching 1.2.3 helper. Until
 then this checkout requires a deliberately built local helper to meet its new
 compatibility floor.
+
+### Single-use upload development validation, 2026-10-01
+
+On `fix/receive-hardening`, each accepted file can be uploaded once per
+session. New HTTP regressions check that a received file's token cannot store a
+second copy while the session is still open, that a second request for a file
+in progress is rejected without disturbing the first upload or its content, and
+that a sender-supplied file id containing `/` and `..` no longer shapes the
+partial path. A session unit test covers foreign, exclusive, released and
+received reservations.
+
+All three HTTP regressions failed against the size-fix commit `e602a80` for the
+expected reason: the repeated and concurrent uploads returned `200` instead of
+`409`, and the slash-containing file id returned `500` instead of `200`. They
+pass with the fix. A temporary experiment, not committed, confirmed that an
+abrupt sender disconnect mid-upload still runs the existing failure path:
+progress rolls back, `SessionFailed` is emitted and no partial file remains.
+Android/iOS interoperability and live Omarchy scenarios remain **Not run**.
 
 ## Manual interoperability matrix
 
