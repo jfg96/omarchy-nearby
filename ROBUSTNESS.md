@@ -194,6 +194,40 @@ reconnection after an idle keep-alive connection closes, and Nearby-to-Nearby
 transfers between live installations remain **Not run** and must be checked
 manually before release.
 
+### iPhone manual session, 2026-10-01
+
+| Session field | Value |
+| --- | --- |
+| Date and tester | 2026-10-01, maintainer |
+| Plugin version and exact commit | `1.2.3-dev`, `fix/receive-hardening` at `5cc66c0` |
+| Helper version and published/local build | `1.2.3`, local `build.sh` override |
+| Omarchy version | `4.0.0.r6691.g8b4eae6-1` |
+| Android device, OS and LocalSend version | Not run |
+| iOS device, OS and LocalSend version | iPhone; exact model, iOS and LocalSend versions not recorded |
+| Network, VPN/firewall and monitor arrangement | Not recorded |
+
+Nearby 1.2.2 was removed with `omarchy plugin remove`, reinstalled through the
+plugin manager, switched to the branch and built locally. The receiver reused
+the existing identity and settings and negotiated only `http/1.1`.
+
+| Check | Peer/platform | Result | Evidence or deviation |
+| --- | --- | --- | --- |
+| Discovery in both directions | iOS | Pass | Reported by tester |
+| iPhone → Nearby, one file and several files | iOS | Pass | Reported by tester |
+| Accept after about 40 seconds | iOS | Pass | Longer than the 30-second body timeout |
+| Second transfer after more than 30 idle seconds | iOS | Pass | Reconnects after keep-alive close |
+| Nearby → iPhone, file and clipboard | iOS | Pass | Reported by tester |
+| Incoming PIN | iOS | Pass | Reported by tester |
+| Large-file cancel from iPhone (matrix 4) | iOS | Not run | No large file available |
+| Cancel while awaiting approval, then resend | iOS | Fail | Next offer refused as busy; also in 1.2.2 |
+
+The failure was reproduced with an automated sender that drops its connection
+while awaiting a decision, against both this branch and `v1.2.2`; the new offer
+received `409` for at least 25 seconds, beyond the accept timeout. It is fixed
+by the pending-reservation guard recorded in `VENDORED_LOCALSEND_RS.md`; the
+fix still requires a manual retest with the iPhone. Exact iOS and LocalSend
+versions must be recorded before a stable release.
+
 ## Manual interoperability matrix
 
 Run applicable transfer and PIN scenarios with both Android and iOS LocalSend

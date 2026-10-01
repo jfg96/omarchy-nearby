@@ -370,6 +370,30 @@ the limits configured but not enforced; two guards confirm that a slow accept
 decision and a slow but steady upload are unaffected. Upstream status: not
 submitted.
 
+### 12. Release a pending reservation when the sender abandons it
+
+- Nearby change: `fix: release the receiver when a pending sender cancels`.
+- Files: `src/server/handlers.rs` and `tests/conformance_prepare_upload.rs`.
+
+LocalSend clients cancel a request that is awaiting approval by closing the
+connection; they have no session id to send to `/cancel` yet. Hyper then drops
+the prepare-upload handler while it waits for the decision, so neither the
+decline path nor the accept timeout ran. The placeholder reservation stayed in
+`current_session`, every new offer received `409` until the idle sweep removed
+it after at least 300 seconds, and the local prompt remained although its
+decision could no longer be delivered. The same behavior occurs in 1.2.2.
+
+`handle_prepare_upload` now holds a guard from the moment it reserves the
+session until the reservation is replaced or cleared. If the handler is
+dropped first, the guard releases the reservation, when it is still current,
+and emits `TransferRequestExpired` for a prompt that was still awaiting a
+decision, which the helper already forwards as `incoming_expired`.
+
+The regression drops a raw sender while its request awaits a decision. It
+failed before the change because no expiry arrived; it now requires a prompt
+expiry, rejects a late accept and sends a retry through the normal decision
+flow instead of `409`. Upstream status: not submitted.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the

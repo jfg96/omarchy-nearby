@@ -14,6 +14,9 @@
 - Bound what LAN peers can make the receiver hold: at most 64 connections, 16
   per address; 30 seconds for a request head or a non-upload body; and 120
   seconds without data during an upload. The receiver now serves HTTP/1.1 only.
+- Release the receiver immediately when a sender cancels while its request is
+  awaiting approval, and withdraw the approval prompt. Previously the next
+  transfer was refused as busy for several minutes.
 
 ## 1.2.2
 
