@@ -115,6 +115,12 @@ The HTTP regression was validated over a real localhost TCP socket, with real
 file writes and partial cleanup. Android/iOS interoperability and live Omarchy
 scenarios remain **Not run**. No release or tag has been created for this change.
 
+The development checkout advances to plugin `1.2.3-dev` and helper/floor `1.2.3`.
+`helper-release.env` still pins the verified 1.2.2 artifact; it must only change
+after publishing and independently verifying a matching 1.2.3 helper. Until
+then this checkout requires a deliberately built local helper to meet its new
+compatibility floor.
+
 ## Manual interoperability matrix
 
 Run applicable transfer and PIN scenarios with both Android and iOS LocalSend

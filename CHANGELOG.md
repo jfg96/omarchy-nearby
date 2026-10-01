@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.3-dev
+
+- Reject incoming upload chunks before writing if they exceed the accepted
+  file size, discard partial files and roll back receive progress on failure.
+
 ## 1.2.2
 
 - Walk receiver security-state directories without following symlinks, check
