@@ -21,7 +21,10 @@ bash tests/helper-repair.test.sh
 ```
 
 The suites cover peer registry retention/expiry, command correlation, request decisions,
-cancel/completed/failed event separation, truncated and checksum-mismatched uploads,
+cancel/completed/failed event separation, oversized, truncated and checksum-mismatched uploads,
+repeated and concurrent uploads of one file, sender-supplied file ids in partial paths,
+the incoming file-count limit, cancellation stopping an upload in progress,
+connection limits, request head/body timeouts and upload idle timeouts,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -80,6 +83,160 @@ The downloaded executable independently matched the release checksum and
 9,040,128-byte size; `gh attestation verify` matched the helper-release workflow,
 source digest and tag, and `--version` reported `omarchy-nearby-helper 1.2.2`.
 Android/iOS interoperability and live Omarchy scenarios remain **Not run**.
+
+### Upload-size development validation, 2026-10-01
+
+On `fix/receive-hardening`, the incoming upload writer checks the negotiated
+size before each chunk is written. New regression coverage checks immediate
+rejection without EOF, no excess bytes or progress, zero-byte limits and checked
+arithmetic overflow. The HTTP regression additionally checks partial cleanup,
+terminal failure, old-token rejection and receiver recovery through a fresh
+session. Existing truncation and checksum tests now assert that no `.part` file
+remains either.
+
+The nonterminating-stream regression failed against the pre-fix writer with
+`must reject excess bytes without waiting for EOF: Elapsed(())`. The raw HTTP
+regression was also run against pre-fix commit
+`5b7c5b6d8f8726c4ee7e9d888757cea1201d5470` in an isolated worktree: it failed
+with `oversized upload must be rejected before EOF: Elapsed(())`, while keeping
+the sending half of the socket open. Both regressions pass with the fix.
+
+An initial sandboxed run prevented localhost sockets and remapped filesystem
+owners, blocking network and protected-state tests. After enabling full access,
+the complete supported suite passed with Rust 1.97.1:
+
+- All three Node suites and both Bash suites.
+- Helper and vendor formatting checks, `cargo check --locked`, and helper
+  Clippy with warnings denied.
+- Helper tests: 71 unit tests and 1 startup integration test passed.
+- Vendor tests: 76 library tests and 38 integration tests passed; 1 pre-existing
+  library test remains ignored. The three `conformance_upload` tests also
+  passed in a separate focused run, including the raw HTTP regression.
+- `git diff --check`.
+
+The HTTP regression was validated over a real localhost TCP socket, with real
+file writes and partial cleanup. Android/iOS interoperability and live Omarchy
+scenarios remain **Not run**. No release or tag has been created for this change.
+
+The development checkout advances to plugin `1.2.3-dev` and helper/floor `1.2.3`.
+`helper-release.env` still pins the verified 1.2.2 artifact; it must only change
+after publishing and independently verifying a matching 1.2.3 helper. Until
+then this checkout requires a deliberately built local helper to meet its new
+compatibility floor.
+
+### Single-use upload development validation, 2026-10-01
+
+On `fix/receive-hardening`, each accepted file can be uploaded once per
+session. New HTTP regressions check that a received file's token cannot store a
+second copy while the session is still open, that a second request for a file
+in progress is rejected without disturbing the first upload or its content, and
+that a sender-supplied file id containing `/` and `..` no longer shapes the
+partial path. A session unit test covers foreign, exclusive, released and
+received reservations.
+
+All three HTTP regressions failed against the size-fix commit `e602a80` for the
+expected reason: the repeated and concurrent uploads returned `200` instead of
+`409`, and the slash-containing file id returned `500` instead of `200`. They
+pass with the fix. A temporary experiment, not committed, confirmed that an
+abrupt sender disconnect mid-upload still runs the existing failure path:
+progress rolls back, `SessionFailed` is emitted and no partial file remains.
+Android/iOS interoperability and live Omarchy scenarios remain **Not run**.
+
+### Incoming file-count development validation, 2026-10-01
+
+On `fix/receive-hardening`, a prepare-upload request offering more than 10,000
+files receives `413` after the PIN check and before a session is reserved or a
+decision is requested. A regression offers 10,001 small entries, well under the
+2 MB JSON limit, to a receiver without auto-accept: it must answer within five
+seconds and emit no event. Against commit `7c08592` it failed because the
+request waited for a decision. A boundary test confirms that exactly 10,000
+files are still accepted. Live interoperability remains **Not run**.
+
+### Upload cancellation development validation, 2026-10-01
+
+On `fix/receive-hardening`, an upload writer stops before its next chunk once
+its session has ended. An HTTP regression starts a 1 MiB upload, cancels the
+session and sends one more byte while keeping the advertised body open: the
+upload must answer within five seconds with a non-success status and leave no
+file. Against commit `ec1b460` it failed because the writer kept waiting for
+the rest of the body. A writer unit test checks that the chunk arriving after
+the session ends is not written. The rollback progress event emitted after a
+cancel was already possible on other failure paths; `Service.qml` ignores it
+once the transfer has finished. Live interoperability remains **Not run**.
+
+### Connection and timeout limits development validation, 2026-10-01
+
+Before the change, an experiment against the HTTPS receiver showed no timeout
+after the TLS handshake: an idle connection, a partial request head and a
+partial `/register` body all stayed open past 40 seconds, and 100 connections
+holding 1.9 MB partial bodies raised the process from 13 MB to 248 MB
+indefinitely. The receiver also negotiated HTTP/2 with a client offering it.
+
+`conformance_limits` adds nine HTTP tests with one-second limits. Seven
+regressions failed with the limits configured but not enforced: idle and
+partial-head connections stayed open, a trickled body and a stalled upload got
+no answer, connections over the per-IP and global limits stayed open, and
+HTTPS negotiated `h2`. Two guards passed before and after: an accept decision
+taking longer than the body timeout still succeeds, and an upload sending one
+byte every 400 ms completes although it outlasts both timeouts. A unit test
+covers slot accounting.
+
+With the default limits, an experiment opening 100 connections from distinct
+loopback addresses, each holding a 1.9 MB partial prepare-upload body, admitted
+64 and refused 36; memory peaked at 135 MB and returned to 26 MB once all held
+connections were answered or closed within 32 seconds. Both experiments were
+temporary and not committed; their numbers include the in-process test client.
+
+Not covered automatically: hashing a multi-gigabyte upload, which happens after
+the body is read and outside the idle timeout by construction. Interoperability
+of the HTTP/1.1-only receiver with official Android/iOS clients, including
+reconnection after an idle keep-alive connection closes, and Nearby-to-Nearby
+transfers between live installations remain **Not run** and must be checked
+manually before release.
+
+### iPhone manual session, 2026-10-01
+
+| Session field | Value |
+| --- | --- |
+| Date and tester | 2026-10-01, maintainer |
+| Plugin version and exact commit | `1.2.3-dev`, `fix/receive-hardening` at `5cc66c0` |
+| Helper version and published/local build | `1.2.3`, local `build.sh` override |
+| Omarchy version | `4.0.0.r6691.g8b4eae6-1` |
+| Android device, OS and LocalSend version | Not run |
+| iOS device, OS and LocalSend version | iPhone 15, iOS 27.0.1, LocalSend 1.18.2 |
+| Network, VPN/firewall and monitor arrangement | Not recorded |
+
+Nearby 1.2.2 was removed with `omarchy plugin remove`, reinstalled through the
+plugin manager, switched to the branch and built locally. The receiver reused
+the existing identity and settings and negotiated only `http/1.1`.
+
+| Check | Peer/platform | Result | Evidence or deviation |
+| --- | --- | --- | --- |
+| Discovery in both directions | iOS | Pass | Reported by tester |
+| iPhone → Nearby, one file and several files | iOS | Pass | Reported by tester |
+| Accept after about 40 seconds | iOS | Pass | Longer than the 30-second body timeout |
+| Second transfer after more than 30 idle seconds | iOS | Pass | Reconnects after keep-alive close |
+| Nearby → iPhone, file and clipboard | iOS | Pass | Reported by tester |
+| Incoming PIN | iOS | Pass | Reported by tester |
+| Large-file cancel from iPhone (matrix 4) | iOS | Not run | No large file available |
+| Cancel while awaiting approval, then resend | iOS | Fail at `5cc66c0` | Next offer refused as busy; also in 1.2.2 |
+| Same retest after the fix | iOS | Pass at `b6546d0` | Prompt withdrawn; immediate resend asks for approval |
+
+The failure was reproduced with an automated sender that drops its connection
+while awaiting a decision, against both this branch and `v1.2.2`; the new offer
+received `409` for at least 25 seconds, beyond the accept timeout. It is fixed
+by the pending-reservation guard recorded in `VENDORED_LOCALSEND_RS.md` and
+passed the manual iPhone retest at `b6546d0`. Android remains **Not run**.
+
+### 1.2.3 helper preparation, 2026-10-01
+
+The pull-request CI passed on helper source commit
+`96bcd3025ca5c31cc06df483d4b0968ee460c94a`. The `helper-v1.2.3`
+GitHub Actions workflow built and published its Linux x86_64 prerelease.
+The downloaded executable independently matched the release checksum and
+9,071,448-byte size; `gh attestation verify` matched the helper-release workflow,
+source digest and tag on a GitHub-hosted runner, and `--version` reported
+`omarchy-nearby-helper 1.2.3`. Android interoperability remains **Not run**.
 
 ## Manual interoperability matrix
 

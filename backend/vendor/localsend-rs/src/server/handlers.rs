@@ -15,6 +15,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
+/// Most files a single prepare-upload request may offer.
+const MAX_OFFERED_FILES: usize = 10_000;
+
 pub(crate) async fn handle_info(State(state): State<Arc<RwLock<ServerState>>>) -> Response {
     let state = state.read().await;
     Json(state.device.clone()).into_response()
@@ -69,6 +72,17 @@ pub(crate) async fn handle_prepare_upload(
         return StatusCode::NO_CONTENT.into_response();
     }
 
+    // Bound the offer before reserving a session or asking the user, so an
+    // unauthenticated peer cannot push an arbitrarily large list to approval.
+    if request.files.len() > MAX_OFFERED_FILES {
+        tracing::warn!(
+            "Prepare-upload rejected: {} files offered, limit is {}",
+            request.files.len(),
+            MAX_OFFERED_FILES
+        );
+        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
+    }
+
     // LocalSend represents a text message as exactly one small offered item
     // whose non-empty `preview` is the complete body. Mixed/multi-file offers
     // remain ordinary file transfers even if one item happens to have preview
@@ -91,7 +105,7 @@ pub(crate) async fn handle_prepare_upload(
     // Never hold this guard across the `timeout(...).await` below -- that
     // would deadlock every other concurrent request (including the upload
     // that follows acceptance).
-    let (events_tx, auto_accept, accept_timeout) = {
+    let (events_tx, auto_accept, accept_timeout, reserved_id) = {
         let mut state = state_ref.write().await;
 
         // Check for existing session timeout (e.g. 5 minutes or session finished)
@@ -104,16 +118,22 @@ pub(crate) async fn handle_prepare_upload(
             }
         }
 
-        state.current_session = Some(crate::core::Session::new(
-            request.info.alias.clone(),
-            request.files.clone(),
-        ));
+        let placeholder =
+            crate::core::Session::new(request.info.alias.clone(), request.files.clone());
+        let reserved_id = placeholder.id.clone();
+        state.current_session = Some(placeholder);
 
         (
             state.events_tx.clone(),
             state.auto_accept.load(std::sync::atomic::Ordering::Relaxed),
             state.accept_timeout,
+            reserved_id,
         )
+    };
+    let mut reservation = PendingReservation {
+        state: state_ref.clone(),
+        session_id: Some(reserved_id),
+        request_id: None,
     };
 
     // Decide: auto-accept, or ask the event consumer.
@@ -123,6 +143,7 @@ pub(crate) async fn handle_prepare_upload(
         let (pending_request, decision_rx) =
             crate::server::events::PendingRequest::new(request.info.clone(), request.files.clone());
         let request_id = pending_request.request_id().to_string();
+        reservation.request_id = Some(request_id.clone());
         if events_tx
             .send(crate::server::events::ServerEvent::TransferRequest(
                 pending_request,
@@ -132,13 +153,16 @@ pub(crate) async fn handle_prepare_upload(
             // No consumer listening -> decline.
             crate::server::events::TransferDecision::Decline
         } else {
-            match tokio::time::timeout(accept_timeout, decision_rx).await {
+            let decision = match tokio::time::timeout(accept_timeout, decision_rx).await {
                 Ok(Ok(d)) => d,
                 _ => {
                     let _ = events_tx.send(ServerEvent::TransferRequestExpired { request_id });
                     crate::server::events::TransferDecision::Decline
                 }
-            }
+            };
+            // The prompt is resolved; only the reservation may still need release.
+            reservation.request_id = None;
+            decision
         }
     };
 
@@ -154,6 +178,7 @@ pub(crate) async fn handle_prepare_upload(
     if accepted_ids.is_empty() {
         let mut state = state_ref.write().await;
         state.current_session = None;
+        reservation.resolve();
         tracing::info!("Transfer declined (or timed out)");
         return StatusCode::FORBIDDEN.into_response();
     }
@@ -174,6 +199,7 @@ pub(crate) async fn handle_prepare_upload(
     {
         let mut state = state_ref.write().await;
         state.current_session = Some(session);
+        reservation.resolve();
     }
 
     // If it's a message, return 204 No Content
@@ -202,6 +228,52 @@ pub(crate) async fn handle_prepare_upload(
         files: files_map,
     })
     .into_response()
+}
+
+/// Releases prepare-upload's placeholder reservation if the handler is dropped
+/// before resolving it. Hyper drops the handler when the sender closes the
+/// connection, which is how LocalSend clients cancel while awaiting a decision;
+/// without this the receiver answered `409` until the idle sweep.
+struct PendingReservation {
+    state: Arc<RwLock<ServerState>>,
+    session_id: Option<SessionId>,
+    /// Set while the local user is being asked, so the prompt can be expired.
+    request_id: Option<String>,
+}
+
+impl PendingReservation {
+    fn resolve(&mut self) {
+        self.session_id = None;
+    }
+}
+
+impl Drop for PendingReservation {
+    fn drop(&mut self) {
+        let Some(session_id) = self.session_id.take() else {
+            return;
+        };
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        let state = self.state.clone();
+        let request_id = self.request_id.take();
+        runtime.spawn(async move {
+            let mut state = state.write().await;
+            if state
+                .current_session
+                .as_ref()
+                .is_some_and(|session| session.id == session_id)
+            {
+                state.current_session = None;
+            }
+            if let Some(request_id) = request_id {
+                tracing::info!("Sender abandoned pending request {}", request_id);
+                let _ = state
+                    .events_tx
+                    .send(ServerEvent::TransferRequestExpired { request_id });
+            }
+        });
+    }
 }
 
 #[derive(Deserialize)]
@@ -297,13 +369,28 @@ async fn fail_receive_session(
     }
 }
 
+async fn end_upload(
+    state_ref: &Arc<RwLock<ServerState>>,
+    session_id: &SessionId,
+    file_id: &FileId,
+) {
+    let mut state = state_ref.write().await;
+    if let Some(session) = state
+        .current_session
+        .as_mut()
+        .filter(|session| session.id == *session_id)
+    {
+        session.end_upload(file_id);
+    }
+}
+
 #[axum::debug_handler]
 pub(crate) async fn handle_upload(
     State(state_ref): State<Arc<RwLock<ServerState>>>,
     Query(params): Query<UploadParams>,
     body: Body,
 ) -> Response {
-    let state = state_ref.write().await;
+    let mut state = state_ref.write().await;
 
     // Verify session
     let (
@@ -318,6 +405,7 @@ pub(crate) async fn handle_upload(
         file_count,
         receive_rate_limit_bytes_per_second,
         active_uploads,
+        session_alive,
     ) = if let Some(session) = &state.current_session {
         if session.id != params.session_id {
             tracing::warn!(
@@ -353,6 +441,7 @@ pub(crate) async fn handle_upload(
                 session.files.len(),
                 state.receive_rate_limit_bytes_per_second,
                 session.active_uploads.clone(),
+                Arc::downgrade(&session.alive),
             )
         } else {
             tracing::warn!(
@@ -375,6 +464,20 @@ pub(crate) async fn handle_upload(
         }
     };
 
+    // A token authorizes one upload of its file. Reject repeats of a received
+    // file and concurrent requests for a file in progress before touching disk.
+    if !state
+        .current_session
+        .as_mut()
+        .is_some_and(|session| session.begin_upload(&params.file_id))
+    {
+        tracing::warn!(
+            "Upload rejected: File ID {} is already uploading or received",
+            params.file_id
+        );
+        return StatusCode::CONFLICT.into_response();
+    }
+
     // Release the lock before async I/O operations
     drop(state);
 
@@ -383,11 +486,13 @@ pub(crate) async fn handle_upload(
         && let Err(e) = tokio::fs::create_dir_all(parent).await
     {
         tracing::error!("Failed to create directory {:?}: {}", parent, e);
+        end_upload(&state_ref, &session_id, &params.file_id).await;
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
 
-    let temp_path = save_dir.join(format!(".nearby-{}-{}.part", session_id, params.file_id));
-    let _ = tokio::fs::remove_file(&temp_path).await;
+    // Remote session and file ids are opaque protocol values, never path
+    // components. A random name also keeps each upload's partial file private.
+    let temp_path = save_dir.join(format!(".nearby-{}.part", uuid::Uuid::new_v4().simple()));
     let progress = ReceiveProgressContext {
         session_id: session_id.clone(),
         file_id: params.file_id.clone(),
@@ -409,7 +514,9 @@ pub(crate) async fn handle_upload(
     let body_result = write_body_to_file_with_progress(
         body,
         &temp_path,
+        declared_size,
         receive_rate_limit_bytes_per_second,
+        move || session_alive.strong_count() > 0,
         move |file_bytes| {
             let delta = file_bytes.saturating_sub(previous_file_bytes);
             previous_file_bytes = file_bytes;
@@ -425,7 +532,12 @@ pub(crate) async fn handle_upload(
             progress.rollback(file_reported.load(Ordering::Relaxed));
             let _ = tokio::fs::remove_file(&temp_path).await;
             tracing::error!("Failed to save file to {:?}: {}", temp_path, e);
-            fail_receive_session(&state_ref, &session_id, "Connection lost during transfer").await;
+            let message = if e.kind() == std::io::ErrorKind::InvalidData {
+                "Received size did not match the request"
+            } else {
+                "Connection lost during transfer"
+            };
+            fail_receive_session(&state_ref, &session_id, message).await;
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
@@ -435,9 +547,9 @@ pub(crate) async fn handle_upload(
     // that illegally splits the upload into multiple POSTs) would otherwise
     // be saved as a partial file and the session wrongly marked complete.
     // On any mismatch: discard the partial, return 500 ("Unknown error by
-    // receiver", per the LocalSend v2.1 spec's upload error table), and leave
-    // the session untouched so it is neither recorded nor completed -- the
-    // sender can retry the same file id against the still-open session.
+    // receiver", per the LocalSend v2.1 spec's upload error table), and fail
+    // the session without recording or completing the rejected file. The
+    // sender must prepare a new session before retrying.
     if body_len != declared_size {
         progress.rollback(body_len);
         tracing::warn!(

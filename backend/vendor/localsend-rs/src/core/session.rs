@@ -11,12 +11,17 @@ pub struct Session {
     pub files: HashMap<FileId, FileMetadata>,
     pub tokens: HashMap<FileId, Token>,
     pub received: HashSet<FileId>,
+    /// Files whose upload body is currently being consumed.
+    pub uploading: HashSet<FileId>,
     pub received_bytes: Arc<AtomicU64>,
     pub sender_alias: String,
     pub created_at: Instant,
     pub last_activity: Instant,
     /// Upload handlers currently consuming request bodies. Active I/O is not idle.
     pub active_uploads: Arc<AtomicUsize>,
+    /// Upload writers hold weak references and stop once every copy of the
+    /// session has been dropped (cancelled, failed, swept or replaced).
+    pub alive: Arc<()>,
 }
 
 impl Session {
@@ -37,11 +42,13 @@ impl Session {
             files,
             tokens,
             received: HashSet::new(),
+            uploading: HashSet::new(),
             received_bytes: Arc::new(AtomicU64::new(0)),
             sender_alias,
             created_at: now,
             last_activity: now,
             active_uploads: Arc::new(AtomicUsize::new(0)),
+            alive: Arc::new(()),
         }
     }
 
@@ -71,6 +78,20 @@ impl Session {
         self.tokens.get(file_id)
     }
 
+    /// Reserve a file for one upload. Returns false for files outside the
+    /// session, files already received and files with an upload in progress,
+    /// so a token can never write a second copy or share a partial file.
+    pub fn begin_upload(&mut self, file_id: &FileId) -> bool {
+        self.files.contains_key(file_id)
+            && !self.received.contains(file_id)
+            && self.uploading.insert(file_id.clone())
+    }
+
+    /// Release a reservation whose upload ended without a terminal outcome.
+    pub fn end_upload(&mut self, file_id: &FileId) {
+        self.uploading.remove(file_id);
+    }
+
     /// Record a completed file. Returns true when every file has arrived.
     ///
     /// A file id that does not belong to this session (e.g. a stale upload
@@ -81,6 +102,7 @@ impl Session {
         if !self.files.contains_key(file_id) {
             return false;
         }
+        self.uploading.remove(file_id);
         self.received.insert(file_id.clone());
         self.last_activity = Instant::now();
         self.received.len() == self.files.len()
@@ -195,6 +217,27 @@ mod tests {
         let mut s = Session::new("A".to_string(), files);
         assert!(!s.mark_received(&ids[0]));
         assert!(s.mark_received(&ids[1]));
+    }
+
+    #[test]
+    fn upload_reservation_is_exclusive_and_ends_on_receipt() {
+        let files = create_test_files();
+        let id = files.keys().next().unwrap().clone();
+        let mut s = Session::new("A".to_string(), files);
+        assert!(
+            !s.begin_upload(&FileId::new()),
+            "foreign ids are never reserved"
+        );
+        assert!(s.begin_upload(&id));
+        assert!(!s.begin_upload(&id), "one upload per file at a time");
+        s.end_upload(&id);
+        assert!(s.begin_upload(&id), "a released file can be uploaded");
+        assert!(s.mark_received(&id));
+        assert!(s.uploading.is_empty());
+        assert!(
+            !s.begin_upload(&id),
+            "a received file is never uploaded again"
+        );
     }
 
     #[test]

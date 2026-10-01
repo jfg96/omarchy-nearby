@@ -201,6 +201,199 @@ instead of arriving as part of the PIN. Nearby now builds the URL with
 `reqwest::Url` and appends `pin` through its query serializer. Tests cover
 spaces, Unicode, `+`, `&`, `#` and `%` round-tripping unchanged.
 
+### 7. Bound incoming upload writes to the accepted file size
+
+- Nearby change: `fix: reject oversized uploads before writing`.
+- Files: `src/server/state.rs`, `src/server/handlers.rs`, and
+  `tests/conformance_upload.rs`.
+- Internal API: `write_body_to_file_with_progress` now takes the accepted file
+  size from the authorized session metadata.
+
+Previously, the receiver streamed the complete HTTP body to a `.part` file
+before comparing its length with the negotiated size. An accepted sender could
+therefore consume disk space beyond the approved size, including by keeping an
+oversized body open indefinitely.
+
+The writer now converts each chunk length safely and checks the cumulative size
+with `checked_add` before writing. A chunk that would exceed the accepted size
+or overflow the counter is rejected in full, without writing any of its bytes,
+reporting them as progress, or consuming the rest of the body. Progress advances
+only after a successful write. The final exact-size check still rejects truncated
+bodies, and SHA256 verification remains before final publication.
+
+The handler retains HTTP `500`, progress rollback, `.part` cleanup and terminal
+`SessionFailed` behavior for size failures, without `FileReceived` or
+`SessionCompleted`. An oversized upload reports the existing size-mismatch
+message rather than a connection-loss message. As with truncated uploads, the
+failed session is closed and the sender must prepare a new one before retrying.
+The old comment claiming an in-session retry was possible has been corrected;
+no retry behavior was changed.
+
+Regression coverage includes a nonterminating stream that exceeds the size in a
+later chunk, an oversized first chunk, zero-byte limits, exact-size writes,
+checked arithmetic overflow, unchanged progress and throttling, and a raw HTTP
+request that must receive rejection before EOF. The HTTP test also checks no
+final or partial file remains, progress rolls back, the old token is rejected,
+and a fresh exact-size session succeeds.
+
+The direct nonterminating-stream regression was run against the pre-fix writer
+and failed because the receiver waited for EOF. The raw HTTP regression also
+failed against the pre-fix commit for the same reason and passes with the fix.
+Validation results are recorded in `ROBUSTNESS.md`. No new dependencies or public
+LocalSend API changes are introduced. Upstream status: not submitted or verified
+against a newer upstream revision; retain this patch unless an equivalent
+pre-write size bound and its cleanup semantics have been confirmed upstream.
+
+### 8. Accept each incoming file once and name partial files randomly
+
+- Nearby change: `fix: accept each incoming file once per session`.
+- Files: `src/core/session.rs`, `src/server/handlers.rs`, and
+  `tests/conformance_upload.rs`.
+- Public API: `Session` gains an `uploading` set with `begin_upload` and
+  `end_upload`; `mark_received` also clears the reservation.
+
+Previously a per-file token stayed valid after its file was received. While
+any other file of the session was pending, an accepted sender could upload the
+same file again and again, and each repeat was committed as a new copy, so
+disk use was bounded only by the sender. Two concurrent requests for one file
+also shared a `.part` path derived from the session and file ids: the second
+removed and recreated it, and the first then hashed and published the second
+request's partial file.
+
+The upload handler now reserves the file under the session lock before any
+disk work. A file outside the session, already received or already uploading
+gets `409` without writing. Terminal failures still end the whole session,
+which drops its reservations; a directory-creation failure releases its own.
+Successful receipt moves the file from uploading to received. Partial files
+are named `.nearby-<random>.part`, independent of remote identifiers, which also
+keeps them within the existing stale-partial cleanup pattern.
+
+Regression coverage uses real HTTP requests for a repeated upload in a
+two-file session, a concurrent request against an upload in progress, and a
+file id containing `/` and `..`; all three failed before the change. Upstream
+status: not submitted or verified against a newer upstream revision.
+
+### 9. Bound the files offered by one incoming request
+
+- Nearby change: `fix: bound files offered by incoming requests`.
+- Files: `src/server/handlers.rs` and `tests/conformance_prepare_upload.rs`.
+
+Axum's default 2 MB JSON limit already bounded each prepare-upload body, but
+within it a peer could offer tens of thousands of entries. Each was cloned into
+the reservation and the pending decision, then forwarded to the approval UI,
+and a receiver without an incoming PIN accepts such requests from any peer.
+
+`handle_prepare_upload` now answers `413` when more than 10,000 files are
+offered. The check runs after the PIN gate, preserving its `401`/`429`
+behavior, and before any session is reserved or event emitted. This is an
+intentional divergence: the LocalSend protocol and official receiver define no
+file-count limit, so a larger offer from an official client is refused.
+
+Regression coverage offers 10,001 entries to a receiver awaiting decisions and
+requires a prompt `413` with no event; it failed before the change because the
+request waited for a decision. A boundary test accepts exactly 10,000 files.
+Upstream status: not submitted.
+
+### 10. Stop upload writers when their session ends
+
+- Nearby change: `fix: stop incoming uploads when their session ends`.
+- Files: `src/core/session.rs`, `src/server/state.rs`, `src/server/handlers.rs`,
+  and `tests/conformance_upload.rs`.
+- Public API: `Session` gains an `alive` marker; the internal writer takes a
+  `keep_writing` check.
+
+Cancelling, failing, sweeping or replacing a session removed it from the
+server state, but an upload already streaming kept writing until the body
+ended. Its file was then discarded because the session was no longer current,
+so the bytes were wasted disk I/O and space for the rest of the body.
+
+Each session now owns an `Arc<()>` marker. The upload writer holds a weak
+reference and checks it before every chunk, so it stops at the first chunk
+after the session is dropped by any removal path, without writing that chunk
+or consuming the rest of the body. The existing failure path rolls back
+progress and removes the partial file. Sessions are not cloned elsewhere, so
+the marker's lifetime matches the server's current session.
+
+A related condition was reviewed and left unchanged: a pending accept decision
+replaces or clears `current_session` without checking that it still holds its
+own reservation. That needs the reservation to be swept while the decision is
+pending, which takes at least 300 seconds of idleness, while Nearby's accept
+timeout is 60 seconds. It is not reachable with Nearby's configuration and has
+no deterministic regression without injecting time.
+
+Regression coverage cancels a 1 MiB upload over HTTP, sends one more byte and
+requires a prompt non-success response with no file left; it failed before the
+change because the writer waited for the rest of the body. Upstream status:
+not submitted.
+
+### 11. Bound connections, request heads and request bodies
+
+- Nearby change: `fix: bound receiver connections and request timing`.
+- Files: `Cargo.toml`, `Cargo.lock`, `src/server/limits.rs`,
+  `src/server/mod.rs`, `src/server/routes.rs`, `src/server/server.rs`, and
+  `tests/conformance_limits.rs`.
+- Public API: `ServerLimits` and `LocalSendServerBuilder::limits`.
+- Dependencies: `axum-server` is no longer optional; the `https` feature now
+  enables its `tls-rustls` feature. `hyper-util` becomes a direct dependency
+  for `TokioTimer`; it was already in the dependency graph, so no new crate is
+  introduced.
+
+After the TLS handshake, which `axum-server` bounds to 10 seconds, nothing
+bounded a connection. Hyper's default 30-second header read timeout requires a
+timer, and neither `axum::serve` nor `axum-server` configured one, so hyper
+disabled it. Bodies had no time limit, `axum`'s `Json` extractor buffers up to
+2 MB, and connections were unlimited. Any LAN peer, without a PIN or approval,
+could hold unbounded memory by keeping connections with partial bodies open.
+The server also negotiated HTTP/2, whose streams had no header timeout.
+
+Both protocols now serve through `axum-server` with the same configuration:
+
+- HTTP/1.1 only, with a `TokioTimer` and a 30-second header read timeout,
+  which also closes idle kept-alive connections. HTTPS advertises only
+  `http/1.1` over ALPN, so clients that offer HTTP/2, including Nearby's own
+  `reqwest` client, fall back to HTTP/1.1. LocalSend clients use HTTP/1.1.
+- A connection acceptor admitting at most 64 connections, 16 per IP address,
+  ahead of TLS. Refused connections are dropped; each slot is released when its
+  stream is dropped.
+- Every route except upload must receive its whole body within 30 seconds of
+  the request head. Handler work afterwards, notably the accept decision in
+  prepare-upload, is not limited. `/register` bodies are limited to 64 KiB.
+- Upload bodies may pause for at most 120 seconds between chunks. The timer
+  runs only while the writer waits for the next chunk, so disk writes and the
+  SHA256 check after the body are not counted.
+
+The limits bound memory but do not prevent a peer from occupying connection
+slots while it keeps opening connections; `docs/SECURITY.md` states this.
+
+Regression coverage is listed in `ROBUSTNESS.md`. Seven regressions failed with
+the limits configured but not enforced; two guards confirm that a slow accept
+decision and a slow but steady upload are unaffected. Upstream status: not
+submitted.
+
+### 12. Release a pending reservation when the sender abandons it
+
+- Nearby change: `fix: release the receiver when a pending sender cancels`.
+- Files: `src/server/handlers.rs` and `tests/conformance_prepare_upload.rs`.
+
+LocalSend clients cancel a request that is awaiting approval by closing the
+connection; they have no session id to send to `/cancel` yet. Hyper then drops
+the prepare-upload handler while it waits for the decision, so neither the
+decline path nor the accept timeout ran. The placeholder reservation stayed in
+`current_session`, every new offer received `409` until the idle sweep removed
+it after at least 300 seconds, and the local prompt remained although its
+decision could no longer be delivered. The same behavior occurs in 1.2.2.
+
+`handle_prepare_upload` now holds a guard from the moment it reserves the
+session until the reservation is replaced or cleared. If the handler is
+dropped first, the guard releases the reservation, when it is still current,
+and emits `TransferRequestExpired` for a prompt that was still awaiting a
+decision, which the helper already forwards as `incoming_expired`.
+
+The regression drops a raw sender while its request awaits a decision. It
+failed before the change because no expiry arrived; it now requires a prompt
+expiry, rejects a late accept and sends a retry through the normal decision
+flow instead of `409`. Upstream status: not submitted.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the
