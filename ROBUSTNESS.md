@@ -23,6 +23,7 @@ bash tests/helper-repair.test.sh
 The suites cover peer registry retention/expiry, command correlation, request decisions,
 cancel/completed/failed event separation, oversized, truncated and checksum-mismatched uploads,
 repeated and concurrent uploads of one file, sender-supplied file ids in partial paths,
+the incoming file-count limit,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -139,6 +140,16 @@ pass with the fix. A temporary experiment, not committed, confirmed that an
 abrupt sender disconnect mid-upload still runs the existing failure path:
 progress rolls back, `SessionFailed` is emitted and no partial file remains.
 Android/iOS interoperability and live Omarchy scenarios remain **Not run**.
+
+### Incoming file-count development validation, 2026-10-01
+
+On `fix/receive-hardening`, a prepare-upload request offering more than 10,000
+files receives `413` after the PIN check and before a session is reserved or a
+decision is requested. A regression offers 10,001 small entries, well under the
+2 MB JSON limit, to a receiver without auto-accept: it must answer within five
+seconds and emit no event. Against commit `7c08592` it failed because the
+request waited for a decision. A boundary test confirms that exactly 10,000
+files are still accepted. Live interoperability remains **Not run**.
 
 ## Manual interoperability matrix
 

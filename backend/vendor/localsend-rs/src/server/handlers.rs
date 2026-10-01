@@ -15,6 +15,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
+/// Most files a single prepare-upload request may offer.
+const MAX_OFFERED_FILES: usize = 10_000;
+
 pub(crate) async fn handle_info(State(state): State<Arc<RwLock<ServerState>>>) -> Response {
     let state = state.read().await;
     Json(state.device.clone()).into_response()
@@ -67,6 +70,17 @@ pub(crate) async fn handle_prepare_upload(
     // emitted (a no-op request must not spuriously open a session).
     if request.files.is_empty() {
         return StatusCode::NO_CONTENT.into_response();
+    }
+
+    // Bound the offer before reserving a session or asking the user, so an
+    // unauthenticated peer cannot push an arbitrarily large list to approval.
+    if request.files.len() > MAX_OFFERED_FILES {
+        tracing::warn!(
+            "Prepare-upload rejected: {} files offered, limit is {}",
+            request.files.len(),
+            MAX_OFFERED_FILES
+        );
+        return StatusCode::PAYLOAD_TOO_LARGE.into_response();
     }
 
     // LocalSend represents a text message as exactly one small offered item

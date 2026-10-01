@@ -44,7 +44,8 @@ Preserve them when extending the protocol so a late event cannot overwrite a
 new transfer. Incoming and outgoing transfers have separate state.
 
 The helper bounds command lines to 2 MiB, outgoing text to 1 MiB, and its peer
-registry to 256 entries. Shared state helpers in [Model.js](../Model.js) must
+registry to 256 entries. The receiver rejects incoming requests that offer more
+than 10,000 files before asking for approval. Shared state helpers in [Model.js](../Model.js) must
 remain usable by both QML and Node tests.
 
 ## Discovery model

@@ -273,6 +273,27 @@ two-file session, a concurrent request against an upload in progress, and a
 file id containing `/` and `..`; all three failed before the change. Upstream
 status: not submitted or verified against a newer upstream revision.
 
+### 9. Bound the files offered by one incoming request
+
+- Nearby change: `fix: bound files offered by incoming requests`.
+- Files: `src/server/handlers.rs` and `tests/conformance_prepare_upload.rs`.
+
+Axum's default 2 MB JSON limit already bounded each prepare-upload body, but
+within it a peer could offer tens of thousands of entries. Each was cloned into
+the reservation and the pending decision, then forwarded to the approval UI,
+and a receiver without an incoming PIN accepts such requests from any peer.
+
+`handle_prepare_upload` now answers `413` when more than 10,000 files are
+offered. The check runs after the PIN gate, preserving its `401`/`429`
+behavior, and before any session is reserved or event emitted. This is an
+intentional divergence: the LocalSend protocol and official receiver define no
+file-count limit, so a larger offer from an official client is refused.
+
+Regression coverage offers 10,001 entries to a receiver awaiting decisions and
+requires a prompt `413` with no event; it failed before the change because the
+request waited for a decision. A boundary test accepts exactly 10,000 files.
+Upstream status: not submitted.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the

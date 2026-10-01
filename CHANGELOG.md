@@ -7,6 +7,8 @@
 - Accept each incoming file at most once per session: reject uploads of a
   file already received or still uploading, and name partial files randomly
   instead of from sender-supplied identifiers.
+- Reject incoming requests offering more than 10,000 files before reserving a
+  transfer or asking for approval.
 
 ## 1.2.2
 
