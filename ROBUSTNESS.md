@@ -228,6 +228,16 @@ received `409` for at least 25 seconds, beyond the accept timeout. It is fixed
 by the pending-reservation guard recorded in `VENDORED_LOCALSEND_RS.md` and
 passed the manual iPhone retest at `b6546d0`. Android remains **Not run**.
 
+### 1.2.3 helper preparation, 2026-10-01
+
+The pull-request CI passed on helper source commit
+`96bcd3025ca5c31cc06df483d4b0968ee460c94a`. The `helper-v1.2.3`
+GitHub Actions workflow built and published its Linux x86_64 prerelease.
+The downloaded executable independently matched the release checksum and
+9,071,448-byte size; `gh attestation verify` matched the helper-release workflow,
+source digest and tag on a GitHub-hosted runner, and `--version` reported
+`omarchy-nearby-helper 1.2.3`. Android interoperability remains **Not run**.
+
 ## Manual interoperability matrix
 
 Run applicable transfer and PIN scenarios with both Android and iOS LocalSend

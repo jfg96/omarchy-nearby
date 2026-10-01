@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.3-dev
+## 1.2.3
 
 - Reject incoming upload chunks before writing if they exceed the accepted
   file size, discard partial files and roll back receive progress on failure.
