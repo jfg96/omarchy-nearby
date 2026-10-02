@@ -34,6 +34,10 @@ limit; cancel it to stop waiting for a receiver. Nearby answers multicast
 announcements, which any device on the network can send, at most once per
 address every 5 seconds and at most 8 at a time.
 
+Aliases, file names and other text from peers are shown as plain text in the
+panel. Desktop notifications start with fixed text and carry peer text escaped,
+so it is neither parsed as a notification option nor rendered as markup.
+
 ## Persistent security state
 
 The incoming PIN is stored in a private settings file; it is not shown again in

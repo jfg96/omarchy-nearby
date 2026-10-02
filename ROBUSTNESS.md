@@ -27,6 +27,7 @@ the incoming file-count limit, cancellation stopping an upload in progress,
 connection limits, request head/body timeouts and upload idle timeouts,
 outgoing request timeouts and response size limits, bounded multicast replies,
 rate-limited peer updates, HTTPS peers refusing plain HTTP takeover,
+notification bodies that start with fixed text and escape remote text,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -271,6 +272,14 @@ every announcement, the event budget never ran out, and a plain HTTP
 announcement replaced a known HTTPS peer's protocol and address, also after
 the peer had expired. A guard confirms that an HTTP peer can still upgrade to
 HTTPS.
+
+A service-state test sends hostile aliases and file names (`--image=…`,
+`--urgency=…`, `--exec`, `-g` and markup) through incoming requests and text.
+Before the fix it failed because the body began with the alias. Separately,
+on Omarchy, `omarchy-notification-send` given the old body
+`--image=… wants to send …` stored the notification with an empty body; given
+the new body it kept the full, escaped text and no image. The latter check is
+manual and not part of CI.
 
 ## Manual interoperability matrix
 

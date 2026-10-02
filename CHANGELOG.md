@@ -18,6 +18,9 @@
 - Never accept a plain HTTP announcement for a device already seen over HTTPS.
   Such an announcement could previously replace the device's entry, so files
   sent to it went unencrypted to the announcing address.
+- Start incoming-transfer notifications with fixed text and escape the sender
+  and file names. A sender alias such as `--image=…` was read as an option by
+  Omarchy's notification command, and markup in it was rendered.
 
 ## 1.2.3
 

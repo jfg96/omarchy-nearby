@@ -611,7 +611,7 @@ function incoming(requestId, sender = requestId) {
   assert.deepEqual(notificationCommands(state), [[
     "omarchy-notification-send", "--app-name", "Nearby",
     "--urgency", "normal",
-    "Incoming transfer", "Alice wants to send unseen.txt",
+    "Incoming transfer", "From Alice: unseen.txt",
   ]], "an incoming transfer must keep its identity and contents through Omarchy's notification helper")
   assert.deepEqual(notificationTitles(state), ["Incoming transfer"],
     "a closed panel is the case the notification exists for")
@@ -656,6 +656,36 @@ for (const busy of ["sending", "receiving", "pin"]) {
     "Text received", "From Alice",
   ]], "received text must keep its identity and contents through Omarchy's notification helper")
   assert.deepEqual(notificationTitles(state), ["Text received"])
+}
+
+// omarchy-notification-send takes options before and after its positionals and
+// treats a description that looks like one of its options (`--image=…`,
+// `--urgency=…`, `--exec`) as that option, and the shell renders the body as
+// StyledText. A peer alias or file name must therefore never start the body or
+// reach it as markup.
+{
+  const hostile = ["--image=http://192.0.2.1/x?", "--urgency=bogus", "--exec", "-g",
+    "<a href=\"http://192.0.2.1\">Alice</a>", "<font size=\"7\">Alice</font> & co"]
+  for (const sender of hostile) {
+    for (const event of [
+      incoming("hostile-" + hostile.indexOf(sender), sender),
+      {event: "incoming_request", requestId: "named-" + hostile.indexOf(sender), sender: "Bob",
+        files: [{id: "1", name: sender, size: 1}], total: 1},
+      {event: "incoming_text", sender, text: "hello"},
+    ]) {
+      const state = engine({viewState: "sending", anyViewOpen: false})
+      state.handleEvent(event)
+      const commands = notificationCommands(state)
+      assert.equal(commands.length, 1)
+      const [, , , , , headline, body] = commands[0]
+      assert.ok(headline === "Incoming transfer" || headline === "Text received")
+      assert.match(body, /^From /, `a notification body must start with fixed text, got ${JSON.stringify(body)}`)
+      assert.doesNotMatch(body, /[<>]|&(?!amp;|lt;|gt;)/,
+        `remote text must reach the notification body escaped, got ${JSON.stringify(body)}`)
+      assert.equal(commands[0].length, 7, "remote text must stay a single argument")
+    }
+  }
+  assert.equal(Model.notificationText("<b>A & B</b>"), "&lt;b&gt;A &amp; B&lt;/b&gt;")
 }
 
 // Its held case is an outgoing transfer in flight: the text is kept until the
