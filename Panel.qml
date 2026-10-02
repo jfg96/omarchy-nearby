@@ -311,8 +311,11 @@ Panel {
   }
 
   BarIconButton {
-    id: button; anchors.fill: parent; bar: root.bar; text: "󰀂"
+    id: button; anchors.fill: parent; bar: root.bar
     foreground: root.barIconColor
+    iconComponent: Component {
+      Item { NearbyIcon { anchors.centerIn: parent; iconSize: Style.bar.iconFont; color: root.barIconColor } }
+    }
     active: root.incoming !== null || root.viewState === "receiving" || root.viewState === "sending" || root.viewState === "pin"
     tooltipText: !root.receiverEnabled ? "Nearby · Turned off" : (root.backendReady ? (root.viewState === "pin" ? "Nearby · PIN required" : (root.incoming ? "Incoming transfer" : "Nearby · Ready to receive")) : "Nearby · Receiver unavailable")
     onPressed: function(code) { root.toggle() }
@@ -336,9 +339,11 @@ Panel {
           meta: root.heroMetaText
           detail: ""
           foreground: root.foreground; fontFamily: root.fontFamily
-          iconComponent: Component { Text { textFormat:Text.PlainText; text: root.viewState === "incoming" ? "󰁅" : "󰀂"; color: root.incoming ? root.urgent : root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.display } }
+          iconComponent: root.viewState === "incoming" ? incomingHeroIcon : nearbyHeroIcon
           trailingControl: root.viewState === "nearby" ? receiverToggle : null
         }
+        Component { id: nearbyHeroIcon; NearbyIcon { iconSize: Style.font.display; color: root.incoming ? root.urgent : root.foreground } }
+        Component { id: incomingHeroIcon; Text { textFormat:Text.PlainText; text: "󰁅"; color: root.incoming ? root.urgent : root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.display } }
         Component {
           id: receiverToggle
           ToggleSwitch {
