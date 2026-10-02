@@ -422,6 +422,33 @@ previous client `register` and `cancel` were still waiting after 20 seconds
 and `register`, prepare-upload and a discovery probe read the whole 256 MiB
 flood. Upstream status: not submitted.
 
+### 14. Bound replies to multicast announcements
+
+- Nearby change: `fix: bound replies to multicast announcements`.
+- Files: `src/discovery/multicast.rs` and
+  `tests/conformance_multicast_replies.rs`.
+
+The passive listener spawned a reply task for every datagram marked as an
+announcement. Each reply built a TLS client, which also generates a placeholder
+certificate for the fingerprint verifier, and connected to the address and port
+the datagram named. Announcements are single unauthenticated datagrams, so any
+LAN host could turn a stream of them into an unbounded number of tasks and
+outgoing connections while Nearby was merely enabled, without a PIN or any
+user action.
+
+Replies now go through one admission shared by all multicast sockets: at most
+eight at a time, at most one per source address every five seconds, and at
+most 256 remembered sources. Announcements that get no reply still reach
+discovery listeners, so peers are still listed. The per-datagram diagnostic on
+stderr is now a `tracing` debug event.
+
+The regressions deliver announcements over loopback to the wildcard-bound
+discovery socket and count reply connections at a peer that never answers.
+Against the previous listener, 50 announcements from one address opened 50
+connections and announcements from 40 addresses opened 40; they now open one
+and at most eight. Unit tests cover the interval, the concurrency bound and
+source expiry. Upstream status: not submitted.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the

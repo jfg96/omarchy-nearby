@@ -26,7 +26,9 @@ devices until it stops.
 Requests Nearby makes to other devices are bounded the same way: connections
 time out after 5 seconds, registration and cancel requests after 10 seconds,
 and response bodies are size-limited. A transfer itself has no overall time
-limit; cancel it to stop waiting for a receiver.
+limit; cancel it to stop waiting for a receiver. Nearby answers multicast
+announcements, which any device on the network can send, at most once per
+address every 5 seconds and at most 8 at a time.
 
 ## Persistent security state
 

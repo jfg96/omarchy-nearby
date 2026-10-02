@@ -11,16 +11,68 @@ use crate::protocol::{
 };
 use if_addrs::{IfAddr, get_if_addrs};
 use socket2::{Domain, Protocol as SocketProtocol, Socket, Type};
-use std::collections::{BTreeMap, BTreeSet};
-use std::net::{Ipv4Addr, SocketAddr};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant};
 use tokio::net::UdpSocket;
 use tokio::sync::Notify;
 use tokio::sync::broadcast;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 pub type Result<T> = std::result::Result<T, LocalSendError>;
+
+/// Replies to announcements that may run at once. Each reply builds a TLS
+/// client and connects to the address and port the datagram names.
+const MAX_ANNOUNCEMENT_REPLIES: usize = 8;
+/// A source address is answered at most once per interval. LocalSend peers
+/// announce a few times when they start discovery, well within this budget.
+const ANNOUNCEMENT_REPLY_INTERVAL: Duration = Duration::from_secs(5);
+/// Source addresses remembered for the interval above.
+const MAX_ANNOUNCEMENT_SOURCES: usize = 256;
+
+/// Decides which multicast announcements get a reply.
+///
+/// Anyone on the LAN can send announcements, each a single datagram, and
+/// every reply costs an outgoing connection. Without a bound a stream of
+/// datagrams turns into an unbounded number of connections and tasks.
+/// Announcements that are not answered still reach discovery listeners.
+struct AnnouncementReplies {
+    in_flight: Arc<Semaphore>,
+    recent: HashMap<IpAddr, Instant>,
+    interval: Duration,
+    max_sources: usize,
+}
+
+impl AnnouncementReplies {
+    fn new(max_in_flight: usize, interval: Duration, max_sources: usize) -> Self {
+        Self {
+            in_flight: Arc::new(Semaphore::new(max_in_flight)),
+            recent: HashMap::new(),
+            interval,
+            max_sources,
+        }
+    }
+
+    /// A permit to reply to `source`, held for the duration of the reply.
+    fn admit(&mut self, source: IpAddr, now: Instant) -> Option<OwnedSemaphorePermit> {
+        let interval = self.interval;
+        let recent = |at: &Instant| now.saturating_duration_since(*at) < interval;
+        if self.recent.get(&source).is_some_and(recent) {
+            return None;
+        }
+        if !self.recent.contains_key(&source) && self.recent.len() >= self.max_sources {
+            self.recent.retain(|_, at| recent(at));
+            if self.recent.len() >= self.max_sources {
+                return None;
+            }
+        }
+        let permit = self.in_flight.clone().try_acquire_owned().ok()?;
+        self.recent.insert(source, now);
+        Some(permit)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MulticastConfig {
@@ -232,8 +284,14 @@ impl Discovery for MulticastDiscovery {
         self.sockets = sockets.clone();
         self.socket_interfaces = socket_interfaces;
         self.running.store(true, Ordering::Relaxed);
+        let replies = Arc::new(Mutex::new(AnnouncementReplies::new(
+            MAX_ANNOUNCEMENT_REPLIES,
+            ANNOUNCEMENT_REPLY_INTERVAL,
+            MAX_ANNOUNCEMENT_SOURCES,
+        )));
 
         for socket in sockets {
+            let replies = replies.clone();
             let tx = self.tx.as_ref().unwrap().clone();
             let local_fingerprint = self.local_device.fingerprint.clone();
             let running = self.running.clone();
@@ -278,19 +336,28 @@ impl Discovery for MulticastDiscovery {
                                         ip: Some(src.ip().to_string()),
                                     };
 
-                                    eprintln!("register/announcement received from {}", src.ip());
+                                    tracing::debug!(
+                                        "register/announcement received from {}",
+                                        src.ip()
+                                    );
 
                                     let is_announcement = announcement.announce
                                         || announcement.announcement.unwrap_or(false);
                                     let _ = tx.send(device.clone());
 
-                                    if is_announcement {
+                                    let permit = if is_announcement {
+                                        replies.lock().unwrap().admit(src.ip(), Instant::now())
+                                    } else {
+                                        None
+                                    };
+                                    if let Some(permit) = permit {
                                         let local_device = local_device.clone();
                                         let socket = socket.clone();
                                         #[cfg(feature = "https")]
                                         let tls_identity = tls_identity.clone();
 
                                         tokio::spawn(async move {
+                                            let _permit = permit;
                                             Self::respond_to_announcement(
                                                 &device,
                                                 &local_device,
@@ -661,10 +728,14 @@ fn create_reusable_udp_socket(
 
 #[cfg(test)]
 mod tests {
-    use super::{MulticastConfig, MulticastDiscovery, select_multicast_candidate_entries};
+    use super::{
+        AnnouncementReplies, MulticastConfig, MulticastDiscovery,
+        select_multicast_candidate_entries,
+    };
     use crate::LocalSendError;
     use std::collections::BTreeSet;
-    use std::net::Ipv4Addr;
+    use std::net::{IpAddr, Ipv4Addr};
+    use std::time::{Duration, Instant};
 
     #[derive(Clone)]
     struct TestInterface {
@@ -797,5 +868,66 @@ mod tests {
                 ("en0".into(), Ipv4Addr::new(192, 168, 6, 10)),
             ]
         );
+    }
+
+    fn source(last: u8) -> IpAddr {
+        IpAddr::V4(Ipv4Addr::new(192, 168, 1, last))
+    }
+
+    #[test]
+    fn repeated_announcements_from_one_source_are_answered_once_per_interval() {
+        let mut replies = AnnouncementReplies::new(8, Duration::from_secs(5), 256);
+        let start = Instant::now();
+        let first = replies.admit(source(2), start);
+        assert!(first.is_some());
+        drop(first);
+        for offset in [0, 1, 4] {
+            assert!(
+                replies
+                    .admit(source(2), start + Duration::from_secs(offset))
+                    .is_none(),
+                "a burst of announcements must not open a connection per datagram"
+            );
+        }
+        assert!(replies.admit(source(3), start).is_some());
+        assert!(
+            replies
+                .admit(source(2), start + Duration::from_secs(5))
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn replies_in_flight_are_bounded_across_sources() {
+        let mut replies = AnnouncementReplies::new(2, Duration::from_secs(5), 256);
+        let now = Instant::now();
+        let first = replies.admit(source(2), now);
+        let second = replies.admit(source(3), now);
+        assert!(first.is_some() && second.is_some());
+        assert!(
+            replies.admit(source(4), now).is_none(),
+            "distinct (or spoofed) sources must not open more replies than the bound"
+        );
+        drop(first);
+        assert!(
+            replies.admit(source(4), now).is_some(),
+            "a refused source is not remembered, so it is answered once a slot frees"
+        );
+    }
+
+    #[test]
+    fn remembered_sources_are_bounded_and_expire() {
+        let mut replies = AnnouncementReplies::new(8, Duration::from_secs(5), 2);
+        let start = Instant::now();
+        drop(replies.admit(source(2), start));
+        drop(replies.admit(source(3), start));
+        assert!(replies.admit(source(4), start).is_none());
+        assert_eq!(replies.recent.len(), 2);
+        assert!(
+            replies
+                .admit(source(4), start + Duration::from_secs(5))
+                .is_some()
+        );
+        assert_eq!(replies.recent.len(), 1, "expired sources must be dropped");
     }
 }

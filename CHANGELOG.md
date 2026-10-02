@@ -8,6 +8,9 @@
   after 5 seconds, registration and cancel requests after 10 seconds, and
   responses are size-limited, so a device on the network can no longer hold a
   request open forever or make the helper buffer an unbounded answer.
+- Answer multicast announcements at most once per address every 5 seconds and
+  at most 8 at a time. Previously every announcement datagram made Nearby open
+  a new connection to the address it named.
 
 ## 1.2.3
 

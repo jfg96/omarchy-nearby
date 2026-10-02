@@ -25,7 +25,7 @@ cancel/completed/failed event separation, oversized, truncated and checksum-mism
 repeated and concurrent uploads of one file, sender-supplied file ids in partial paths,
 the incoming file-count limit, cancellation stopping an upload in progress,
 connection limits, request head/body timeouts and upload idle timeouts,
-outgoing request timeouts and response size limits,
+outgoing request timeouts and response size limits, bounded multicast replies,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -256,6 +256,12 @@ answers or streams an endless chunked body. Before the fix `register` and
 `cancel` were still waiting after 20 seconds, and `register`, prepare-upload
 and a discovery probe read the entire 256 MiB flood. They now fail within the
 one-second test timeout or after reading at most the response limit.
+
+`conformance_multicast_replies` sends announcements over loopback to the
+wildcard-bound discovery socket and counts reply connections at a silent peer.
+Before the fix 50 announcements from one address opened 50 connections and 40
+addresses opened 40; now they open one and at most eight. The tests skip when
+no IPv4 interface can join the multicast group.
 
 ## Manual interoperability matrix
 
