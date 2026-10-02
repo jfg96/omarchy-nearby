@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.4-dev
+## 1.2.4
 
 - Render every panel text as plain text, so a peer alias containing markup
   can no longer load remote images when a transfer is in progress.
