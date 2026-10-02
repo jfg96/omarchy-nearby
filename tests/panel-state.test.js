@@ -561,4 +561,43 @@ function callNames(state) {
   assert.ok(true, "view actions without an engine must not throw")
 }
 
+{
+  // Qt's default Text.AutoText renders a string as rich text when it looks
+  // like markup, and rich text loads <img> sources. Peer aliases, file names
+  // and helper messages reach these elements, so every text element must opt
+  // out explicitly; a single binding that forgets it is enough to make the
+  // desktop fetch a sender-chosen URL.
+  const textElements = (qml) => {
+    const found = []
+    const opener = /(^|[^.\w])(Text|TextEdit|TextArea|Label)\s*\{/g
+    let match
+    while ((match = opener.exec(qml))) {
+      const start = match.index + match[0].length
+      let depth = 1, i = start, quote = null, direct = ""
+      for (; i < qml.length && depth > 0; i++) {
+        const c = qml[i]
+        if (quote) { if (c === "\\") i++; else if (c === quote) quote = null }
+        else if (c === '"' || c === "'") quote = c
+        else if (c === "{") depth++
+        else if (c === "}") depth--
+        if (depth === 1 && c !== "}") direct += c
+      }
+      const line = qml.slice(0, match.index).split("\n").length
+      found.push({type: match[2], line, direct})
+    }
+    return found
+  }
+  const fixture = textElements('Text { text: a; textFormat: Text.PlainText }\nText { text: "x {" + y; Rectangle { textFormat: Text.PlainText } }\nfoo: Text.Wrap')
+  assert.deepEqual(fixture.map((e) => /textFormat\s*:\s*Text\.PlainText/.test(e.direct)), [true, false],
+    "the text element scanner must only accept a format declared on the element itself")
+
+  for (const file of ["Panel.qml", "Service.qml"]) {
+    const qml = fs.readFileSync(require.resolve(`../${file}`), "utf8")
+    for (const element of textElements(qml)) {
+      assert.match(element.direct, /textFormat\s*:\s*Text\.PlainText/,
+        `${file}:${element.line}: ${element.type} must declare textFormat: Text.PlainText`)
+    }
+  }
+}
+
 console.log("panel state tests passed")
