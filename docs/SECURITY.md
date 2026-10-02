@@ -15,7 +15,11 @@ LocalSend's `429 Too Many Requests` response until the receiver security state
 changes or the receiver restarts.
 
 LocalSend discovery itself is LAN discovery and should not be treated as an
-authenticated pairing mechanism. Use Nearby on networks you trust.
+authenticated pairing mechanism. Use Nearby on networks you trust. Once a
+device has been seen over HTTPS, the helper refuses plain HTTP announcements
+for its fingerprint until it restarts, so its entry cannot be switched to an
+unencrypted address. A device only ever seen over plain HTTP has no identity to
+protect: anyone on the network can announce as it.
 
 The receiver bounds the connections, time and request bodies a LAN peer can
 make it hold, so memory use stays limited and recovers once a peer stops. These

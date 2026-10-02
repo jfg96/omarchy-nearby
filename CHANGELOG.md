@@ -11,6 +11,13 @@
 - Answer multicast announcements at most once per address every 5 seconds and
   at most 8 at a time. Previously every announcement datagram made Nearby open
   a new connection to the address it named.
+- Send the device list to the shell only when a device appears or changes,
+  at most 10 updates per second after a short burst, coalescing the rest into
+  one refresh per second. A flood of discovery traffic could otherwise keep the
+  desktop shell busy re-sorting the list.
+- Never accept a plain HTTP announcement for a device already seen over HTTPS.
+  Such an announcement could previously replace the device's entry, so files
+  sent to it went unencrypted to the announcing address.
 
 ## 1.2.3
 

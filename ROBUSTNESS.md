@@ -26,6 +26,7 @@ repeated and concurrent uploads of one file, sender-supplied file ids in partial
 the incoming file-count limit, cancellation stopping an upload in progress,
 connection limits, request head/body timeouts and upload idle timeouts,
 outgoing request timeouts and response size limits, bounded multicast replies,
+rate-limited peer updates, HTTPS peers refusing plain HTTP takeover,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -262,6 +263,14 @@ wildcard-bound discovery socket and counts reply connections at a silent peer.
 Before the fix 50 announcements from one address opened 50 connections and 40
 addresses opened 40; now they open one and at most eight. The tests skip when
 no IPv4 interface can join the multicast group.
+
+Helper unit tests cover the peer gate. With the gate made permissive, as the
+previous `record_peer` behaved, five failed for the expected reason: 1,000 new
+identities produced 1,000 frontend events, an unchanged peer was re-sent on
+every announcement, the event budget never ran out, and a plain HTTP
+announcement replaced a known HTTPS peer's protocol and address, also after
+the peer had expired. A guard confirms that an HTTP peer can still upgrade to
+HTTPS.
 
 ## Manual interoperability matrix
 
