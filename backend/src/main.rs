@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
 
+mod downloads;
 mod identity;
 mod secure_state;
 mod settings;
@@ -876,27 +877,6 @@ async fn send_payload(
     Ok(SendPayloadOutcome::Finished)
 }
 
-fn xdg_download_dir(home: &Path) -> PathBuf {
-    if let Ok(value) = std::env::var("XDG_DOWNLOAD_DIR") {
-        return PathBuf::from(value);
-    }
-    let config = std::env::var("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| home.join(".config"))
-        .join("user-dirs.dirs");
-    if let Ok(text) = std::fs::read_to_string(config) {
-        for line in text.lines() {
-            if let Some(raw) = line.strip_prefix("XDG_DOWNLOAD_DIR=") {
-                let value = raw
-                    .trim_matches('"')
-                    .replace("$HOME", &home.to_string_lossy());
-                return PathBuf::from(value);
-            }
-        }
-    }
-    home.join("Downloads")
-}
-
 fn is_nearby_partial_name(name: &str) -> bool {
     name.starts_with(".nearby-") && name.ends_with(".part")
 }
@@ -1001,7 +981,7 @@ async fn main() -> Result<()> {
             return Err(error.context("receiver security settings unavailable"));
         }
     };
-    let download_dir = xdg_download_dir(&home);
+    let download_dir = downloads::download_dir(&home);
     tokio::fs::create_dir_all(&download_dir)
         .await
         .context("download destination unavailable")?;
@@ -1551,10 +1531,6 @@ mod tests {
         assert!(!peers.contains_key("peer-000"));
         assert!(peers.contains_key("peer-001"));
         assert!(peers.contains_key("peer-new"));
-    }
-    #[test]
-    fn xdg_downloads_parsing_falls_back() {
-        assert!(xdg_download_dir(Path::new("/tmp/home")).is_absolute());
     }
     #[test]
     fn partial_cleanup_pattern_is_strict() {

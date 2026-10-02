@@ -71,7 +71,7 @@ receiver restarts. Missing PINs do not consume an attempt. See
 | Published helpers | `$XDG_DATA_HOME/omarchy-nearby/helpers`, default `~/.local/share/omarchy-nearby/helpers` |
 | Incoming PIN settings | `$XDG_STATE_HOME/omarchy-nearby/settings.json`, default `~/.local/state/omarchy-nearby/settings.json` |
 | Persistent TLS identity | `identity.json` alongside the PIN settings |
-| Received files | `XDG_DOWNLOAD_DIR`, then the setting in `$XDG_CONFIG_HOME/user-dirs.dirs` (default `~/.config/user-dirs.dirs`), then `~/Downloads` |
+| Received files | `XDG_DOWNLOAD_DIR`, then the setting in `$XDG_CONFIG_HOME/user-dirs.dirs` (default `~/.config/user-dirs.dirs`), then `~/Downloads`. Relative locations are ignored, as are `user-dirs.dirs` files that are not regular, are owned by another user or exceed 16 KiB |
 
 Interrupted receives use `.nearby-*.part` files. At startup, Nearby removes only
 its own partial files older than 24 hours. Treat settings and identity files as

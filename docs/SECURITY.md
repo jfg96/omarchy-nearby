@@ -67,7 +67,11 @@ guaranteed.
 
 The descriptor-based guarantees above apply to Nearby's private persistent
 security state. Incoming downloads follow the configured Downloads location
-and the vendored LocalSend receive path.
+and the vendored LocalSend receive path. To find that location the helper
+reads `user-dirs.dirs` without blocking on a FIFO, only as a regular file owned
+by the user or root, and at most 16 KiB of it; otherwise it uses `~/Downloads`.
+It follows a symlinked `user-dirs.dirs`, which dotfile managers commonly
+create, and ignores relative locations.
 
 Nearby validates the saved TLS certificate and private key and preserves a valid
 identity across restarts. The helper also reuses that identity when an HTTPS peer

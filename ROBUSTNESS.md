@@ -28,6 +28,7 @@ connection limits, request head/body timeouts and upload idle timeouts,
 outgoing request timeouts and response size limits, bounded multicast replies,
 rate-limited peer updates, HTTPS peers refusing plain HTTP takeover,
 notification bodies that start with fixed text and escape remote text,
+bounded, non-blocking `user-dirs.dirs` reads and ignored relative download locations,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -280,6 +281,11 @@ on Omarchy, `omarchy-notification-send` given the old body
 `--image=… wants to send …` stored the notification with an empty body; given
 the new body it kept the full, escaped text and no image. The latter check is
 manual and not part of CI.
+
+Six helper tests cover the download location. With the previous unbounded
+`read_to_string` and no absolute-path check, three failed: a FIFO
+`user-dirs.dirs` blocked until the five-second subprocess deadline, a file
+larger than 16 KiB was read whole, and a relative location was accepted.
 
 ## Manual interoperability matrix
 

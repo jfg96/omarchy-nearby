@@ -21,6 +21,9 @@
 - Start incoming-transfer notifications with fixed text and escape the sender
   and file names. A sender alias such as `--image=…` was read as an option by
   Omarchy's notification command, and markup in it was rendered.
+- Read `user-dirs.dirs` only as a regular file of at most 16 KiB owned by the
+  user or root, without blocking on a FIFO, and ignore relative download
+  locations. Startup previously read the whole file and could hang on a FIFO.
 
 ## 1.2.3
 
