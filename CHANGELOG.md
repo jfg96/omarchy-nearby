@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.4-dev
+
+- Render every panel text as plain text, so a peer alias containing markup
+  can no longer load remote images when a transfer is in progress.
+
 ## 1.2.3
 
 - Reject incoming upload chunks before writing if they exceed the accepted

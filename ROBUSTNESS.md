@@ -238,6 +238,14 @@ The downloaded executable independently matched the release checksum and
 source digest and tag on a GitHub-hosted runner, and `--version` reported
 `omarchy-nearby-helper 1.2.3`. Android interoperability remains **Not run**.
 
+### LAN peer hardening development validation, 2026-10-02
+
+The development checkout advances to plugin `1.2.4-dev` and helper/floor `1.2.4`.
+`helper-release.env` still pins the verified 1.2.3 artifact; it must only change
+after publishing and independently verifying a matching 1.2.4 helper. Until
+then this checkout requires a deliberately built local helper to meet its new
+compatibility floor.
+
 ## Manual interoperability matrix
 
 Run applicable transfer and PIN scenarios with both Android and iOS LocalSend
