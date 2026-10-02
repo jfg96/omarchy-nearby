@@ -39,33 +39,42 @@ where
         .create_new(true)
         .open(path)
         .await?;
-    let mut bytes_written = 0u64;
     let mut stream = body.into_data_stream();
     let started_at = tokio::time::Instant::now();
     let rate_limit_bytes_per_second = rate_limit_bytes_per_second.filter(|rate| *rate > 0);
 
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| std::io::Error::other(e.to_string()))?;
-        if !keep_writing() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Interrupted,
-                "Upload session ended",
-            ));
-        }
-        let next_size = checked_upload_size(bytes_written, chunk.len(), expected_size)?;
-        file.write_all(&chunk).await?;
-        bytes_written = next_size;
-        if let Some(rate) = rate_limit_bytes_per_second {
-            let target = std::time::Duration::from_secs_f64(bytes_written as f64 / rate as f64);
-            let delay = target.saturating_sub(started_at.elapsed());
-            if !delay.is_zero() {
-                tokio::time::sleep(delay).await;
+    let written = async {
+        let mut bytes_written = 0u64;
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| std::io::Error::other(e.to_string()))?;
+            if !keep_writing() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Interrupted,
+                    "Upload session ended",
+                ));
             }
+            let next_size = checked_upload_size(bytes_written, chunk.len(), expected_size)?;
+            file.write_all(&chunk).await?;
+            bytes_written = next_size;
+            if let Some(rate) = rate_limit_bytes_per_second {
+                let target = std::time::Duration::from_secs_f64(bytes_written as f64 / rate as f64);
+                let delay = target.saturating_sub(started_at.elapsed());
+                if !delay.is_zero() {
+                    tokio::time::sleep(delay).await;
+                }
+            }
+            progress(bytes_written);
         }
-        progress(bytes_written);
+        Ok(bytes_written)
     }
+    .await;
 
-    file.flush().await?;
+    // tokio::fs::File completes writes on the blocking pool after write_all
+    // returns. Flush on every exit so no write is still in flight once the
+    // caller inspects or removes the partial file.
+    let flushed = file.flush().await;
+    let bytes_written = written?;
+    flushed?;
     Ok(bytes_written)
 }
 
@@ -165,6 +174,44 @@ mod tests {
         assert_eq!(tokio::fs::metadata(&path).await.unwrap().len(), 4_096);
 
         let _ = tokio::fs::remove_file(path).await;
+    }
+
+    #[test]
+    fn rejected_upload_returns_only_after_its_accepted_bytes_are_written() {
+        use futures_util::StreamExt;
+        use std::time::Duration;
+
+        // tokio::fs::File finishes each write on the blocking pool. With one
+        // blocking thread held busy, the accepted chunk's write stays queued,
+        // so the writer must wait for it even when it then rejects the body.
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("upload.part");
+        let error = runtime.block_on(async {
+            let chunks = stream::once(async {
+                drop(tokio::task::spawn_blocking(|| {
+                    std::thread::sleep(Duration::from_millis(300))
+                }));
+                Ok::<_, Infallible>(Bytes::from_static(b"abc"))
+            })
+            .chain(stream::iter([Ok(Bytes::from_static(b"de"))]));
+            write_body_to_file_with_progress(
+                Body::from_stream(chunks),
+                &path,
+                4,
+                None,
+                || true,
+                |_| {},
+            )
+            .await
+            .unwrap_err()
+        });
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+        assert_eq!(std::fs::read(&path).unwrap(), b"abc");
     }
 
     #[tokio::test]

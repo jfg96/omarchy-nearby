@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.2.4-dev
+
+- Render every panel text as plain text, so a peer alias containing markup
+  can no longer load remote images when a transfer is in progress.
+- Bound every request Nearby makes to another device: connections time out
+  after 5 seconds, registration and cancel requests after 10 seconds, and
+  responses are size-limited, so a device on the network can no longer hold a
+  request open forever or make the helper buffer an unbounded answer.
+- Answer multicast announcements at most once per address every 5 seconds and
+  at most 8 at a time. Previously every announcement datagram made Nearby open
+  a new connection to the address it named.
+- Send the device list to the shell only when a device appears or changes,
+  at most 10 updates per second after a short burst, coalescing the rest into
+  one refresh per second. A flood of discovery traffic could otherwise keep the
+  desktop shell busy re-sorting the list.
+- Never accept a plain HTTP announcement for a device already seen over HTTPS.
+  Such an announcement could previously replace the device's entry, so files
+  sent to it went unencrypted to the announcing address.
+- Start incoming-transfer notifications with fixed text and escape the sender
+  and file names. A sender alias such as `--image=…` was read as an option by
+  Omarchy's notification command, and markup in it was rendered.
+- Read `user-dirs.dirs` only as a regular file of at most 16 KiB owned by the
+  user or root, without blocking on a FIFO, and ignore relative download
+  locations. Startup previously read the whole file and could hang on a FIFO.
+
 ## 1.2.3
 
 - Reject incoming upload chunks before writing if they exceed the accepted

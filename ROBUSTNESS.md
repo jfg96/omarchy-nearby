@@ -25,6 +25,10 @@ cancel/completed/failed event separation, oversized, truncated and checksum-mism
 repeated and concurrent uploads of one file, sender-supplied file ids in partial paths,
 the incoming file-count limit, cancellation stopping an upload in progress,
 connection limits, request head/body timeouts and upload idle timeouts,
+outgoing request timeouts and response size limits, bounded multicast replies,
+rate-limited peer updates, HTTPS peers refusing plain HTTP takeover,
+notification bodies that start with fixed text and escape remote text,
+bounded, non-blocking `user-dirs.dirs` reads and ignored relative download locations,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -237,6 +241,51 @@ The downloaded executable independently matched the release checksum and
 9,071,448-byte size; `gh attestation verify` matched the helper-release workflow,
 source digest and tag on a GitHub-hosted runner, and `--version` reported
 `omarchy-nearby-helper 1.2.3`. Android interoperability remains **Not run**.
+
+### LAN peer hardening development validation, 2026-10-02
+
+The development checkout advances to plugin `1.2.4-dev` and helper/floor `1.2.4`.
+`helper-release.env` still pins the verified 1.2.3 artifact; it must only change
+after publishing and independently verifying a matching 1.2.4 helper. Until
+then this checkout requires a deliberately built local helper to meet its new
+compatibility floor.
+
+The panel test now parses every text element in `Panel.qml` and `Service.qml`
+and requires `textFormat: Text.PlainText`; before the fix it failed on the
+transfer progress line reported in the marketplace review.
+
+`conformance_client_limits` adds five regressions with a fake peer that never
+answers or streams an endless chunked body. Before the fix `register` and
+`cancel` were still waiting after 20 seconds, and `register`, prepare-upload
+and a discovery probe read the entire 256 MiB flood. They now fail within the
+one-second test timeout or after reading at most the response limit.
+
+`conformance_multicast_replies` sends announcements over loopback to the
+wildcard-bound discovery socket and counts reply connections at a silent peer.
+Before the fix 50 announcements from one address opened 50 connections and 40
+addresses opened 40; now they open one and at most eight. The tests skip when
+no IPv4 interface can join the multicast group.
+
+Helper unit tests cover the peer gate. With the gate made permissive, as the
+previous `record_peer` behaved, five failed for the expected reason: 1,000 new
+identities produced 1,000 frontend events, an unchanged peer was re-sent on
+every announcement, the event budget never ran out, and a plain HTTP
+announcement replaced a known HTTPS peer's protocol and address, also after
+the peer had expired. A guard confirms that an HTTP peer can still upgrade to
+HTTPS.
+
+A service-state test sends hostile aliases and file names (`--image=…`,
+`--urgency=…`, `--exec`, `-g` and markup) through incoming requests and text.
+Before the fix it failed because the body began with the alias. Separately,
+on Omarchy, `omarchy-notification-send` given the old body
+`--image=… wants to send …` stored the notification with an empty body; given
+the new body it kept the full, escaped text and no image. The latter check is
+manual and not part of CI.
+
+Six helper tests cover the download location. With the previous unbounded
+`read_to_string` and no absolute-path check, three failed: a FIFO
+`user-dirs.dirs` blocked until the five-second subprocess deadline, a file
+larger than 16 KiB was read whole, and a relative location was accepted.
 
 ## Manual interoperability matrix
 

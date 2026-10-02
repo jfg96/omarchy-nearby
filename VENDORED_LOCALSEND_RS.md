@@ -394,6 +394,82 @@ failed before the change because no expiry arrived; it now requires a prompt
 expiry, rejects a late accept and sends a retry through the normal decision
 flow instead of `409`. Upstream status: not submitted.
 
+### 13. Bound outgoing requests and the responses peers send back
+
+- Nearby change: `fix: bound outgoing requests and peer responses`.
+- Files: `src/client/client.rs`, `src/client/mod.rs`, `src/discovery/http.rs`,
+  and `tests/conformance_client_limits.rs`.
+- Public API: `ClientLimits` and `LocalSendClient::with_limits`.
+
+`LocalSendClient` had no connect or request timeout and read every response
+body whole (`bytes()` and `json()`). Discovery probes had a two-second timeout
+but no size limit. Any host the client talks to, including one that only sent
+a multicast announcement naming its address, could keep a request open forever
+or stream an unbounded body into memory.
+
+- Every client connects with a five-second timeout.
+- `/register` and `/cancel` must finish within ten seconds.
+- `/register` and `/info` answers are read up to 64 KiB, prepare-upload
+  answers up to 2 MiB, in both the client and discovery probes. A body that
+  announces or reaches a larger size is rejected without reading further.
+- Uploads and the prepare-upload decision keep no overall time limit: they last
+  as long as the transfer or the receiving user's decision, and the helper
+  cancels them when the user does.
+
+Five regressions use a fake peer that either never answers or streams an
+endless chunked body, and count the bytes it manages to send. Against the
+previous client `register` and `cancel` were still waiting after 20 seconds
+and `register`, prepare-upload and a discovery probe read the whole 256 MiB
+flood. Upstream status: not submitted.
+
+### 14. Bound replies to multicast announcements
+
+- Nearby change: `fix: bound replies to multicast announcements`.
+- Files: `src/discovery/multicast.rs` and
+  `tests/conformance_multicast_replies.rs`.
+
+The passive listener spawned a reply task for every datagram marked as an
+announcement. Each reply built a TLS client, which also generates a placeholder
+certificate for the fingerprint verifier, and connected to the address and port
+the datagram named. Announcements are single unauthenticated datagrams, so any
+LAN host could turn a stream of them into an unbounded number of tasks and
+outgoing connections while Nearby was merely enabled, without a PIN or any
+user action.
+
+Replies now go through one admission shared by all multicast sockets: at most
+eight at a time, at most one per source address every five seconds, and at
+most 256 remembered sources. Announcements that get no reply still reach
+discovery listeners, so peers are still listed. The per-datagram diagnostic on
+stderr is now a `tracing` debug event.
+
+The regressions deliver announcements over loopback to the wildcard-bound
+discovery socket and count reply connections at a peer that never answers.
+Against the previous listener, 50 announcements from one address opened 50
+connections and announcements from 40 addresses opened 40; they now open one
+and at most eight. Unit tests cover the interval, the concurrency bound and
+source expiry. Upstream status: not submitted.
+
+### 15. Finish pending upload writes before reporting a rejection
+
+- Nearby change: `fix: finish pending upload writes before rejecting a body`.
+- Files: `src/server/state.rs`.
+
+`tokio::fs::File::write_all` returns once a chunk is handed to the blocking
+pool; only `flush` waits for that write. The upload writer flushed on success
+but returned directly from its rejection paths (oversized chunk, ended session,
+body error), so a write of an earlier accepted chunk could still be in flight
+when the handler inspected or removed the partial file, and an error from that
+write was lost. CI exposed it as an intermittent failure of the oversized
+stream test, which found the partial file empty.
+
+The writer now flushes on every exit and still reports the rejection that
+ended the body ahead of a flush error. Behavior visible to peers is unchanged.
+
+The regression runs the writer on a runtime with one blocking thread that the
+body keeps busy before delivering the accepted chunk, so that chunk's write is
+queued. Against the previous writer it failed on every run with an empty file;
+it now finds the accepted bytes. Upstream status: not submitted.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the

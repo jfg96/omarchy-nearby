@@ -10,10 +10,39 @@ use reqwest::{Body, Client as HttpClient, StatusCode};
 use std::collections::HashMap;
 #[cfg(feature = "https")]
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
 
 pub type ProgressCallback = Box<dyn Fn(u64, u64, f64) + Send + Sync>;
+
+/// How long a TCP connect to a peer may take.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Bounds on what a peer can make this client wait for or buffer.
+///
+/// Uploads and the prepare-upload decision have no overall time limit: they
+/// last as long as the transfer, or until the receiving user decides, and the
+/// caller cancels them. Every response body is size-limited.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClientLimits {
+    /// Whole-request limit for `/register` and `/cancel`.
+    pub control_timeout: Duration,
+    /// Largest `/register` or `/info` response body.
+    pub max_control_response_bytes: usize,
+    /// Largest prepare-upload response body. One token per offered file.
+    pub max_prepare_response_bytes: usize,
+}
+
+impl Default for ClientLimits {
+    fn default() -> Self {
+        Self {
+            control_timeout: Duration::from_secs(10),
+            max_control_response_bytes: 64 * 1024,
+            max_prepare_response_bytes: 2 * 1024 * 1024,
+        }
+    }
+}
 
 fn prepare_upload_url(target: &DeviceInfo, ip: &str, pin: Option<&str>) -> Result<reqwest::Url> {
     let base = format!(
@@ -35,18 +64,48 @@ fn reqwest_identity(identity: &TlsCertificate) -> Result<reqwest::Identity> {
         .map_err(|e| LocalSendError::network(format!("Invalid client identity: {e}")))
 }
 
+/// Read a response body, failing as soon as it exceeds `limit` bytes.
+pub(crate) async fn read_limited(mut response: reqwest::Response, limit: usize) -> Result<Vec<u8>> {
+    let too_large = || LocalSendError::network(format!("Response exceeds {limit} bytes"));
+    if response
+        .content_length()
+        .is_some_and(|length| length > limit as u64)
+    {
+        return Err(too_large());
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if chunk.len() > limit - body.len() {
+            return Err(too_large());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
 #[derive(Clone)]
 pub struct LocalSendClient {
     client: HttpClient,
     device: DeviceInfo,
+    limits: ClientLimits,
 }
 
 impl LocalSendClient {
     pub fn new(device: DeviceInfo) -> Self {
         Self {
-            client: HttpClient::new(),
+            client: HttpClient::builder()
+                .connect_timeout(CONNECT_TIMEOUT)
+                .build()
+                .expect("a plain HTTP client always builds"),
             device,
+            limits: ClientLimits::default(),
         }
+    }
+
+    /// Replace the default request limits.
+    pub fn with_limits(mut self, limits: ClientLimits) -> Self {
+        self.limits = limits;
+        self
     }
 
     pub fn with_trust_policy(device: DeviceInfo, policy: TlsTrustPolicy) -> Result<Self> {
@@ -70,7 +129,9 @@ impl LocalSendClient {
     ) -> Result<Self> {
         let client = match policy {
             TlsTrustPolicy::InsecureForTests => {
-                let mut builder = HttpClient::builder().danger_accept_invalid_certs(true);
+                let mut builder = HttpClient::builder()
+                    .danger_accept_invalid_certs(true)
+                    .connect_timeout(CONNECT_TIMEOUT);
                 #[cfg(feature = "https")]
                 if let Some(identity) = identity {
                     builder = builder.identity(reqwest_identity(identity)?);
@@ -105,6 +166,7 @@ impl LocalSendClient {
                     };
                     HttpClient::builder()
                         .tls_backend_preconfigured(tls_config)
+                        .connect_timeout(CONNECT_TIMEOUT)
                         .build()
                         .map_err(LocalSendError::from)?
                 }
@@ -119,7 +181,11 @@ impl LocalSendClient {
             }
         };
 
-        Ok(Self { client, device })
+        Ok(Self {
+            client,
+            device,
+            limits: ClientLimits::default(),
+        })
     }
 
     pub async fn register(&self, target: &DeviceInfo) -> Result<DeviceInfo> {
@@ -132,11 +198,17 @@ impl LocalSendClient {
             target.protocol, ip, target.port
         );
 
-        let response = self.client.post(&url).json(&self.device).send().await?;
+        let response = self
+            .client
+            .post(&url)
+            .timeout(self.limits.control_timeout)
+            .json(&self.device)
+            .send()
+            .await?;
         let status = response.status();
 
         if status.is_success() {
-            let bytes = response.bytes().await?;
+            let bytes = read_limited(response, self.limits.max_control_response_bytes).await?;
             if bytes.is_empty() {
                 return Ok(target.clone());
             }
@@ -184,7 +256,8 @@ impl LocalSendClient {
         let status = response.status();
         match status {
             StatusCode::OK => {
-                let upload_response: PrepareUploadResponse = response.json().await?;
+                let body = read_limited(response, self.limits.max_prepare_response_bytes).await?;
+                let upload_response: PrepareUploadResponse = serde_json::from_slice(&body)?;
                 Ok(upload_response)
             }
             StatusCode::NO_CONTENT => {
@@ -363,7 +436,12 @@ impl LocalSendClient {
             "{}://{}:{}/api/localsend/v2/cancel?sessionId={}",
             target.protocol, ip, target.port, session_id
         );
-        let response = self.client.post(&url).send().await?;
+        let response = self
+            .client
+            .post(&url)
+            .timeout(self.limits.control_timeout)
+            .send()
+            .await?;
         if response.status().is_success() {
             Ok(())
         } else {

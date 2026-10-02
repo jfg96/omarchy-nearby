@@ -10,7 +10,7 @@ use localsend_rs::protocol::{DeviceInfo, FileId, FileMetadata, Protocol};
 use localsend_rs::server::{LocalSendServerBuilder, PendingRequest, ServerEvent};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::io::{self, Write};
 use std::net::Ipv4Addr;
@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
 
+mod downloads;
 mod identity;
 mod secure_state;
 mod settings;
@@ -35,6 +36,13 @@ const MAX_OUTGOING_PIN_BYTES: usize = 4096;
 const MAX_COMMAND_LINE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_TEXT_BYTES: usize = 1024 * 1024;
 const MAX_PEERS: usize = 256;
+/// Peer events the frontend receives immediately in a burst, then per second.
+/// Past that, changes are coalesced into one snapshot per flush interval.
+const PEER_EVENT_BURST: f64 = 20.0;
+const PEER_EVENTS_PER_SECOND: f64 = 10.0;
+const PEER_FLUSH_INTERVAL: Duration = Duration::from_secs(1);
+/// Fingerprints remembered as HTTPS peers for the helper's lifetime.
+const MAX_HTTPS_FINGERPRINTS: usize = 1024;
 
 #[derive(Debug, PartialEq, Eq)]
 enum CommandLine {
@@ -247,11 +255,94 @@ fn valid_remote_text(text: &str, max: usize) -> String {
         .collect()
 }
 
-fn record_peer(registry: &Arc<Mutex<HashMap<String, Peer>>>, device: DeviceInfo) {
-    if device.fingerprint.is_empty() || device.alias.is_empty() {
-        return;
+#[derive(Debug, PartialEq, Eq)]
+enum PeerUpdate {
+    /// Not recorded: incomplete, or a plain HTTP claim on an HTTPS identity.
+    Rejected,
+    /// Already known with the same details; only its expiry was extended.
+    Refreshed,
+    /// New or changed, and sent to the frontend.
+    Published,
+    /// New or changed, left for the next coalesced snapshot.
+    Deferred,
+}
+
+/// Decides which peer updates reach the registry and the frontend.
+///
+/// Discovery input is unauthenticated: any LAN host can announce any alias and
+/// fingerprint over multicast, HTTP discovery or `/register`, as often as it
+/// likes. Each published update is parsed and sorted by the shell's UI thread,
+/// so updates are rate-limited and coalesced. An HTTPS peer's fingerprint is
+/// what outgoing transfers pin, so a plain HTTP claim to a fingerprint already
+/// seen over HTTPS would downgrade that device to an unauthenticated address.
+struct PeerGate {
+    https_fingerprints: HashSet<String>,
+    https_order: VecDeque<String>,
+    tokens: f64,
+    refilled: Instant,
+    snapshot_pending: bool,
+}
+
+impl PeerGate {
+    fn new(now: Instant) -> Self {
+        Self {
+            https_fingerprints: HashSet::new(),
+            https_order: VecDeque::new(),
+            tokens: PEER_EVENT_BURST,
+            refilled: now,
+            snapshot_pending: false,
+        }
     }
-    {
+
+    /// Remember HTTPS identities and refuse plain HTTP claims to them.
+    fn admits(&mut self, device: &DeviceInfo) -> bool {
+        match device.protocol {
+            Protocol::Http => !self.https_fingerprints.contains(&device.fingerprint),
+            Protocol::Https => {
+                if self.https_fingerprints.insert(device.fingerprint.clone()) {
+                    self.https_order.push_back(device.fingerprint.clone());
+                    if self.https_order.len() > MAX_HTTPS_FINGERPRINTS
+                        && let Some(oldest) = self.https_order.pop_front()
+                    {
+                        self.https_fingerprints.remove(&oldest);
+                    }
+                }
+                true
+            }
+        }
+    }
+
+    fn take_event(&mut self, now: Instant) -> bool {
+        let elapsed = now.saturating_duration_since(self.refilled).as_secs_f64();
+        self.tokens = (self.tokens + elapsed * PEER_EVENTS_PER_SECOND).min(PEER_EVENT_BURST);
+        self.refilled = now;
+        if self.tokens >= 1.0 {
+            self.tokens -= 1.0;
+            true
+        } else {
+            self.snapshot_pending = true;
+            false
+        }
+    }
+
+    fn take_pending_snapshot(&mut self) -> bool {
+        std::mem::take(&mut self.snapshot_pending)
+    }
+}
+
+fn record_peer(
+    registry: &Arc<Mutex<HashMap<String, Peer>>>,
+    gate: &Arc<Mutex<PeerGate>>,
+    device: DeviceInfo,
+) -> PeerUpdate {
+    if device.fingerprint.is_empty() || device.alias.is_empty() {
+        return PeerUpdate::Rejected;
+    }
+    let mut gate = gate.lock().unwrap();
+    if !gate.admits(&device) {
+        return PeerUpdate::Rejected;
+    }
+    let changed = {
         let mut peers = registry.lock().unwrap();
         peers.retain(|_, peer| peer.last_seen.elapsed() <= PEER_TTL);
         if !peers.contains_key(&device.fingerprint)
@@ -268,6 +359,9 @@ fn record_peer(registry: &Arc<Mutex<HashMap<String, Peer>>>, device: DeviceInfo)
         {
             peers.remove(&oldest);
         }
+        let changed = peers
+            .get(&device.fingerprint)
+            .is_none_or(|peer| peer.device != device);
         peers.insert(
             device.fingerprint.clone(),
             Peer {
@@ -275,9 +369,18 @@ fn record_peer(registry: &Arc<Mutex<HashMap<String, Peer>>>, device: DeviceInfo)
                 last_seen: Instant::now(),
             },
         );
+        changed
+    };
+    if !changed {
+        return PeerUpdate::Refreshed;
     }
+    if !gate.take_event(Instant::now()) {
+        return PeerUpdate::Deferred;
+    }
+    drop(gate);
     eprintln!("peer registered: {}", valid_remote_text(&device.alias, 128));
     emit(json!({"event":"device","device":event_device(&device)}));
+    PeerUpdate::Published
 }
 
 fn expire_and_snapshot(registry: &Arc<Mutex<HashMap<String, Peer>>>) -> Vec<Value> {
@@ -422,6 +525,7 @@ async fn start_active_discovery(
     identity: DeviceInfo,
     certificate: TlsCertificate,
     registry: Arc<Mutex<HashMap<String, Peer>>>,
+    gate: Arc<Mutex<PeerGate>>,
     force_full: bool,
 ) -> DiscoveryControl {
     let (stop_tx, mut stop_rx) = oneshot::channel();
@@ -527,11 +631,12 @@ async fn start_active_discovery(
                                 valid_remote_text(&device.alias, 128),
                                 started.elapsed().as_millis()
                             );
-                            record_peer(&registry, device);
-                            eprintln!(
-                                "peer emitted to frontend: +{} ms",
-                                started.elapsed().as_millis()
-                            );
+                            if record_peer(&registry, &gate, device) == PeerUpdate::Published {
+                                eprintln!(
+                                    "peer emitted to frontend: +{} ms",
+                                    started.elapsed().as_millis()
+                                );
+                            }
                         },
                     )
                     .await?;
@@ -570,11 +675,12 @@ async fn start_active_discovery(
                             valid_remote_text(&device.alias, 128),
                             started.elapsed().as_millis(),
                         );
-                        record_peer(&registry, device);
-                        eprintln!(
-                            "peer emitted to frontend: +{} ms",
-                            started.elapsed().as_millis()
-                        );
+                        if record_peer(&registry, &gate, device) == PeerUpdate::Published {
+                            eprintln!(
+                                "peer emitted to frontend: +{} ms",
+                                started.elapsed().as_millis()
+                            );
+                        }
                     })
                     .await?;
                 eprintln!("HTTP scan finished: +{} ms", started.elapsed().as_millis());
@@ -771,27 +877,6 @@ async fn send_payload(
     Ok(SendPayloadOutcome::Finished)
 }
 
-fn xdg_download_dir(home: &Path) -> PathBuf {
-    if let Ok(value) = std::env::var("XDG_DOWNLOAD_DIR") {
-        return PathBuf::from(value);
-    }
-    let config = std::env::var("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| home.join(".config"))
-        .join("user-dirs.dirs");
-    if let Ok(text) = std::fs::read_to_string(config) {
-        for line in text.lines() {
-            if let Some(raw) = line.strip_prefix("XDG_DOWNLOAD_DIR=") {
-                let value = raw
-                    .trim_matches('"')
-                    .replace("$HOME", &home.to_string_lossy());
-                return PathBuf::from(value);
-            }
-        }
-    }
-    home.join("Downloads")
-}
-
 fn is_nearby_partial_name(name: &str) -> bool {
     name.starts_with(".nearby-") && name.ends_with(".part")
 }
@@ -896,7 +981,7 @@ async fn main() -> Result<()> {
             return Err(error.context("receiver security settings unavailable"));
         }
     };
-    let download_dir = xdg_download_dir(&home);
+    let download_dir = downloads::download_dir(&home);
     tokio::fs::create_dir_all(&download_dir)
         .await
         .context("download destination unavailable")?;
@@ -940,6 +1025,7 @@ async fn main() -> Result<()> {
     };
     let identity = server.device().clone();
     let registry = Arc::new(Mutex::new(HashMap::<String, Peer>::new()));
+    let gate = Arc::new(Mutex::new(PeerGate::new(Instant::now())));
     let (peer_tx, mut peer_rx) = mpsc::unbounded_channel::<DeviceInfo>();
     let mut passive =
         MulticastDiscovery::new_with_device_and_tls_identity(identity.clone(), certificate.clone());
@@ -1029,18 +1115,24 @@ async fn main() -> Result<()> {
     let mut outgoing: Option<OutgoingControl> = None;
     let (out_done_tx, mut out_done_rx) = mpsc::unbounded_channel::<OutgoingDone>();
     let mut expiry = tokio::time::interval(Duration::from_secs(5));
+    let mut peer_flush = tokio::time::interval(PEER_FLUSH_INTERVAL);
     loop {
         tokio::select! {
             _ = expiry.tick() => { let snapshot=expire_and_snapshot(&registry); if discovery.is_some(){emit(json!({"event":"peer_snapshot","devices":snapshot}));} }
+            _ = peer_flush.tick() => if gate.lock().unwrap().take_pending_snapshot() {
+                emit(json!({"event":"peer_snapshot","devices":expire_and_snapshot(&registry)}));
+            },
             Some(device) = peer_rx.recv() => {
-                if let Some(control) = discovery.as_ref() {
+                let ip = device.ip.clone();
+                if record_peer(&registry,&gate,device) == PeerUpdate::Published
+                    && let Some(control) = discovery.as_ref()
+                {
                     eprintln!(
                         "peer discovered via multicast: +{} ms ({})",
                         control.started.elapsed().as_millis(),
-                        device.ip.as_deref().unwrap_or("unknown")
+                        ip.as_deref().unwrap_or("unknown")
                     );
                 }
-                record_peer(&registry,device)
             },
             Some(done) = out_done_rx.recv() => if outgoing.as_ref().is_some_and(|o|o.id==done.id) {
                 outgoing=None;
@@ -1053,7 +1145,7 @@ async fn main() -> Result<()> {
                 match command {
                     Command::DiscoveryStart { force_full } => {
                         if force_full && let Some(control)=discovery.take(){let _=control.stop.send(());}
-                        if discovery.is_none() { discovery=Some(start_active_discovery(passive.clone(),identity.clone(),certificate.clone(),registry.clone(),force_full).await); }
+                        if discovery.is_none() { discovery=Some(start_active_discovery(passive.clone(),identity.clone(),certificate.clone(),registry.clone(),gate.clone(),force_full).await); }
                     },
                     Command::DiscoveryStop => if let Some(control)=discovery.take(){let _=control.stop.send(());},
                     Command::Accept { request_id } => { let ok=pending.lock().unwrap().remove(&request_id).is_some_and(|req|req.accept()); emit(if ok {json!({"event":"incoming_accepted","requestId":request_id})} else {json!({"event":"incoming_expired","requestId":request_id})}); },
@@ -1241,6 +1333,157 @@ mod tests {
         assert_eq!(reader.next_line().await.unwrap(), None);
     }
 
+    fn test_gate() -> Arc<Mutex<PeerGate>> {
+        Arc::new(Mutex::new(PeerGate::new(Instant::now())))
+    }
+
+    fn peer(fingerprint: &str, protocol: Protocol, ip: &str) -> DeviceInfo {
+        let mut device = DeviceInfo::new("Phone".into(), 53317, protocol);
+        device.fingerprint = fingerprint.into();
+        device.ip = Some(ip.into());
+        device
+    }
+
+    #[test]
+    fn repeated_announcements_of_an_unchanged_peer_publish_once() {
+        let (registry, gate) = (Arc::new(Mutex::new(HashMap::new())), test_gate());
+        let device = peer("phone", Protocol::Https, "192.168.1.20");
+        assert_eq!(
+            record_peer(&registry, &gate, device.clone()),
+            PeerUpdate::Published
+        );
+        for _ in 0..1_000 {
+            assert_eq!(
+                record_peer(&registry, &gate, device.clone()),
+                PeerUpdate::Refreshed,
+                "an unchanged peer must not be re-sent to the shell"
+            );
+        }
+        let mut renamed = device;
+        renamed.alias = "Renamed".into();
+        assert_eq!(
+            record_peer(&registry, &gate, renamed),
+            PeerUpdate::Published
+        );
+    }
+
+    #[test]
+    fn a_flood_of_new_identities_is_coalesced_into_snapshots() {
+        let (registry, gate) = (Arc::new(Mutex::new(HashMap::new())), test_gate());
+        let published = (0..1_000)
+            .map(|index| {
+                record_peer(
+                    &registry,
+                    &gate,
+                    peer(&format!("flood-{index}"), Protocol::Http, "192.168.1.66"),
+                )
+            })
+            .filter(|update| *update == PeerUpdate::Published)
+            .count();
+        assert!(
+            published <= PEER_EVENT_BURST as usize + 1,
+            "1000 new identities published {published} frontend events"
+        );
+        assert!(gate.lock().unwrap().take_pending_snapshot());
+        assert!(
+            !gate.lock().unwrap().take_pending_snapshot(),
+            "one snapshot covers every deferred update"
+        );
+        assert_eq!(registry.lock().unwrap().len(), MAX_PEERS);
+    }
+
+    #[test]
+    fn peer_event_budget_refills_over_time() {
+        let start = Instant::now();
+        let mut gate = PeerGate::new(start);
+        for _ in 0..PEER_EVENT_BURST as usize {
+            assert!(gate.take_event(start));
+        }
+        assert!(!gate.take_event(start));
+        assert!(gate.take_event(start + Duration::from_millis(100)));
+        assert!(!gate.take_event(start + Duration::from_millis(100)));
+    }
+
+    #[test]
+    fn plain_http_cannot_take_over_a_known_https_fingerprint() {
+        let (registry, gate) = (Arc::new(Mutex::new(HashMap::new())), test_gate());
+        record_peer(
+            &registry,
+            &gate,
+            peer("phone", Protocol::Https, "192.168.1.20"),
+        );
+        assert_eq!(
+            record_peer(
+                &registry,
+                &gate,
+                peer("phone", Protocol::Http, "192.168.1.66")
+            ),
+            PeerUpdate::Rejected,
+            "an HTTP claim would send files unencrypted to an unauthenticated address"
+        );
+        let stored = registry.lock().unwrap()["phone"].device.clone();
+        assert_eq!(stored.protocol, Protocol::Https);
+        assert_eq!(stored.ip.as_deref(), Some("192.168.1.20"));
+
+        // The identity stays protected after the peer itself has expired.
+        registry.lock().unwrap().clear();
+        assert_eq!(
+            record_peer(
+                &registry,
+                &gate,
+                peer("phone", Protocol::Http, "192.168.1.66")
+            ),
+            PeerUpdate::Rejected
+        );
+
+        // HTTPS from a new address is still the same pinned identity.
+        assert_eq!(
+            record_peer(
+                &registry,
+                &gate,
+                peer("phone", Protocol::Https, "192.168.1.21")
+            ),
+            PeerUpdate::Published
+        );
+    }
+
+    #[test]
+    fn an_http_peer_can_be_upgraded_to_https() {
+        let (registry, gate) = (Arc::new(Mutex::new(HashMap::new())), test_gate());
+        record_peer(
+            &registry,
+            &gate,
+            peer("laptop", Protocol::Http, "192.168.1.30"),
+        );
+        assert_eq!(
+            record_peer(
+                &registry,
+                &gate,
+                peer("laptop", Protocol::Https, "192.168.1.30")
+            ),
+            PeerUpdate::Published
+        );
+        assert_eq!(
+            registry.lock().unwrap()["laptop"].device.protocol,
+            Protocol::Https
+        );
+    }
+
+    #[test]
+    fn remembered_https_fingerprints_are_bounded() {
+        let mut gate = PeerGate::new(Instant::now());
+        for index in 0..=MAX_HTTPS_FINGERPRINTS {
+            gate.admits(&peer(
+                &format!("tls-{index}"),
+                Protocol::Https,
+                "192.168.1.2",
+            ));
+        }
+        assert_eq!(gate.https_fingerprints.len(), MAX_HTTPS_FINGERPRINTS);
+        assert!(gate.admits(&peer("tls-0", Protocol::Http, "192.168.1.2")));
+        assert!(!gate.admits(&peer("tls-1", Protocol::Http, "192.168.1.2")));
+    }
+
     #[test]
     fn peer_registry_keeps_valid_and_expires_stale() {
         let d = DeviceInfo::new("Phone".into(), 53317, Protocol::Http);
@@ -1276,22 +1519,18 @@ mod tests {
 
         let mut refreshed = DeviceInfo::new("Refreshed".into(), 53317, Protocol::Http);
         refreshed.fingerprint = "peer-001".into();
-        record_peer(&registry, refreshed);
+        record_peer(&registry, &test_gate(), refreshed);
         assert_eq!(registry.lock().unwrap().len(), MAX_PEERS);
         assert!(registry.lock().unwrap().contains_key("peer-000"));
 
         let mut newcomer = DeviceInfo::new("New peer".into(), 53317, Protocol::Http);
         newcomer.fingerprint = "peer-new".into();
-        record_peer(&registry, newcomer);
+        record_peer(&registry, &test_gate(), newcomer);
         let peers = registry.lock().unwrap();
         assert_eq!(peers.len(), MAX_PEERS);
         assert!(!peers.contains_key("peer-000"));
         assert!(peers.contains_key("peer-001"));
         assert!(peers.contains_key("peer-new"));
-    }
-    #[test]
-    fn xdg_downloads_parsing_falls_back() {
-        assert!(xdg_download_dir(Path::new("/tmp/home")).is_absolute());
     }
     #[test]
     fn partial_cleanup_pattern_is_strict() {
@@ -1983,7 +2222,7 @@ mod tests {
         )])));
         let mut moved = cached;
         moved.ip = Some("192.168.50.173".into());
-        record_peer(&registry, moved);
+        record_peer(&registry, &test_gate(), moved);
         assert_eq!(
             registry.lock().unwrap()[&fingerprint].device.ip.as_deref(),
             Some("192.168.50.173")

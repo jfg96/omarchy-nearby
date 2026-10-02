@@ -28,6 +28,17 @@ const CONNECT_TIMEOUT: Duration = Duration::from_millis(1000);
 /// Overall per-probe timeout (connect + response).
 const REQUEST_TIMEOUT: Duration = Duration::from_millis(2000);
 
+/// Largest `/register` or `/info` answer a probe reads. The timeout alone
+/// lets a LAN host stream hundreds of megabytes into memory per probe.
+const MAX_PROBE_RESPONSE_BYTES: usize = 64 * 1024;
+
+async fn read_device(response: reqwest::Response) -> Option<DeviceInfo> {
+    let body = crate::client::client::read_limited(response, MAX_PROBE_RESPONSE_BYTES)
+        .await
+        .ok()?;
+    serde_json::from_slice(&body).ok()
+}
+
 pub struct HttpDiscovery {
     local_device: DeviceInfo,
     client: Client,
@@ -236,9 +247,9 @@ impl HttpDiscovery {
             Err(_) => return ProbeOutcome::Miss,
         };
         let mut device: DeviceInfo = if response.status().is_success() {
-            match response.json().await {
-                Ok(device) => device,
-                Err(_) => match self.probe_legacy_info(&base_url).await {
+            match read_device(response).await {
+                Some(device) => device,
+                None => match self.probe_legacy_info(&base_url).await {
                     Some(device) => device,
                     None => return ProbeOutcome::Miss,
                 },
@@ -267,7 +278,7 @@ impl HttpDiscovery {
         if !response.status().is_success() {
             return None;
         }
-        response.json().await.ok()
+        read_device(response).await
     }
 }
 

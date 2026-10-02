@@ -15,13 +15,28 @@ LocalSend's `429 Too Many Requests` response until the receiver security state
 changes or the receiver restarts.
 
 LocalSend discovery itself is LAN discovery and should not be treated as an
-authenticated pairing mechanism. Use Nearby on networks you trust.
+authenticated pairing mechanism. Use Nearby on networks you trust. Once a
+device has been seen over HTTPS, the helper refuses plain HTTP announcements
+for its fingerprint until it restarts, so its entry cannot be switched to an
+unencrypted address. A device only ever seen over plain HTTP has no identity to
+protect: anyone on the network can announce as it.
 
 The receiver bounds the connections, time and request bodies a LAN peer can
 make it hold, so memory use stays limited and recovers once a peer stops. These
 limits do not prevent denial of service while an attack is ongoing: a peer
 that keeps opening connections can occupy the receiver's slots and delay other
 devices until it stops.
+
+Requests Nearby makes to other devices are bounded the same way: connections
+time out after 5 seconds, registration and cancel requests after 10 seconds,
+and response bodies are size-limited. A transfer itself has no overall time
+limit; cancel it to stop waiting for a receiver. Nearby answers multicast
+announcements, which any device on the network can send, at most once per
+address every 5 seconds and at most 8 at a time.
+
+Aliases, file names and other text from peers are shown as plain text in the
+panel. Desktop notifications start with fixed text and carry peer text escaped,
+so it is neither parsed as a notification option nor rendered as markup.
 
 ## Persistent security state
 
@@ -52,7 +67,11 @@ guaranteed.
 
 The descriptor-based guarantees above apply to Nearby's private persistent
 security state. Incoming downloads follow the configured Downloads location
-and the vendored LocalSend receive path.
+and the vendored LocalSend receive path. To find that location the helper
+reads `user-dirs.dirs` without blocking on a FIFO, only as a regular file owned
+by the user or root, and at most 16 KiB of it; otherwise it uses `~/Downloads`.
+It follows a symlinked `user-dirs.dirs`, which dotfile managers commonly
+create, and ignores relative locations.
 
 Nearby validates the saved TLS certificate and private key and preserves a valid
 identity across restarts. The helper also reuses that identity when an HTTPS peer
