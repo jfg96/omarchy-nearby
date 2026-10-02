@@ -449,6 +449,27 @@ connections and announcements from 40 addresses opened 40; they now open one
 and at most eight. Unit tests cover the interval, the concurrency bound and
 source expiry. Upstream status: not submitted.
 
+### 15. Finish pending upload writes before reporting a rejection
+
+- Nearby change: `fix: finish pending upload writes before rejecting a body`.
+- Files: `src/server/state.rs`.
+
+`tokio::fs::File::write_all` returns once a chunk is handed to the blocking
+pool; only `flush` waits for that write. The upload writer flushed on success
+but returned directly from its rejection paths (oversized chunk, ended session,
+body error), so a write of an earlier accepted chunk could still be in flight
+when the handler inspected or removed the partial file, and an error from that
+write was lost. CI exposed it as an intermittent failure of the oversized
+stream test, which found the partial file empty.
+
+The writer now flushes on every exit and still reports the rejection that
+ended the body ahead of a flush error. Behavior visible to peers is unchanged.
+
+The regression runs the writer on a runtime with one blocking thread that the
+body keeps busy before delivering the accepted chunk, so that chunk's write is
+queued. Against the previous writer it failed on every run with an empty file;
+it now finds the accepted bytes. Upstream status: not submitted.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the
