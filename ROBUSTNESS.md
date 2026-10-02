@@ -287,6 +287,24 @@ Six helper tests cover the download location. With the previous unbounded
 `user-dirs.dirs` blocked until the five-second subprocess deadline, a file
 larger than 16 KiB was read whole, and a relative location was accepted.
 
+On 2026-10-02 the merged source `1930ed7` was built locally and checked on
+Omarchy against an iPhone 15 (iOS 27.0.1, LocalSend 1.18.2). The iPhone
+appeared in the device list, disappeared after LocalSend had been closed for
+more than 90 seconds and reappeared when reopened. An iPhone → Nearby file was
+accepted, saved to the download location and announced by the incoming
+notification, and a Nearby → iPhone file was received. All passed; Android
+remains **Not run**.
+
+### 1.2.4 helper preparation, 2026-10-02
+
+The CI passed on helper source commit
+`1930ed762c7f67ec71f828a0a405ef377544ca12`. The `helper-v1.2.4`
+GitHub Actions workflow built and published its Linux x86_64 prerelease.
+The downloaded executable independently matched the release checksum and
+9,077,944-byte size; `gh attestation verify` matched the helper-release workflow,
+source digest and tag on a GitHub-hosted runner, and `--version` reported
+`omarchy-nearby-helper 1.2.4`. Android interoperability remains **Not run**.
+
 ## Manual interoperability matrix
 
 Run applicable transfer and PIN scenarios with both Android and iOS LocalSend
