@@ -4,6 +4,10 @@
 
 - Render every panel text as plain text, so a peer alias containing markup
   can no longer load remote images when a transfer is in progress.
+- Bound every request Nearby makes to another device: connections time out
+  after 5 seconds, registration and cancel requests after 10 seconds, and
+  responses are size-limited, so a device on the network can no longer hold a
+  request open forever or make the helper buffer an unbounded answer.
 
 ## 1.2.3
 

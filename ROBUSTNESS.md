@@ -25,6 +25,7 @@ cancel/completed/failed event separation, oversized, truncated and checksum-mism
 repeated and concurrent uploads of one file, sender-supplied file ids in partial paths,
 the incoming file-count limit, cancellation stopping an upload in progress,
 connection limits, request head/body timeouts and upload idle timeouts,
+outgoing request timeouts and response size limits,
 atomic equal-name commits, traversal rejection, progress backpressure, TLS pinning,
 HTTP `/register` fallback, and a session whose activity is older than five minutes while
 an upload is still active. Incoming-PIN coverage includes secure startup,
@@ -245,6 +246,16 @@ The development checkout advances to plugin `1.2.4-dev` and helper/floor `1.2.4`
 after publishing and independently verifying a matching 1.2.4 helper. Until
 then this checkout requires a deliberately built local helper to meet its new
 compatibility floor.
+
+The panel test now parses every text element in `Panel.qml` and `Service.qml`
+and requires `textFormat: Text.PlainText`; before the fix it failed on the
+transfer progress line reported in the marketplace review.
+
+`conformance_client_limits` adds five regressions with a fake peer that never
+answers or streams an endless chunked body. Before the fix `register` and
+`cancel` were still waiting after 20 seconds, and `register`, prepare-upload
+and a discovery probe read the entire 256 MiB flood. They now fail within the
+one-second test timeout or after reading at most the response limit.
 
 ## Manual interoperability matrix
 

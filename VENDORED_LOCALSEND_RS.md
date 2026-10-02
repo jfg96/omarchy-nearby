@@ -394,6 +394,34 @@ failed before the change because no expiry arrived; it now requires a prompt
 expiry, rejects a late accept and sends a retry through the normal decision
 flow instead of `409`. Upstream status: not submitted.
 
+### 13. Bound outgoing requests and the responses peers send back
+
+- Nearby change: `fix: bound outgoing requests and peer responses`.
+- Files: `src/client/client.rs`, `src/client/mod.rs`, `src/discovery/http.rs`,
+  and `tests/conformance_client_limits.rs`.
+- Public API: `ClientLimits` and `LocalSendClient::with_limits`.
+
+`LocalSendClient` had no connect or request timeout and read every response
+body whole (`bytes()` and `json()`). Discovery probes had a two-second timeout
+but no size limit. Any host the client talks to, including one that only sent
+a multicast announcement naming its address, could keep a request open forever
+or stream an unbounded body into memory.
+
+- Every client connects with a five-second timeout.
+- `/register` and `/cancel` must finish within ten seconds.
+- `/register` and `/info` answers are read up to 64 KiB, prepare-upload
+  answers up to 2 MiB, in both the client and discovery probes. A body that
+  announces or reaches a larger size is rejected without reading further.
+- Uploads and the prepare-upload decision keep no overall time limit: they last
+  as long as the transfer or the receiving user's decision, and the helper
+  cancels them when the user does.
+
+Five regressions use a fake peer that either never answers or streams an
+endless chunked body, and count the bytes it manages to send. Against the
+previous client `register` and `cancel` were still waiting after 20 seconds
+and `register`, prepare-upload and a discovery probe read the whole 256 MiB
+flood. Upstream status: not submitted.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the

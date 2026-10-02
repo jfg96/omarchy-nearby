@@ -23,6 +23,11 @@ limits do not prevent denial of service while an attack is ongoing: a peer
 that keeps opening connections can occupy the receiver's slots and delay other
 devices until it stops.
 
+Requests Nearby makes to other devices are bounded the same way: connections
+time out after 5 seconds, registration and cancel requests after 10 seconds,
+and response bodies are size-limited. A transfer itself has no overall time
+limit; cancel it to stop waiting for a receiver.
+
 ## Persistent security state
 
 The incoming PIN is stored in a private settings file; it is not shown again in
