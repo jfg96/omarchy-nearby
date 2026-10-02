@@ -67,7 +67,7 @@ scanned completely; larger networks are bounded to the local `/24` of each selec
 interface to avoid generating tens of thousands of probes. Subnet probing has a
 global concurrency limit.
 
-The panel also provides **Search for new devices**, which bypasses cache-hit
+The panel also provides **Rescan**, which bypasses cache-hit
 short-circuiting and forces the bounded subnet scan when a new peer is missing.
 
 ### iOS note

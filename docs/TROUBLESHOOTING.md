@@ -35,7 +35,7 @@ Confirm that environment's plugin support before attempting installation.
 2. Put both devices on the same non-guest LAN. Check for Wi-Fi client isolation,
    VPN routing or firewall rules that prevent local TCP/UDP `53317` traffic.
 3. Open the Nearby popup to start active discovery.
-4. Use **Search for new devices** to force the bounded subnet fallback.
+4. Use **Rescan** to force the bounded subnet fallback.
 5. For an iOS app that was already open, try closing and reopening LocalSend.
 
 Cached addresses are revalidated; they do not prove availability. Large networks

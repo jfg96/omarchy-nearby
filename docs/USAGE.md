@@ -16,7 +16,7 @@ Open Nearby, turn the receiver on, and select the destination.
 Approve the transfer on the destination. Nearby displays progress and offers
 **Cancel** for outgoing transfers. Wait for completion before disconnecting.
 
-If the peer is missing, use **Search for new devices**. See
+If the peer is missing, use **Rescan**. See
 [discovery troubleshooting](TROUBLESHOOTING.md#devices-do-not-appear).
 
 ## Receive
