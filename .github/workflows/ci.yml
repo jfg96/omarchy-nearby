@@ -36,6 +36,9 @@ jobs:
       - name: Test helper distribution
         run: bash tests/launcher.test.sh && bash tests/helper-repair.test.sh
 
+      - name: Test received file copy
+        run: bash tests/copy-file.test.sh
+
       - name: Check Rust formatting
         run: cargo fmt --manifest-path backend/Cargo.toml --all -- --check
 

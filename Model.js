@@ -58,6 +58,18 @@ function notificationText(value) {
   return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
 
+// The preview decodes a received picture inside the shell, so it is limited to
+// the common raster types, as identified from the file's bytes by `file`.
+function previewableImage(mimeType) {
+  return ["image/png", "image/jpeg", "image/webp", "image/gif"].indexOf(String(mimeType || "")) >= 0
+}
+
+// A local path as a file URL. Every segment is escaped so a name containing
+// `#`, `?` or `%` is not read as URL syntax.
+function fileUrl(path) {
+  return "file://" + String(path || "").split("/").map(encodeURIComponent).join("/")
+}
+
 function enqueueIncoming(queue, request) {
   var next = (queue || []).slice()
   if (!request || !request.requestId) return next
@@ -303,4 +315,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, notificationText, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, notificationText, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }

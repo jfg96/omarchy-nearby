@@ -51,6 +51,15 @@ Existing symlinks along the destination path are refused before writing and
 again at final publication. Received text appears in the panel; choose
 **Copy** to put it on the clipboard, or **Done** to dismiss it.
 
+When a transfer delivers exactly one file, the result offers **Copy** for it,
+so it can be pasted without opening a file manager. A PNG, JPEG, WebP or GIF
+picture is also previewed, and is copied as a PNG image, which is the image
+type every paste target accepts; the copy carries no metadata such as the
+location a photo was taken at. Any other file, and a picture that cannot be
+converted, is copied as a file reference, the way a file manager copies it.
+The file in Downloads is never changed. A transfer of several files shows the
+plain result.
+
 Incoming notifications use Omarchy's notification system and respect Do Not
 Disturb. A request already displayed in the open panel does not also need a
 duplicate notification; requests waiting behind another view can still notify.

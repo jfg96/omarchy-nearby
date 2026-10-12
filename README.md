@@ -27,6 +27,8 @@ LocalSend application is not required on your Omarchy computer.
 - TCP and UDP port `53317` available for LocalSend traffic.
 - Omarchy's `omarchy-file-select` and `omarchy-notification-send` commands,
   plus `wl-copy` and `wl-paste` from `wl-clipboard`.
+- `file` and ImageMagick's `magick`, both part of a stock Omarchy installation,
+  to preview a received picture and copy it as an image.
 - Internet access for the first helper download, or when an update selects a
   helper that is not cached. The launcher uses Bash, curl and standard GNU
   utilities, including `sha256sum` and `stat`.
@@ -67,8 +69,8 @@ While the receiver is off, normal startup does not download the helper.
 
 For incoming transfers, leave Nearby on and use **Accept** or **Decline** when a
 request arrives. Files go to your configured Downloads directory, or to the
-folder chosen with **Save to** in the panel. Received text can be copied from
-the panel.
+folder chosen with **Save to** in the panel. A single received file can be copied
+from the panel, with a preview when it is a picture, and so can received text.
 
 Closing the popup keeps receiving and passive discovery available. Turning
 Nearby off stops the helper, receiver and discovery. Active discovery runs while

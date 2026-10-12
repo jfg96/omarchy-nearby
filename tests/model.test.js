@@ -228,5 +228,16 @@ assert.equal(Model.folderName("/"), "/")
 assert.equal(Model.folderName(""), "/")
 assert.equal(Model.folderName("/data/" + "x".repeat(40)), "x".repeat(23) + "…",
   "a long folder name must be cut: the kit's buttons do not elide")
+// The preview decodes a peer's file inside the shell, so only the common
+// raster types are let through, and only by the type read from the bytes.
+for (const type of ["image/png", "image/jpeg", "image/webp", "image/gif"]) {
+  assert.equal(Model.previewableImage(type), true, `${type} must be previewable`)
+}
+for (const type of ["image/svg+xml", "image/x-xcf", "application/pdf", "text/plain", "IMAGE/PNG", "", null, undefined]) {
+  assert.equal(Model.previewableImage(type), false, `${type} must not reach an image decoder`)
+}
+assert.equal(Model.fileUrl("/home/someone/Downloads/photo.jpg"), "file:///home/someone/Downloads/photo.jpg")
+assert.equal(Model.fileUrl("/tmp/a b/é#?%.png"), "file:///tmp/a%20b/%C3%A9%23%3F%25.png",
+  "a received name must not be read as a URL query or fragment")
 
 console.log("Model tests passed")

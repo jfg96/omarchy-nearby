@@ -67,6 +67,7 @@ disable a developer override.
 | [backend/src/identity.rs](backend/src/identity.rs) | Persistent TLS identity validation |
 | [bin/nearby-helper-launcher](bin/nearby-helper-launcher) | Verify, cache and start the selected helper |
 | [bin/nearby-repair-helper](bin/nearby-repair-helper) | Prefetch-based helper repair |
+| [bin/nearby-copy-file](bin/nearby-copy-file) | Copy one received file to the clipboard |
 | [manifest.json](manifest.json) | Plugin metadata and helper compatibility floor |
 | [helper-release.env](helper-release.env) | Immutable published helper reference |
 | [tests](tests) | Frontend and distribution regression suites |
@@ -85,7 +86,8 @@ Run from the repository root. Select checks by the changed behavior:
 | QML or shared JavaScript | All three Node suites |
 | Rust helper | Formatting, build check, Clippy and helper tests |
 | Vendored Rust | Helper checks plus the separate vendor suite |
-| Launcher or repair | Both Bash suites |
+| Launcher or repair | Both distribution Bash suites |
+| Received file copy | Its Bash suite |
 | Shell scripts | Relevant suites plus `bash -n` on changed scripts |
 | Documentation only | Referenced paths/commands, links and `git diff --check` |
 
@@ -97,6 +99,7 @@ node tests/panel-state.test.js
 node tests/service-state.test.js
 bash tests/launcher.test.sh
 bash tests/helper-repair.test.sh
+bash tests/copy-file.test.sh
 cargo fmt --manifest-path backend/Cargo.toml --all -- --check
 cargo check --locked --manifest-path backend/Cargo.toml
 cargo clippy --all-targets --locked --manifest-path backend/Cargo.toml -- -D warnings

@@ -86,6 +86,13 @@ Item {
   property string incomingText: ""
   property bool incomingTextPending: false
   property string lastReceivedPath: ""
+  // The one file the receive on screen delivered, offered for preview and
+  // copy. A session of several files keeps the plain result.
+  property string receivedSession: ""
+  property int receivedFileCount: 0
+  property string receivedFile: ""
+  property string receivedFileType: ""
+  onViewStateChanged: if (viewState !== "success") { receivedFile = ""; receivedFileType = "" }
   property real progress: 0
   property string transferName: ""
   property string transferPeer: ""
@@ -493,6 +500,17 @@ Item {
     errorText = terminalState === "error" ? message : ""
     if (completed) progress = 1
   }
+  // Only a result the user is looking at is offered: a receive that finished
+  // behind another transfer or request never reached the screen.
+  function offerReceivedFile(session) {
+    receivedFileType = ""
+    receivedFile = viewState === "success" && receivedSession === session && receivedFileCount === 1 ? lastReceivedPath : ""
+    if (receivedFile === "") return
+    cursorRequested(0)
+    if (fileTypeProbe.running) return
+    fileTypeProbe.path = receivedFile
+    fileTypeProbe.running = true
+  }
   function finishText() { incomingText=""; incomingTextPending=false; viewState="nearby"; cursorRequested(0); startDiscovery() }
   function finishTerminal() { viewState="nearby"; cursorRequested(0); startDiscovery() }
   function handleBackendExit(code) {
@@ -587,8 +605,8 @@ Item {
       }
     }
     else if (event.event === "incoming_progress") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(pendingOutgoing)return; viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0 }
-    else if (event.event === "file_received") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
-    else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success","Received",true) }
+    else if (event.event === "file_received") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(receivedSession!==activeIncomingSession){receivedSession=activeIncomingSession;receivedFileCount=0} receivedFileCount++; lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
+    else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success","Received",true); offerReceivedFile(String(event.sessionId)) }
     else if (event.event === "incoming_cancelled") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error","Transfer cancelled",false) }
     else if (event.event === "incoming_failed") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",String(event.message||"Transfer failed"),false) }
     else if (event.event === "incoming_declined") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
@@ -657,6 +675,17 @@ Item {
       root.helperUpdateError="The Nearby helper repair command is missing. Run omarchy plugin update oma.nearby."
     }
     onExited: function(code) { root.finishHelperUpdate(code) }
+  }
+  // Whether a received file can be previewed is decided from its bytes: the
+  // name and the declared type are both the sender's to choose. A probe that
+  // cannot run leaves the type empty, which only withholds the preview.
+  Process {
+    id: fileTypeProbe
+    property string path: ""
+    command: ["file", "--brief", "--mime-type", "--", fileTypeProbe.path]
+    running: false
+    stdout: StdioCollector { id: fileTypeOutput; waitForEnd: true }
+    onExited: function(code) { if (code === 0 && fileTypeProbe.path === root.receivedFile) root.receivedFileType = String(fileTypeOutput.text || "").trim() }
   }
   Timer { id: backendRestart; property int attempts: 0; interval: 1000; repeat: false; onTriggered: if (root.receiverEnabled && !backend.running) root.bindBackendRunning() }
   Timer { id: receiverShutdownFallback; interval: 250; repeat: false; onTriggered: root.finishReceiverShutdown() }

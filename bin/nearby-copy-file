@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+# Put one received file on the clipboard.
+#
+# A picture is copied as PNG pixels: every paste target reads that type, and
+# Chromium-based applications read no other. Anything else is copied as a file
+# reference, the way a file manager copies a file.
+
+set -uo pipefail
+
+fail() {
+  printf 'nearby-copy-file: %s\n' "$*" >&2
+  exit 1
+}
+
+(( $# == 1 )) || fail "usage: nearby-copy-file <path>"
+path=$1
+[[ $path == /* && -f $path && -r $path ]] || fail "not a readable file"
+for command_name in file wl-copy; do
+  command -v "$command_name" >/dev/null 2>&1 \
+    || fail "required command not found: $command_name"
+done
+
+# The type is read from the bytes rather than taken from the name or from the
+# sender, and it names the only decoder allowed to read them. The file reaches
+# ImageMagick on stdin, so its name is never parsed as an image specification.
+coder=""
+case "$(file --brief --mime-type -- "$path")" in
+  image/png) exec wl-copy --type image/png <"$path" ;;
+  image/jpeg) coder=jpeg ;;
+  image/webp) coder=webp ;;
+  image/gif) coder=gif ;;
+esac
+
+if [[ -n $coder ]] && command -v magick >/dev/null 2>&1; then
+  png=$(mktemp "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/nearby-copy.XXXXXX") \
+    || fail "could not create a temporary file"
+  trap 'rm -f -- "$png"' EXIT
+  # Converted first and copied second, so a decoder that fails cannot leave an
+  # empty clipboard behind. A damaged or oversized picture falls through and is
+  # copied as a file instead.
+  if timeout 30 magick -limit width 16KP -limit height 16KP -limit disk 0 \
+    "$coder:-[0]" -auto-orient -strip -define png:compression-level=1 "png:$png" \
+    <"$path" 2>/dev/null; then
+    wl-copy --type image/png <"$png"
+    exit
+  fi
+fi
+
+uri="file://"
+LC_ALL=C
+for (( index = 0; index < ${#path}; index++ )); do
+  byte=${path:index:1}
+  case $byte in
+    [a-zA-Z0-9/._~-]) uri+=$byte ;;
+    *) printf -v byte '%%%02X' "'$byte"; uri+=$byte ;;
+  esac
+done
+printf '%s\r\n' "$uri" | wl-copy --type text/uri-list

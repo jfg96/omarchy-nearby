@@ -150,7 +150,7 @@ const functionNames = [
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
   "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming",
-  "finishIncoming", "finishOutgoing", "finishText", "finishTerminal",
+  "finishIncoming", "finishOutgoing", "offerReceivedFile", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
 ]
@@ -212,6 +212,11 @@ function engine(initial = {}) {
     incomingText: "",
     incomingTextPending: false,
     lastReceivedPath: "",
+    receivedSession: "",
+    receivedFileCount: 0,
+    receivedFile: "",
+    receivedFileType: "",
+    fileTypeProbe: {running: false, path: ""},
     progress: 0,
     transferName: "",
     transferPeer: "",
@@ -895,6 +900,71 @@ for (const busy of ["sending", "receiving", "pin"]) {
   assert.equal(state.activeIncomingSession, "b")
   assert.equal(state.transferName, "b.txt")
 }
+
+// One received file is offered for preview and copy once its result is on
+// screen, and its type is asked of the file rather than of the sender.
+function received(sessionId, path) {
+  return {event: "file_received", sessionId, path, name: path.slice(path.lastIndexOf("/") + 1), sender: "Phone", size: 1}
+}
+{
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
+  assert.equal(state.receivedFile, "", "a file is not offered while its session is still running")
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  assert.equal(state.viewState, "success")
+  assert.equal(state.receivedFile, "/home/someone/Downloads/photo.jpg")
+  assert.equal(state.fileTypeProbe.path, "/home/someone/Downloads/photo.jpg")
+  assert.equal(state.fileTypeProbe.running, true)
+  assert.equal(state.receivedFileType, "", "nothing is previewable until the probe has answered")
+  assert.equal(state.cursors.at(-1), 0, "Copy is the default action for a received file")
+}
+{
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/one.jpg"))
+  state.handleEvent(received("a", "/home/someone/Downloads/two.jpg"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  assert.equal(state.viewState, "success")
+  assert.equal(state.receivedFile, "", "a session of several files keeps the plain result")
+  assert.equal(state.fileTypeProbe.running, false)
+}
+{
+  // The count belongs to the session: an earlier receive must not make the
+  // next single file look like the second of two.
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/first.jpg"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  state.viewState = "receiving"
+  state.fileTypeProbe.running = false
+  state.handleEvent(received("b", "/home/someone/Downloads/second.png"))
+  state.handleEvent({event: "incoming_done", sessionId: "b"})
+  assert.equal(state.receivedFile, "/home/someone/Downloads/second.png")
+}
+{
+  // A receive that finishes behind a queued request never shows its result,
+  // so there is nothing on screen to attach a preview to.
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
+  state.handleEvent(incoming("queued"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  assert.equal(state.viewState, "incoming")
+  assert.equal(state.receivedFile, "")
+  assert.equal(state.fileTypeProbe.running, false)
+}
+{
+  // A sender that delivers nothing still completes; the previous session's
+  // path must not be offered as this one's file.
+  const state = engine({viewState: "receiving", lastReceivedPath: "/home/someone/Downloads/old.jpg", receivedSession: "old", receivedFileCount: 1})
+  state.handleEvent({event: "incoming_progress", sessionId: "empty", name: "x", sender: "Phone", bytes: 0, total: 0})
+  state.handleEvent({event: "incoming_done", sessionId: "empty"})
+  assert.equal(state.viewState, "success")
+  assert.equal(state.receivedFile, "")
+}
+assert.match(source, /onViewStateChanged: if \(viewState !== "success"\) \{ receivedFile = ""; receivedFileType = "" \}/,
+  "leaving the result must withdraw the file, so a later result cannot show it")
+assert.match(source, /command: \["file", "--brief", "--mime-type", "--", fileTypeProbe\.path\]/,
+  "the type must come from the bytes, with the path kept from being read as an option")
+assert.match(source, /if \(code === 0 && fileTypeProbe\.path === root\.receivedFile\) root\.receivedFileType =/,
+  "a probe that answers after the result changed must not label a different file")
 
 {
   const state = engine({viewState: "sending", outgoingTransferId: "tx-1", transferName: "first.txt"})
