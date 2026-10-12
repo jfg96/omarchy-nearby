@@ -55,11 +55,13 @@ that published helpers never write into the watched plugin checkout.
 
 The received-file suites cover offering exactly one received file once its
 result is on screen, per-session file counts, results that never reached the
-screen, a type probe that answers late, keyboard reachability of Copy and Done,
-and, for the copy script, PNG passthrough, conversion of other pictures with
-the decoder named by the detected type and the file name kept away from
-ImageMagick, fallback to a file reference without clearing the clipboard, URI
-escaping, temporary file cleanup and refused arguments.
+screen, a type probe that answers late, a file that arrives while the probe is
+still busy with the previous one, keyboard reachability of Copy and Done, and,
+for the copy script, conversion of every previewable picture, PNG included,
+with the decoder named by the detected type and the file name kept away from
+ImageMagick, fallback to a file reference when the conversion fails or
+ImageMagick is absent, without clearing the clipboard or copying the file's
+own bytes, URI escaping, temporary file cleanup and refused arguments.
 
 ### Local automated result, 2026-09-22
 
@@ -535,9 +537,20 @@ ImageMagick 7.1.2-31 and a stand-in for `wl-copy`: a 4000×3000 JPEG, a WebP and
 a three-frame GIF each produced PNG data, including a JPEG whose name contains
 brackets, a percent sign and spaces; a JPEG with EXIF orientation 6 and a GPS
 tag came out upright with no metadata; a text file and text renamed to `.jpg`
-or `.png` produced a file reference. Scenario 23 (a real transfer, the preview
-in the panel, the real clipboard and pasting into other applications) is
-**Not run**.
+or `.png` produced a file reference.
+
+After review a PNG is converted like the other types, and the script was run
+again the same way. An 800×600 and a 4000×3000 PNG carrying a comment, date
+text chunks and, in the larger one, a GPS property each produced a PNG whose
+only chunks are `IHDR`, `PLTE` where indexed, ImageMagick's `orNT`, `IDAT` and
+`IEND`; the larger one took 2.7 s. JPEGs of 4000×3000 and 8160×6120 with EXIF
+orientation 6 came out upright within the 2 GiB memory bound in under 2 s
+each; with a 256 MiB bound the first of them was refused, which is why the
+bound is not lower. In a throwaway Quickshell 0.3.1 configuration, a `Process`
+started again from its own `onExited` ran and reported the second file's type.
+
+Scenario 23 (a real transfer, the preview in the panel, the real clipboard and
+pasting into other applications) is **Not run**.
 
 ## Manual interoperability matrix
 
