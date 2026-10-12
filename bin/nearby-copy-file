@@ -3,7 +3,9 @@
 # Put one received file on the clipboard.
 #
 # A picture is copied as PNG pixels: every paste target reads that type, and
-# Chromium-based applications read no other. Anything else is copied as a file
+# Chromium-based applications read no other. The pixels are encoded afresh, so
+# nothing else the file carries, such as where a photo was taken or a comment
+# in a PNG, goes to the clipboard with them. Anything else is copied as a file
 # reference, the way a file manager copies a file.
 
 set -uo pipefail
@@ -26,7 +28,7 @@ done
 # ImageMagick on stdin, so its name is never parsed as an image specification.
 coder=""
 case "$(file --brief --mime-type -- "$path")" in
-  image/png) exec wl-copy --type image/png <"$path" ;;
+  image/png) coder=png ;;
   image/jpeg) coder=jpeg ;;
   image/webp) coder=webp ;;
   image/gif) coder=gif ;;
@@ -38,8 +40,10 @@ if [[ -n $coder ]] && command -v magick >/dev/null 2>&1; then
   trap 'rm -f -- "$png"' EXIT
   # Converted first and copied second, so a decoder that fails cannot leave an
   # empty clipboard behind. A damaged or oversized picture falls through and is
-  # copied as a file instead.
-  if timeout 30 magick -limit width 16KP -limit height 16KP -limit disk 0 \
+  # copied as a file instead. The memory bound admits an upright 50 megapixel
+  # photo, which needs two copies of its pixels to be turned.
+  if timeout 30 magick -limit width 16KP -limit height 16KP -limit area 128MP \
+    -limit memory 2GiB -limit disk 0 \
     "$coder:-[0]" -auto-orient -strip -define png:compression-level=1 "png:$png" \
     <"$path" 2>/dev/null; then
     wl-copy --type image/png <"$png"

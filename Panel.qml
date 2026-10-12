@@ -182,7 +182,7 @@ Panel {
   function useDownloads() { if (engine) engine.useDownloads() }
   function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.launched=false; clipboard.running = true }
   function copyReceivedText() { clipboardWriter.launched=false; clipboardWriter.running=true }
-  function copyReceivedFile() { if (receivedFile === "" || fileCopier.running) return; copyNote=""; fileCopier.path=receivedFile; fileCopier.launched=false; fileCopier.running=true }
+  function copyReceivedFile() { if (receivedFile === "" || fileCopier.running) return; copyNote="Copying…"; fileCopier.path=receivedFile; fileCopier.launched=false; fileCopier.running=true }
   onReceivedFileChanged: copyNote=""
 
   // The kit's Button already paints its own mouse hover from containsMouse.

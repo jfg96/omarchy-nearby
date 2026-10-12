@@ -43,14 +43,37 @@ run_copy() { XDG_RUNTIME_DIR="$sandbox/runtime" PATH="$stub_bin:$PATH" "$copy_fi
 teardown() { [[ -n ${sandbox:-} && -d $sandbox ]] && rm -rf -- "$sandbox"; unset FAKE_MIME FAKE_MAGICK_EXIT CLIPBOARD; }
 leftovers() { find "$sandbox/runtime" -mindepth 1 | wc -l; }
 
-announce "a PNG is copied as it is"
+announce "a PNG is encoded afresh, so its metadata does not reach the clipboard"
 setup
 printf 'png-bytes' >"$sandbox/files/shot.png"
 FAKE_MIME=image/png run_copy "$sandbox/files/shot.png"; status=$?
 assert_eq "$status" "0"
 assert_eq "$(<"$CLIPBOARD.type")" "image/png"
-assert_eq "$(<"$CLIPBOARD.data")" "png-bytes"
-[[ ! -e $CLIPBOARD.magick ]] || report "a PNG must not be re-encoded"
+assert_eq "$(<"$CLIPBOARD.data")" "png:png-bytes"
+arguments=$(<"$CLIPBOARD.magick")
+[[ $arguments == *" png:-[0] "*" -strip "* ]] || report "expected the png decoder and -strip in: $arguments"
+teardown
+
+announce "a PNG that cannot be converted is copied as a file, never as its own bytes"
+setup
+printf 'png-bytes' >"$sandbox/files/shot.png"
+FAKE_MIME=image/png FAKE_MAGICK_EXIT=1 run_copy "$sandbox/files/shot.png"; status=$?
+assert_eq "$status" "0"
+assert_eq "$(<"$CLIPBOARD.type")" "text/uri-list"
+assert_eq "$(<"$CLIPBOARD.data")" "file://$sandbox/files/shot.png"$'\r'
+teardown
+
+announce "without ImageMagick a picture is copied as a file"
+setup
+rm -- "$stub_bin/magick"
+mkdir "$sandbox/tools"
+for tool in env bash cat mktemp rm timeout; do ln -s "$(command -v "$tool")" "$sandbox/tools/$tool"; done
+printf 'png-bytes' >"$sandbox/files/shot.png"
+FAKE_MIME=image/png XDG_RUNTIME_DIR="$sandbox/runtime" PATH="$stub_bin:$sandbox/tools" \
+  "$copy_file" "$sandbox/files/shot.png" 2>/dev/null; status=$?
+assert_eq "$status" "0"
+assert_eq "$(<"$CLIPBOARD.type")" "text/uri-list"
+assert_eq "$(<"$CLIPBOARD.data")" "file://$sandbox/files/shot.png"$'\r'
 teardown
 
 announce "a JPEG is converted and copied as PNG, with nothing left behind"

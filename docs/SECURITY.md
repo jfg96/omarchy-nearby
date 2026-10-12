@@ -41,8 +41,11 @@ or GIF; the name and the type the sender declared are not consulted. The
 preview is decoded off the UI thread at the size it is drawn. Copying such a
 picture converts it with ImageMagick, restricted to the decoder for the
 identified type, fed on standard input so the file name is never interpreted,
-and bounded to 16,000 pixels a side, memory-only pixel storage and 30 seconds.
-A picture outside those bounds is copied as a file reference instead.
+and bounded to 16,000 pixels a side, 128 megapixels, 2 GiB of pixel memory
+with no disk storage, and 30 seconds. A picture outside those bounds is copied
+as a file reference instead. A PNG is converted like the other types, so the
+clipboard receives newly encoded pixels and never the file's own bytes or the
+metadata in them.
 
 Aliases, file names and other text from peers are shown as plain text in the
 panel. Desktop notifications start with fixed text and carry peer text escaped,

@@ -488,7 +488,7 @@ assert.match(source, /Button \{ visible:root\.useDownloadsIndex>=0;[^\n]*text:"U
   state.activateCursor()
   assert.equal(state.fileCopier.path, "/home/someone/Downloads/photo.jpg")
   assert.equal(state.fileCopier.running, true, "Enter on Copy must start the copy")
-  assert.equal(state.copyNote, "", "a new copy must not keep the previous outcome on screen")
+  assert.equal(state.copyNote, "Copying…", "a new copy must replace the previous outcome: converting a large picture takes seconds")
   assert.equal(callNames(state).includes("finishTerminal"), false, "copying must leave the result open")
 
   state.fileCopier.path = ""
