@@ -150,7 +150,7 @@ const functionNames = [
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
   "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming",
-  "finishIncoming", "finishOutgoing", "offerReceivedFile", "finishText", "finishTerminal",
+  "finishIncoming", "finishOutgoing", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
 ]
@@ -906,6 +906,12 @@ for (const busy of ["sending", "receiving", "pin"]) {
 function received(sessionId, path) {
   return {event: "file_received", sessionId, path, name: path.slice(path.lastIndexOf("/") + 1), sender: "Phone", size: 1}
 }
+// The probe command exiting, the way Quickshell reports it: running is false
+// again by the time the handler is called.
+function probeExits(state, code, type) {
+  state.fileTypeProbe.running = false
+  state.fileTypeProbed(code, type)
+}
 {
   const state = engine({viewState: "receiving"})
   state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
@@ -934,10 +940,37 @@ function received(sessionId, path) {
   state.handleEvent(received("a", "/home/someone/Downloads/first.jpg"))
   state.handleEvent({event: "incoming_done", sessionId: "a"})
   state.viewState = "receiving"
-  state.fileTypeProbe.running = false
   state.handleEvent(received("b", "/home/someone/Downloads/second.png"))
   state.handleEvent({event: "incoming_done", sessionId: "b"})
   assert.equal(state.receivedFile, "/home/someone/Downloads/second.png")
+
+  // The probe for the first file is still running, as Quickshell leaves it
+  // until the command exits. Its answer belongs to a file that is no longer
+  // shown, and the second file must still get a probe of its own.
+  assert.equal(state.fileTypeProbe.path, "/home/someone/Downloads/first.jpg")
+  probeExits(state, 0, "image/jpeg")
+  assert.equal(state.receivedFileType, "", "an answer about the first file must not label the second")
+  assert.equal(state.fileTypeProbe.path, "/home/someone/Downloads/second.png")
+  assert.equal(state.fileTypeProbe.running, true, "the file that arrived during a probe must be probed after it")
+  probeExits(state, 0, "image/png")
+  assert.equal(state.receivedFileType, "image/png")
+  assert.equal(state.fileTypeProbe.running, false, "an answer about the file on screen ends the probing")
+}
+{
+  // A probe that fails only withholds the preview, and one that outlives the
+  // result has nothing left to probe.
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  probeExits(state, 1, "")
+  assert.equal(state.receivedFileType, "")
+  assert.equal(state.fileTypeProbe.running, false)
+  state.handleEvent(received("b", "/home/someone/Downloads/other.jpg"))
+  state.receivedFile = ""
+  state.fileTypeProbe.running = true
+  probeExits(state, 0, "image/jpeg")
+  assert.equal(state.receivedFileType, "")
+  assert.equal(state.fileTypeProbe.running, false)
 }
 {
   // A receive that finishes behind a queued request never shows its result,
@@ -963,8 +996,8 @@ assert.match(source, /onViewStateChanged: if \(viewState !== "success"\) \{ rece
   "leaving the result must withdraw the file, so a later result cannot show it")
 assert.match(source, /command: \["file", "--brief", "--mime-type", "--", fileTypeProbe\.path\]/,
   "the type must come from the bytes, with the path kept from being read as an option")
-assert.match(source, /if \(code === 0 && fileTypeProbe\.path === root\.receivedFile\) root\.receivedFileType =/,
-  "a probe that answers after the result changed must not label a different file")
+assert.match(source, /onExited: function\(code\) \{ root\.fileTypeProbed\(code, String\(fileTypeOutput\.text \|\| ""\)\.trim\(\)\) \}/,
+  "the probe's answer must go through the check that it is still about the file on screen")
 
 {
   const state = engine({viewState: "sending", outgoingTransferId: "tx-1", transferName: "first.txt"})

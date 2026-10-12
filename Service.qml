@@ -507,9 +507,15 @@ Item {
     receivedFile = viewState === "success" && receivedSession === session && receivedFileCount === 1 ? lastReceivedPath : ""
     if (receivedFile === "") return
     cursorRequested(0)
-    if (fileTypeProbe.running) return
-    fileTypeProbe.path = receivedFile
-    fileTypeProbe.running = true
+    if (!fileTypeProbe.running) probeReceivedFile()
+  }
+  function probeReceivedFile() { fileTypeProbe.path = receivedFile; fileTypeProbe.running = true }
+  // An answer about a file that is no longer the one on screen must not label
+  // a different file. The file that replaced it could not be probed while this
+  // probe ran, so it is probed now.
+  function fileTypeProbed(code, type) {
+    if (fileTypeProbe.path === receivedFile) { if (code === 0) receivedFileType = type }
+    else if (receivedFile !== "") probeReceivedFile()
   }
   function finishText() { incomingText=""; incomingTextPending=false; viewState="nearby"; cursorRequested(0); startDiscovery() }
   function finishTerminal() { viewState="nearby"; cursorRequested(0); startDiscovery() }
@@ -685,7 +691,7 @@ Item {
     command: ["file", "--brief", "--mime-type", "--", fileTypeProbe.path]
     running: false
     stdout: StdioCollector { id: fileTypeOutput; waitForEnd: true }
-    onExited: function(code) { if (code === 0 && fileTypeProbe.path === root.receivedFile) root.receivedFileType = String(fileTypeOutput.text || "").trim() }
+    onExited: function(code) { root.fileTypeProbed(code, String(fileTypeOutput.text || "").trim()) }
   }
   Timer { id: backendRestart; property int attempts: 0; interval: 1000; repeat: false; onTriggered: if (root.receiverEnabled && !backend.running) root.bindBackendRunning() }
   Timer { id: receiverShutdownFallback; interval: 250; repeat: false; onTriggered: root.finishReceiverShutdown() }
