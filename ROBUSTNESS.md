@@ -549,7 +549,7 @@ each; with a 256 MiB bound the first of them was refused, which is why the
 bound is not lower. In a throwaway Quickshell 0.3.1 configuration, a `Process`
 started again from its own `onExited` ran and reported the second file's type.
 
-At this development stage, scenario 23 (a real transfer, the preview in the
+At this development stage, scenario 24 (a real transfer, the preview in the
 panel, the real clipboard and pasting into other applications) was **Not run**.
 The subsequent session below records the parts now exercised with an iPhone.
 
@@ -573,7 +573,7 @@ and returned through its official LocalSend client. Incoming approval and the
 visible panel were exercised by the tester; clipboard checks used the real
 Wayland clipboard, with the panel's Copy action also callable by the harness.
 
-| Scenario 23 component | Result | Evidence or deviation |
+| Scenario 24 component | Result | Evidence or deviation |
 | --- | --- | --- |
 | Single PNG receive, preview and Copy | Pass | The 800x600 gradient arrived byte-for-byte intact, its preview was confirmed on screen, and the PNG copied from the result was pasted successfully into Codex |
 | PNG metadata removal | Pass | The input carried a private test comment and text chunks; the copied PNG retained only `IHDR`, `orNT`, `IDAT` and `IEND`, with identical decoded pixels |
@@ -608,6 +608,27 @@ partial manual pass, not completion of the entire regression matrix. The
 temporary receiver and monitor were stopped afterwards and the previously
 enabled normal receiver was restored to ready. No contributor code was changed
 for the test.
+
+### Combined PR integration regression validation, 2026-10-15
+
+PR #32 was rebased onto main after PR #33 was merged. The contributor's
+commits and authorship are retained. Maintainer changes discard late folder
+choices while a transfer, approval request or PIN update is active and keep a
+file-copy completion from annotating a different file or a dismissed result.
+Scenarios 23 (folder selection) and 24 (received file actions) now have distinct
+numbers; the earlier iPhone evidence above refers to the pre-rebase PR #32 code.
+
+Both new Node regression cases failed against the pre-fix behavior: the late
+folder choice persisted new settings during reception, and Copy for file A
+reported success under file B. They pass with the fixes, along with all three
+Node suites and the three Bash suites. Rust formatting, locked build checks,
+Clippy with warnings denied, helper tests and the standalone HTTPS vendor suite
+also passed; the vendor suite retains one upstream ignored test. A separate Quickshell 0.3.2 instance
+loaded the combined Service.qml with a simulated helper: returning a folder
+choice after entering `receiving` left the setting unchanged, kept the helper
+ready with a single launch, and preserved the receiving view. This used no
+network peer and does not count as a real-device race test. Full live folder
+selection/receiving and the copy race with a real peer remain **Not run**.
 
 ## Manual interoperability matrix
 
@@ -705,9 +726,12 @@ complete until those versions and results are written down.
     the panel names it after the retries and still offers **Use Downloads**;
     choose it and confirm the receiver starts, `downloadDir` is gone from the
     entry and files go to Downloads again. Choose your home folder and confirm
-    it is refused with the reason.
+    it is refused with the reason. Open the chooser, start receiving or sending
+    before choosing a folder, then finish the chooser: the transfer must stay
+    active and the folder setting must remain unchanged. Repeat with a pending
+    approval or outgoing PIN request.
 
-23. Receive one PNG and one JPEG photo taken in portrait orientation, in
+24. Receive one PNG and one JPEG photo taken in portrait orientation, in
     separate transfers. Each must show an upright preview with **Copy** and
     **Done**. Copy each and paste it into a Chromium-based application, a GTK
     application and an image editor: the picture must arrive upright. Receive a
@@ -743,7 +767,7 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 22: folder transfers and lifecycle | Official Android / iOS / desktop client, separate rows | Not run | |
 | 23: folder for received files | Omarchy + peer | Not run | |
 
-| 23: received file preview and copy | Omarchy + peer | Not run | |
+| 24: received file preview and copy | Omarchy + peer | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.
