@@ -351,8 +351,9 @@ Panel {
     running: false
     stdout: StdioCollector { id: downloadDirPickerOutput; waitForEnd: true }
     onStarted: downloadDirPicker.launched=true
-    onRunningChanged: if (!running && !downloadDirPicker.launched) root.failWith("The file chooser could not be started")
+    onRunningChanged: if (!running && !downloadDirPicker.launched && root.viewState === "nearby") root.failWith("The file chooser could not be started")
     onExited: function(code) {
+      if (root.viewState !== "nearby") return
       if (code > 1) { root.failWith("The file chooser did not open"); return }
       var path=String(downloadDirPickerOutput.text || "").split("\n")[0]
       if (code === 0 && path !== "" && root.engine) root.engine.setDownloadDir(path)

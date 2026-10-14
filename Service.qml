@@ -287,7 +287,11 @@ Item {
     }
     shell.updateEntryInline(moduleEntryId, settings)
   }
+  // A chooser opened before a transfer must not change settings and restart
+  // the helper once that transfer or an approval/security request is active.
+  function downloadDirChangeBusy() { return pendingOutgoing || activeIncomingSession !== "" || incoming || incomingPinUpdating || viewState === "incoming" || viewState === "receiving" || viewState === "sending" || viewState === "pin" }
   function setDownloadDir(path) {
+    if (downloadDirChangeBusy()) return
     if (Model.downloadDirIn({ downloadDir: path }) === "" || path === downloadDir) return
     if (Model.containsHome(path, homeDir)) {
       // Said only while the list the chooser was opened from is still shown,
@@ -302,7 +306,7 @@ Item {
   }
   // Going back to Downloads removes the setting rather than naming a folder,
   // so the location follows user-dirs.dirs again.
-  function useDownloads() { if (downloadDir !== "") persistSettings({ downloadDir: undefined }) }
+  function useDownloads() { if (!downloadDirChangeBusy() && downloadDir !== "") persistSettings({ downloadDir: undefined }) }
   // A stopped helper is started again by the same bounded restart that covers
   // one that exits on its own, so asking it to stop is all a restart takes. It
   // then starts with the environment as it is now.

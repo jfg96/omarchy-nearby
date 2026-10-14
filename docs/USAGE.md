@@ -81,7 +81,8 @@ stop active discovery needed by another open popup.
 The **Save to** row under Nearby's device list names the folder the receiver
 is saving to. Choose it to pick another folder with Omarchy's file chooser.
 Nearby restarts its receiver to apply the change, which takes about a second;
-choose the folder while no transfer is running, because a restart ends one.
+if a transfer or approval request starts before the chooser returns, its result
+is discarded. Choose the folder again once the operation finishes.
 
 The choice is stored as `downloadDir` in Nearby's entry in
 `~/.config/omarchy/shell.json`, beside the receiver switch, and is handed to

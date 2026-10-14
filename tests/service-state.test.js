@@ -143,7 +143,7 @@ function helperDerived(state) {
 
 const functionNames = [
   "viewOpened", "viewClosed", "notificationNeeded",
-  "send", "utf8ByteLength", "bindBackendRunning", "persistReceiverEnabled", "persistSettings", "setDownloadDir", "useDownloads", "restartBackend", "toggleReceiver", "finishReceiverShutdown",
+  "send", "utf8ByteLength", "bindBackendRunning", "persistReceiverEnabled", "persistSettings", "downloadDirChangeBusy", "setDownloadDir", "useDownloads", "restartBackend", "toggleReceiver", "finishReceiverShutdown",
   "startDiscovery", "forceFullDiscovery", "stopDiscovery", "chooseDevice", "clearTarget",
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
@@ -1578,5 +1578,25 @@ assert.match(source, /onFileChanged:\s*reload\(\)/,
 assert.match(source,
   /function failWith\(message\)\s*\{\s*viewState="error";\s*errorText=message;\s*statusText=errorText\s*\}/,
   "failWith must keep statusText aligned with errorText for every failure that reaches it")
+
+
+
+// A directory chooser can finish after an incoming request or outgoing transfer
+// takes the shared service. Neither monitor may restart that active helper.
+for (const busy of [
+  {viewState: "receiving"}, {viewState: "sending"}, {viewState: "pin"},
+  {viewState: "incoming"}, {pendingOutgoing: {kind: "files"}},
+  {activeIncomingSession: "session"}, {incomingPinUpdating: true}, {incomingQueue: [{requestId: "waiting"}]},
+]) {
+  const writes = []
+  const state = engine({...busy, downloadDir: "/data/current",
+    shell: {updateEntryInline: (id, settings) => { writes.push(settings); return true }}})
+  const originalView = state.viewState
+  state.setDownloadDir("/data/new")
+  state.useDownloads()
+  assert.equal(writes.length, 0, "a late folder action must not persist settings during an active operation")
+  assert.equal(state.sent.length, 0, "a late folder action must not shut down the active helper")
+  assert.equal(state.viewState, originalView)
+}
 
 console.log("service state tests passed")
