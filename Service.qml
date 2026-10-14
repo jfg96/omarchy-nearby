@@ -86,6 +86,13 @@ Item {
   property string incomingText: ""
   property bool incomingTextPending: false
   property string lastReceivedPath: ""
+  // The one file the receive on screen delivered, offered for preview and
+  // copy. A session of several files keeps the plain result.
+  property string receivedSession: ""
+  property int receivedFileCount: 0
+  property string receivedFile: ""
+  property string receivedFileType: ""
+  onViewStateChanged: if (viewState !== "success") { receivedFile = ""; receivedFileType = "" }
   property real progress: 0
   property string transferName: ""
   property string transferPeer: ""
@@ -280,7 +287,11 @@ Item {
     }
     shell.updateEntryInline(moduleEntryId, settings)
   }
+  // A chooser opened before a transfer must not change settings and restart
+  // the helper once that transfer or an approval/security request is active.
+  function downloadDirChangeBusy() { return pendingOutgoing || activeIncomingSession !== "" || incoming || incomingPinUpdating || viewState === "incoming" || viewState === "receiving" || viewState === "sending" || viewState === "pin" }
   function setDownloadDir(path) {
+    if (downloadDirChangeBusy()) return
     if (Model.downloadDirIn({ downloadDir: path }) === "" || path === downloadDir) return
     if (Model.containsHome(path, homeDir)) {
       // Said only while the list the chooser was opened from is still shown,
@@ -295,7 +306,7 @@ Item {
   }
   // Going back to Downloads removes the setting rather than naming a folder,
   // so the location follows user-dirs.dirs again.
-  function useDownloads() { if (downloadDir !== "") persistSettings({ downloadDir: undefined }) }
+  function useDownloads() { if (!downloadDirChangeBusy() && downloadDir !== "") persistSettings({ downloadDir: undefined }) }
   // A stopped helper is started again by the same bounded restart that covers
   // one that exits on its own, so asking it to stop is all a restart takes. It
   // then starts with the environment as it is now.
@@ -493,6 +504,23 @@ Item {
     errorText = terminalState === "error" ? message : ""
     if (completed) progress = 1
   }
+  // Only a result the user is looking at is offered: a receive that finished
+  // behind another transfer or request never reached the screen.
+  function offerReceivedFile(session) {
+    receivedFileType = ""
+    receivedFile = viewState === "success" && receivedSession === session && receivedFileCount === 1 ? lastReceivedPath : ""
+    if (receivedFile === "") return
+    cursorRequested(0)
+    if (!fileTypeProbe.running) probeReceivedFile()
+  }
+  function probeReceivedFile() { fileTypeProbe.path = receivedFile; fileTypeProbe.running = true }
+  // An answer about a file that is no longer the one on screen must not label
+  // a different file. The file that replaced it could not be probed while this
+  // probe ran, so it is probed now.
+  function fileTypeProbed(code, type) {
+    if (fileTypeProbe.path === receivedFile) { if (code === 0) receivedFileType = type }
+    else if (receivedFile !== "") probeReceivedFile()
+  }
   function finishText() { incomingText=""; incomingTextPending=false; viewState="nearby"; cursorRequested(0); startDiscovery() }
   function finishTerminal() { viewState="nearby"; cursorRequested(0); startDiscovery() }
   function handleBackendExit(code) {
@@ -587,8 +615,8 @@ Item {
       }
     }
     else if (event.event === "incoming_progress") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(pendingOutgoing)return; viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0 }
-    else if (event.event === "file_received") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
-    else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success","Received",true) }
+    else if (event.event === "file_received") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(receivedSession!==activeIncomingSession){receivedSession=activeIncomingSession;receivedFileCount=0} receivedFileCount++; lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
+    else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success","Received",true); offerReceivedFile(String(event.sessionId)) }
     else if (event.event === "incoming_cancelled") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error","Transfer cancelled",false) }
     else if (event.event === "incoming_failed") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",String(event.message||"Transfer failed"),false) }
     else if (event.event === "incoming_declined") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
@@ -657,6 +685,17 @@ Item {
       root.helperUpdateError="The Nearby helper repair command is missing. Run omarchy plugin update oma.nearby."
     }
     onExited: function(code) { root.finishHelperUpdate(code) }
+  }
+  // Whether a received file can be previewed is decided from its bytes: the
+  // name and the declared type are both the sender's to choose. A probe that
+  // cannot run leaves the type empty, which only withholds the preview.
+  Process {
+    id: fileTypeProbe
+    property string path: ""
+    command: ["file", "--brief", "--mime-type", "--", fileTypeProbe.path]
+    running: false
+    stdout: StdioCollector { id: fileTypeOutput; waitForEnd: true }
+    onExited: function(code) { root.fileTypeProbed(code, String(fileTypeOutput.text || "").trim()) }
   }
   Timer { id: backendRestart; property int attempts: 0; interval: 1000; repeat: false; onTriggered: if (root.receiverEnabled && !backend.running) root.bindBackendRunning() }
   Timer { id: receiverShutdownFallback; interval: 250; repeat: false; onTriggered: root.finishReceiverShutdown() }

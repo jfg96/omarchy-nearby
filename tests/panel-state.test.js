@@ -115,7 +115,7 @@ assert.equal((source.match(/onHovered/g) || []).length,
 assert.doesNotMatch(source, /onHovered[^\n]*if\s*\(v\)\s*\{\s*root\.cursorActive=true/,
   "taking the cursor on enter without releasing it on leave is the bug this replaced")
 
-for (const launcher of ["picker", "folderPicker", "downloadDirPicker", "clipboard", "clipboardWriter", "textCopier"]) {
+for (const launcher of ["picker", "folderPicker", "downloadDirPicker", "clipboard", "clipboardWriter", "textCopier", "fileCopier"]) {
   assert.match(source, new RegExp(`onRunningChanged:\\s*if\\s*\\(!running && !${launcher}\\.launched`),
     `${launcher} must report a command that never launched, which Quickshell signals by ` +
     "returning running to false without an exit code")
@@ -162,7 +162,7 @@ const functionNames = [
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "clearSecretInputs",
-  "goBack", "selectFiles", "selectFolder", "chooseDownloadDir", "useDownloads", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
+  "goBack", "selectFiles", "selectFolder", "chooseDownloadDir", "useDownloads", "sendClipboard", "copyReceivedText", "copyReceivedFile", "moveCursor", "activateCursor",
   "retryHelper", "copyText", "copyUpdateCommand", "copyRepositoryLink", "noteHover",
 ]
 
@@ -226,6 +226,8 @@ function panel(initial = {}) {
     clipboard: {running: false, launched: false},
     clipboardWriter: {running: false, launched: false},
     textCopier: {running: false, launched: false, payload: ""},
+    fileCopier: {running: false, launched: false, path: ""},
+    receivedFile: "",
     copyNote: "",
     helperUpdateOffered: false,
     helperUpdateError: "",
@@ -479,6 +481,47 @@ assert.match(source, /Button \{ visible:root\.useDownloadsIndex>=0;[^\n]*text:"U
     "keyboard Done must reach the engine the same way the visual button does")
 }
 
+// A received file puts Copy beside Done. Both have to be reachable from the
+// keyboard, and copying must not dismiss the result the user is looking at.
+{
+  const state = panel({viewState: "success", receivedFile: "/home/someone/Downloads/photo.jpg", selectedIndex: 0, copyNote: "stale"})
+  state.activateCursor()
+  assert.equal(state.fileCopier.path, "/home/someone/Downloads/photo.jpg")
+  assert.equal(state.fileCopier.running, true, "Enter on Copy must start the copy")
+  assert.equal(state.copyNote, "Copying…", "a new copy must replace the previous outcome: converting a large picture takes seconds")
+  assert.equal(callNames(state).includes("finishTerminal"), false, "copying must leave the result open")
+
+  state.fileCopier.path = ""
+  state.activateCursor()
+  assert.equal(state.fileCopier.path, "", "a second press while the copy runs must not start another")
+
+  state.moveCursor(1, 0)
+  assert.equal(state.selectedIndex, 1)
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 1, "Done is the last stop")
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "finishTerminal")
+  state.moveCursor(0, -1)
+  assert.equal(state.selectedIndex, 0, "either axis must move between the only two stops")
+}
+{
+  const state = panel({viewState: "success", receivedFile: "", selectedIndex: 0})
+  state.copyReceivedFile()
+  assert.equal(state.fileCopier.running, false, "with no received file there is nothing to copy")
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "finishTerminal", "a result without a file keeps its single Done")
+}
+assert.match(source, /command: \[\(root\.engine \? root\.engine\.pluginDir : ""\) \+ "\/bin\/nearby-copy-file", fileCopier\.path\]/,
+  "the received path must reach the copy script as one argument, never through a shell")
+assert.match(source, /source:root\.receivedIsImage \? Model\.fileUrl\(root\.receivedFile\) : ""/,
+  "only a file identified as a picture may be handed to the image decoder")
+assert.match(source, /Image \{[\s\S]*?sourceSize\.width:[\s\S]*?asynchronous:true; cache:false/,
+  "the preview must be decoded off the UI thread at a bounded size")
+assert.match(source, /readonly property bool receivedIsImage: engine \? Model\.previewableImage\(engine\.receivedFileType\) : false/,
+  "what counts as a picture is decided by the engine's probe of the bytes")
+assert.match(source, /Button \{ visible:root\.receivedFile===""; text:"Done"/,
+  "the plain Done must give way to the Copy and Done pair, not sit under it")
+
 {
   const state = panel({viewState: "text", selectedIndex: 1})
   state.activateCursor()
@@ -689,6 +732,33 @@ assert.match(source, /Button \{ visible:root\.useDownloadsIndex>=0;[^\n]*text:"U
     for (const line of unqualified(qml)) {
       assert.fail(`${file}:${line}: use Commons.Color; QtQuick's Color singleton shadows the palette since Qt 6.12`)
     }
+  }
+}
+
+
+
+// Evaluate the actual process callbacks so a stale result from file A cannot
+// claim that file B was copied, or reappear after Done.
+{
+  const copier = source.slice(source.indexOf("id: fileCopier"), source.indexOf("id: clipboardWriter"))
+  const exitBody = copier.match(/onExited: function\(code\) \{([^\n]+)\}/)[1]
+  const stoppedBody = copier.match(/onRunningChanged: ([^\n]+)/)[1]
+  for (const event of ["exit", "startup failure"]) {
+    for (const current of [
+      {viewState: "success", receivedFile: "/data/B.png"},
+      {viewState: "nearby", receivedFile: "/data/A.png"},
+      {viewState: "success", receivedFile: ""},
+    ]) {
+      const root = {...current, copyNote: ""}
+      vm.runInNewContext(event === "exit" ? `(function(){${exitBody}})()` : stoppedBody,
+        {root, fileCopier: {path: "/data/A.png", launched: false}, running: false, code: 0})
+      assert.equal(root.copyNote, "", "a stale copy callback must leave the current result alone")
+    }
+  }
+  for (const code of [0, 1]) {
+    const root = {viewState: "success", receivedFile: "/data/A.png", copyNote: "Copying…"}
+    vm.runInNewContext(`(function(){${exitBody}})()`, {root, fileCopier: {path: "/data/A.png"}, code})
+    assert.equal(root.copyNote, code === 0 ? "Copied to clipboard" : "Could not copy this file")
   }
 }
 

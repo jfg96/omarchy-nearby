@@ -143,14 +143,14 @@ function helperDerived(state) {
 
 const functionNames = [
   "viewOpened", "viewClosed", "notificationNeeded",
-  "send", "utf8ByteLength", "bindBackendRunning", "persistReceiverEnabled", "persistSettings", "setDownloadDir", "useDownloads", "restartBackend", "toggleReceiver", "finishReceiverShutdown",
+  "send", "utf8ByteLength", "bindBackendRunning", "persistReceiverEnabled", "persistSettings", "downloadDirChangeBusy", "setDownloadDir", "useDownloads", "restartBackend", "toggleReceiver", "finishReceiverShutdown",
   "startDiscovery", "forceFullDiscovery", "stopDiscovery", "chooseDevice", "clearTarget",
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
   "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming",
-  "finishIncoming", "finishOutgoing", "finishText", "finishTerminal",
+  "finishIncoming", "finishOutgoing", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
 ]
@@ -212,6 +212,11 @@ function engine(initial = {}) {
     incomingText: "",
     incomingTextPending: false,
     lastReceivedPath: "",
+    receivedSession: "",
+    receivedFileCount: 0,
+    receivedFile: "",
+    receivedFileType: "",
+    fileTypeProbe: {running: false, path: ""},
     progress: 0,
     transferName: "",
     transferPeer: "",
@@ -896,6 +901,104 @@ for (const busy of ["sending", "receiving", "pin"]) {
   assert.equal(state.transferName, "b.txt")
 }
 
+// One received file is offered for preview and copy once its result is on
+// screen, and its type is asked of the file rather than of the sender.
+function received(sessionId, path) {
+  return {event: "file_received", sessionId, path, name: path.slice(path.lastIndexOf("/") + 1), sender: "Phone", size: 1}
+}
+// The probe command exiting, the way Quickshell reports it: running is false
+// again by the time the handler is called.
+function probeExits(state, code, type) {
+  state.fileTypeProbe.running = false
+  state.fileTypeProbed(code, type)
+}
+{
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
+  assert.equal(state.receivedFile, "", "a file is not offered while its session is still running")
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  assert.equal(state.viewState, "success")
+  assert.equal(state.receivedFile, "/home/someone/Downloads/photo.jpg")
+  assert.equal(state.fileTypeProbe.path, "/home/someone/Downloads/photo.jpg")
+  assert.equal(state.fileTypeProbe.running, true)
+  assert.equal(state.receivedFileType, "", "nothing is previewable until the probe has answered")
+  assert.equal(state.cursors.at(-1), 0, "Copy is the default action for a received file")
+}
+{
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/one.jpg"))
+  state.handleEvent(received("a", "/home/someone/Downloads/two.jpg"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  assert.equal(state.viewState, "success")
+  assert.equal(state.receivedFile, "", "a session of several files keeps the plain result")
+  assert.equal(state.fileTypeProbe.running, false)
+}
+{
+  // The count belongs to the session: an earlier receive must not make the
+  // next single file look like the second of two.
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/first.jpg"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  state.viewState = "receiving"
+  state.handleEvent(received("b", "/home/someone/Downloads/second.png"))
+  state.handleEvent({event: "incoming_done", sessionId: "b"})
+  assert.equal(state.receivedFile, "/home/someone/Downloads/second.png")
+
+  // The probe for the first file is still running, as Quickshell leaves it
+  // until the command exits. Its answer belongs to a file that is no longer
+  // shown, and the second file must still get a probe of its own.
+  assert.equal(state.fileTypeProbe.path, "/home/someone/Downloads/first.jpg")
+  probeExits(state, 0, "image/jpeg")
+  assert.equal(state.receivedFileType, "", "an answer about the first file must not label the second")
+  assert.equal(state.fileTypeProbe.path, "/home/someone/Downloads/second.png")
+  assert.equal(state.fileTypeProbe.running, true, "the file that arrived during a probe must be probed after it")
+  probeExits(state, 0, "image/png")
+  assert.equal(state.receivedFileType, "image/png")
+  assert.equal(state.fileTypeProbe.running, false, "an answer about the file on screen ends the probing")
+}
+{
+  // A probe that fails only withholds the preview, and one that outlives the
+  // result has nothing left to probe.
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  probeExits(state, 1, "")
+  assert.equal(state.receivedFileType, "")
+  assert.equal(state.fileTypeProbe.running, false)
+  state.handleEvent(received("b", "/home/someone/Downloads/other.jpg"))
+  state.receivedFile = ""
+  state.fileTypeProbe.running = true
+  probeExits(state, 0, "image/jpeg")
+  assert.equal(state.receivedFileType, "")
+  assert.equal(state.fileTypeProbe.running, false)
+}
+{
+  // A receive that finishes behind a queued request never shows its result,
+  // so there is nothing on screen to attach a preview to.
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
+  state.handleEvent(incoming("queued"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  assert.equal(state.viewState, "incoming")
+  assert.equal(state.receivedFile, "")
+  assert.equal(state.fileTypeProbe.running, false)
+}
+{
+  // A sender that delivers nothing still completes; the previous session's
+  // path must not be offered as this one's file.
+  const state = engine({viewState: "receiving", lastReceivedPath: "/home/someone/Downloads/old.jpg", receivedSession: "old", receivedFileCount: 1})
+  state.handleEvent({event: "incoming_progress", sessionId: "empty", name: "x", sender: "Phone", bytes: 0, total: 0})
+  state.handleEvent({event: "incoming_done", sessionId: "empty"})
+  assert.equal(state.viewState, "success")
+  assert.equal(state.receivedFile, "")
+}
+assert.match(source, /onViewStateChanged: if \(viewState !== "success"\) \{ receivedFile = ""; receivedFileType = "" \}/,
+  "leaving the result must withdraw the file, so a later result cannot show it")
+assert.match(source, /command: \["file", "--brief", "--mime-type", "--", fileTypeProbe\.path\]/,
+  "the type must come from the bytes, with the path kept from being read as an option")
+assert.match(source, /onExited: function\(code\) \{ root\.fileTypeProbed\(code, String\(fileTypeOutput\.text \|\| ""\)\.trim\(\)\) \}/,
+  "the probe's answer must go through the check that it is still about the file on screen")
+
 {
   const state = engine({viewState: "sending", outgoingTransferId: "tx-1", transferName: "first.txt"})
   state.handleEvent({event: "outgoing_progress", transferId: "tx-1", name: "second.txt", bytes: 10, total: 100})
@@ -1475,5 +1578,25 @@ assert.match(source, /onFileChanged:\s*reload\(\)/,
 assert.match(source,
   /function failWith\(message\)\s*\{\s*viewState="error";\s*errorText=message;\s*statusText=errorText\s*\}/,
   "failWith must keep statusText aligned with errorText for every failure that reaches it")
+
+
+
+// A directory chooser can finish after an incoming request or outgoing transfer
+// takes the shared service. Neither monitor may restart that active helper.
+for (const busy of [
+  {viewState: "receiving"}, {viewState: "sending"}, {viewState: "pin"},
+  {viewState: "incoming"}, {pendingOutgoing: {kind: "files"}},
+  {activeIncomingSession: "session"}, {incomingPinUpdating: true}, {incomingQueue: [{requestId: "waiting"}]},
+]) {
+  const writes = []
+  const state = engine({...busy, downloadDir: "/data/current",
+    shell: {updateEntryInline: (id, settings) => { writes.push(settings); return true }}})
+  const originalView = state.viewState
+  state.setDownloadDir("/data/new")
+  state.useDownloads()
+  assert.equal(writes.length, 0, "a late folder action must not persist settings during an active operation")
+  assert.equal(state.sent.length, 0, "a late folder action must not shut down the active helper")
+  assert.equal(state.viewState, originalView)
+}
 
 console.log("service state tests passed")

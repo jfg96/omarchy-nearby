@@ -34,6 +34,19 @@ limit; cancel it to stop waiting for a receiver. Nearby answers multicast
 announcements, which any device on the network can send, at most once per
 address every 5 seconds and at most 8 at a time.
 
+The panel previews a received picture, which means decoding a file a peer
+chose. That happens only after the transfer was accepted, only for a single
+received file, and only when `file` identifies its contents as PNG, JPEG, WebP
+or GIF; the name and the type the sender declared are not consulted. The
+preview is decoded off the UI thread at the size it is drawn. Copying such a
+picture converts it with ImageMagick, restricted to the decoder for the
+identified type, fed on standard input so the file name is never interpreted,
+and bounded to 16,000 pixels a side, 128 megapixels, 2 GiB of pixel memory
+with no disk storage, and 30 seconds. A picture outside those bounds is copied
+as a file reference instead. A PNG is converted like the other types, so the
+clipboard receives newly encoded pixels and never the file's own bytes or the
+metadata in them.
+
 Aliases, file names and other text from peers are shown as plain text in the
 panel. Desktop notifications start with fixed text and carry peer text escaped,
 so it is neither parsed as a notification option nor rendered as markup.

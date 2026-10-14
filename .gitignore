@@ -13,5 +13,6 @@ backend/target/
 # published version.
 bin/*
 !bin/.gitkeep
+!bin/nearby-copy-file
 !bin/nearby-helper-launcher
 !bin/nearby-repair-helper

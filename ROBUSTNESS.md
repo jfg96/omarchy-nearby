@@ -18,6 +18,7 @@ node tests/panel-state.test.js
 node tests/service-state.test.js
 bash tests/launcher.test.sh
 bash tests/helper-repair.test.sh
+bash tests/copy-file.test.sh
 ```
 
 The suites cover peer registry retention/expiry, command correlation, request decisions,
@@ -51,6 +52,16 @@ size/SHA256 enforcement, XDG data storage, offline reuse, corrupt and symlinked
 cache repair, rejected symlinked or other-user-writable cache ancestors,
 concurrent launches, failed/oversized downloads, and the rule
 that published helpers never write into the watched plugin checkout.
+
+The received-file suites cover offering exactly one received file once its
+result is on screen, per-session file counts, results that never reached the
+screen, a type probe that answers late, a file that arrives while the probe is
+still busy with the previous one, keyboard reachability of Copy and Done, and,
+for the copy script, conversion of every previewable picture, PNG included,
+with the decoder named by the detected type and the file name kept away from
+ImageMagick, fallback to a file reference when the conversion fails or
+ImageMagick is absent, without clearing the clipboard or copying the file's
+own bytes, URI escaping, temporary file cleanup and refused arguments.
 
 ### Local automated result, 2026-09-22
 
@@ -517,6 +528,108 @@ restarted it with that folder. Pressing **Use Downloads** in the panel, the
 refusal of the home folder on screen and the rest of scenario 23 (choosing a
 folder in the panel and receiving into it) are **Not run**.
 
+### Received file preview and copy development validation, 2026-10-12
+
+The development checkout advances to plugin `1.2.7-dev`; the helper is
+unchanged. The Node suites and `tests/copy-file.test.sh` passed.
+`bin/nearby-copy-file` was also run by hand with the real `file` 5.48 and
+ImageMagick 7.1.2-31 and a stand-in for `wl-copy`: a 4000×3000 JPEG, a WebP and
+a three-frame GIF each produced PNG data, including a JPEG whose name contains
+brackets, a percent sign and spaces; a JPEG with EXIF orientation 6 and a GPS
+tag came out upright with no metadata; a text file and text renamed to `.jpg`
+or `.png` produced a file reference.
+
+After review a PNG is converted like the other types, and the script was run
+again the same way. An 800×600 and a 4000×3000 PNG carrying a comment, date
+text chunks and, in the larger one, a GPS property each produced a PNG whose
+only chunks are `IHDR`, `PLTE` where indexed, ImageMagick's `orNT`, `IDAT` and
+`IEND`; the larger one took 2.7 s. JPEGs of 4000×3000 and 8160×6120 with EXIF
+orientation 6 came out upright within the 2 GiB memory bound in under 2 s
+each; with a 256 MiB bound the first of them was refused, which is why the
+bound is not lower. In a throwaway Quickshell 0.3.1 configuration, a `Process`
+started again from its own `onExited` ran and reported the second file's type.
+
+At this development stage, scenario 24 (a real transfer, the preview in the
+panel, the real clipboard and pasting into other applications) was **Not run**.
+The subsequent session below records the parts now exercised with an iPhone.
+
+### Official iPhone received-file actions session, 2026-10-15
+
+| Session field | Value |
+| --- | --- |
+| Tester | jfg96, with assisted protocol, hash and clipboard checks |
+| Source | PR #32, `4f839f87cb02423655decedb8b6886e7c339c55e`, plugin `1.2.7-dev` |
+| Helper | Published `omarchy-nearby-helper 1.2.6`, selected by the PR's unchanged release metadata |
+| Host | Omarchy dev `4.0.0.r7017.g84cfb93-1`, Quickshell `0.3.2-4`, Qt `6.12.0-2` |
+| Image and clipboard tools | ImageMagick `7.1.2.33-3` Q16-HDRI, file `5.48-1`, wl-clipboard `2.3.0-1` |
+| Peer | Official LocalSend on an iPhone, protocol `2.2`, HTTPS; device model, iOS and app versions not rechecked |
+| Network and display | Same Wi-Fi LAN, one monitor; VPN/firewall configuration not rechecked |
+
+The unmodified PR service, panel and copy script ran in a temporary Quickshell
+host using Omarchy's real `Ui` and `Commons` components. The host supplied a
+separate configuration API and isolated helper state and receive directories;
+it did not replace the installed plugin. Test files were sent to the iPhone
+and returned through its official LocalSend client. Incoming approval and the
+visible panel were exercised by the tester; clipboard checks used the real
+Wayland clipboard, with the panel's Copy action also callable by the harness.
+
+| Scenario 24 component | Result | Evidence or deviation |
+| --- | --- | --- |
+| Single PNG receive, preview and Copy | Pass | The 800x600 gradient arrived byte-for-byte intact, its preview was confirmed on screen, and the PNG copied from the result was pasted successfully into Codex |
+| PNG metadata removal | Pass | The input carried a private test comment and text chunks; the copied PNG retained only `IHDR`, `orNT`, `IDAT` and `IEND`, with identical decoded pixels |
+| JPEG receive and oriented image copy | Pass | A 4000x3000 JPEG with EXIF orientation 6 arrived unchanged; Copy produced a 3000x4000 PNG whose decoded RGBA hash matched the original after orientation, and it was pasted into Codex |
+| JPEG preview orientation on screen | Not run | Orientation and pixels of the copied image were verified; the JPEG preview's orientation was not separately confirmed visually |
+| Non-image receive, Copy and file-manager paste | Pass | A 23-byte TXT arrived unchanged, was copied as `text/uri-list`, and pasted into Flea; the pasted file's SHA256 matched the original. This used TXT rather than the scenario's PDF |
+| Text renamed to `.png` | Pass | Detected as `text/plain`, no image preview was shown, and Copy produced a file reference rather than image data |
+| Multiple files in one receive | Pass | PNG and TXT were returned together; both hashes matched, and the result had no single-file preview or Copy action. This used mixed files rather than two pictures |
+| Paste into a separately tested Chromium browser, GTK app and image editor | Not run | Successful image and file pastes in Codex and file paste in Flea do not claim those additional targets were exercised |
+
+The JPEG source and received SHA256 was
+`6981739476206363862e880c1d3dc0a75399efeb14cda322682d2fe25fc634ea`.
+The copied and expected oriented RGBA SHA256 was
+`1d494804045e6afb963f1b2667b563860c06dbef9a460fe2944b88f3a43ed283`.
+The PNG source and received SHA256 was
+`da5f466ebfaa217608d5ecf2fd184d9b24c02f8a198bb69ad825824c98335b40`.
+The TXT, its pasted copy and the text renamed to PNG matched
+`2613cbb051ddc41d0ddddad7ab2d213acae2ed24f598e6c984c9ad58414ff7d8`.
+
+The iPhone initially received without a manual Accept. The tester checked that
+LocalSend Quick Save was enabled; this observation does not demonstrate an
+authorization bypass. After the initial harness setup, PC auto-accept was disabled for the
+recorded return transfers. One TXT request expired while awaiting approval;
+its retry completed after acceptance. The temporary panel had to be opened
+manually for some requests, so this session does not validate the installed
+shell's complete notification-routing behavior.
+
+Cancellation, a live Copy completion after another received result, multiple
+monitors, Android interoperability and loading this PR as the normally
+installed plugin remain **Not run** in this session. The scenario above is a
+partial manual pass, not completion of the entire regression matrix. The
+temporary receiver and monitor were stopped afterwards and the previously
+enabled normal receiver was restored to ready. No contributor code was changed
+for the test.
+
+### Combined PR integration regression validation, 2026-10-15
+
+PR #32 was rebased onto main after PR #33 was merged. The contributor's
+commits and authorship are retained. Maintainer changes discard late folder
+choices while a transfer, approval request or PIN update is active and keep a
+file-copy completion from annotating a different file or a dismissed result.
+Scenarios 23 (folder selection) and 24 (received file actions) now have distinct
+numbers; the earlier iPhone evidence above refers to the pre-rebase PR #32 code.
+
+Both new Node regression cases failed against the pre-fix behavior: the late
+folder choice persisted new settings during reception, and Copy for file A
+reported success under file B. They pass with the fixes, along with all three
+Node suites and the three Bash suites. Rust formatting, locked build checks,
+Clippy with warnings denied, helper tests and the standalone HTTPS vendor suite
+also passed; the vendor suite retains one upstream ignored test. A separate Quickshell 0.3.2 instance
+loaded the combined Service.qml with a simulated helper: returning a folder
+choice after entering `receiving` left the setting unchanged, kept the helper
+ready with a single launch, and preserved the receiving view. This used no
+network peer and does not count as a real-device race test. Full live folder
+selection/receiving and the copy race with a real peer remain **Not run**.
+
 ## Manual interoperability matrix
 
 Run applicable transfer and PIN scenarios with both Android and iOS LocalSend
@@ -613,7 +726,18 @@ complete until those versions and results are written down.
     the panel names it after the retries and still offers **Use Downloads**;
     choose it and confirm the receiver starts, `downloadDir` is gone from the
     entry and files go to Downloads again. Choose your home folder and confirm
-    it is refused with the reason.
+    it is refused with the reason. Open the chooser, start receiving or sending
+    before choosing a folder, then finish the chooser: the transfer must stay
+    active and the folder setting must remain unchanged. Repeat with a pending
+    approval or outgoing PIN request.
+
+24. Receive one PNG and one JPEG photo taken in portrait orientation, in
+    separate transfers. Each must show an upright preview with **Copy** and
+    **Done**. Copy each and paste it into a Chromium-based application, a GTK
+    application and an image editor: the picture must arrive upright. Receive a
+    PDF: there must be no preview, and Copy must paste the file into a file
+    manager. Send two pictures in one transfer: the result must stay plain.
+    Receive a text file renamed to `.png`: there must be no preview.
 
 ## Result record
 
@@ -642,6 +766,8 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 21: unsafe settings and recovery | Isolated Omarchy installation | Not run | |
 | 22: folder transfers and lifecycle | Official Android / iOS / desktop client, separate rows | Not run | |
 | 23: folder for received files | Omarchy + peer | Not run | |
+
+| 24: received file preview and copy | Omarchy + peer | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.

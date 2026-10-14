@@ -8,6 +8,11 @@
   chosen folder has become unavailable and the receiver cannot start. The home
   folder and the folders above it are refused.
 
+- Offer **Copy** for a single received file, so it can be pasted without
+  opening a file manager, and preview it when it is a PNG, JPEG, WebP or GIF
+  picture. A picture is copied as a PNG image; any other file is copied as a
+  file reference.
+
 ## 1.2.6
 
 - Require rustls 0.23.45 to reject TLS 1.3 handshake messages crossing

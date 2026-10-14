@@ -47,6 +47,8 @@ Panel {
   readonly property real progress: engine ? engine.progress : 0
   readonly property string saveDirectory: engine ? engine.saveDirectory : ""
   readonly property string downloadDir: engine ? engine.downloadDir : ""
+  readonly property string receivedFile: engine ? engine.receivedFile : ""
+  readonly property bool receivedIsImage: engine ? Model.previewableImage(engine.receivedFileType) : false
   readonly property string transferName: engine ? engine.transferName : ""
   readonly property string transferPeer: engine ? engine.transferPeer : ""
   readonly property string pinError: engine ? engine.pinError : ""
@@ -180,6 +182,8 @@ Panel {
   function useDownloads() { if (engine) engine.useDownloads() }
   function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.launched=false; clipboard.running = true }
   function copyReceivedText() { clipboardWriter.launched=false; clipboardWriter.running=true }
+  function copyReceivedFile() { if (receivedFile === "" || fileCopier.running) return; copyNote="Copying…"; fileCopier.path=receivedFile; fileCopier.launched=false; fileCopier.running=true }
+  onReceivedFileChanged: copyNote=""
 
   // The kit's Button already paints its own mouse hover from containsMouse.
   // `hasCursor` is this panel's keyboard cursor, and the handlers only ever
@@ -222,6 +226,13 @@ Panel {
       if (dy !== 0) selectedIndex = Math.max(-1, Math.min(lastNearbyIndex, selectedIndex + dy))
       return
     }
+    // A received file adds Copy beside Done; either arrow axis moves between
+    // the two, since they are the only stops.
+    if (viewState === "success" && receivedFile !== "") {
+      selectedIndex = Math.max(0, Math.min(1, selectedIndex + (dx !== 0 ? dx : dy)))
+      return
+    }
+
     if (dx !== 0 && (viewState === "incoming" || viewState === "text" || viewState === "incoming_pin_disable")) {
       selectedIndex = Math.max(0, Math.min(1, selectedIndex + dx))
       return
@@ -253,6 +264,7 @@ Panel {
     else if (viewState === "incoming_pin_settings") incomingPinEnabled ? (selectedIndex===0?beginIncomingPinEdit():(selectedIndex===1?requestDisableIncomingPin():goBack())) : (selectedIndex===0?beginIncomingPinEdit():goBack())
     else if (viewState === "incoming_pin_disable") selectedIndex===0 ? cancelIncomingPinSettings() : confirmDisableIncomingPin()
     else if (viewState === "sending") cancelOutgoing()
+    else if (viewState === "success" && receivedFile !== "" && selectedIndex === 0) copyReceivedFile()
     else if (viewState === "success" || viewState === "error") finishTerminal()
   }
 
@@ -339,8 +351,9 @@ Panel {
     running: false
     stdout: StdioCollector { id: downloadDirPickerOutput; waitForEnd: true }
     onStarted: downloadDirPicker.launched=true
-    onRunningChanged: if (!running && !downloadDirPicker.launched) root.failWith("The file chooser could not be started")
+    onRunningChanged: if (!running && !downloadDirPicker.launched && root.viewState === "nearby") root.failWith("The file chooser could not be started")
     onExited: function(code) {
+      if (root.viewState !== "nearby") return
       if (code > 1) { root.failWith("The file chooser did not open"); return }
       var path=String(downloadDirPickerOutput.text || "").split("\n")[0]
       if (code === 0 && path !== "" && root.engine) root.engine.setDownloadDir(path)
@@ -571,7 +584,23 @@ Panel {
           visible: root.viewState==="success"||root.viewState==="error"; width:parent.width; spacing:Style.space(8)
           Text { width:parent.width; textFormat:Text.PlainText; text:root.viewState==="success" ? root.statusText : root.errorText; wrapMode:Text.Wrap; color:root.viewState==="error"?root.urgent:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true }
           Text { visible:root.viewState==="success"; width:parent.width; textFormat:Text.PlainText; text:root.transferPeer!=="" ? (root.statusText==="Sent"?"to ":"from ")+root.transferPeer : ""; wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
-          Button { text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive; onClicked:root.finishTerminal() }
+          // One received file can be looked at and copied without leaving the
+          // panel. The preview is decoded off the UI thread, at the size it is
+          // drawn, and only for the picture types the engine identified.
+          Image {
+            visible:root.receivedIsImage && status===Image.Ready
+            width:parent.width; height:Math.min(Style.space(200), width*implicitHeight/Math.max(1,implicitWidth))
+            source:root.receivedIsImage ? Model.fileUrl(root.receivedFile) : ""
+            sourceSize.width:2*width; sourceSize.height:2*Style.space(200)
+            fillMode:Image.PreserveAspectFit; asynchronous:true; cache:false; autoTransform:true
+          }
+          Text { visible:root.receivedFile!==""; width:parent.width; textFormat:Text.PlainText; text:root.receivedFile.slice(root.receivedFile.lastIndexOf("/")+1); elide:Text.ElideMiddle; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Row { visible:root.receivedFile!==""; width:parent.width; spacing:Style.space(8)
+            Button { width:(parent.width-parent.spacing)/2; text:"Copy"; iconText:"󰆏"; tooltipText:root.receivedIsImage?"Copy the picture":"Copy the file"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.copyReceivedFile() }
+            Button { width:(parent.width-parent.spacing)/2; text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.finishTerminal() }
+          }
+          Text { visible:root.receivedFile!==""&&root.copyNote!==""; width:parent.width; textFormat:Text.PlainText; text:root.copyNote; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Button { visible:root.receivedFile===""; text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive; onClicked:root.finishTerminal() }
         }
 
         Column {
@@ -599,6 +628,19 @@ Panel {
     onStarted: textCopier.launched=true
     onRunningChanged: if (!running && !textCopier.launched) root.copyNote="wl-copy is required to copy"
     onExited: function(code) { root.copyNote = code===0 ? "Copied to clipboard" : "wl-copy is required to copy" }
+  }
+
+  // A received file is copied by a script: a picture has to be converted and
+  // redirected into wl-copy, which a Process cannot do by itself.
+  Process {
+    id: fileCopier
+    property bool launched: false
+    property string path: ""
+    command: [(root.engine ? root.engine.pluginDir : "") + "/bin/nearby-copy-file", fileCopier.path]
+    running: false
+    onStarted: fileCopier.launched=true
+    onRunningChanged: if (!running && !fileCopier.launched && root.viewState === "success" && root.receivedFile !== "" && fileCopier.path === root.receivedFile) root.copyNote="The copy command could not be started"
+    onExited: function(code) { if (root.viewState !== "success" || root.receivedFile === "" || fileCopier.path !== root.receivedFile) return; root.copyNote = code===0 ? "Copied to clipboard" : "Could not copy this file" }
   }
 
   Process {
