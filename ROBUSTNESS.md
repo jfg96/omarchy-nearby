@@ -549,8 +549,65 @@ each; with a 256 MiB bound the first of them was refused, which is why the
 bound is not lower. In a throwaway Quickshell 0.3.1 configuration, a `Process`
 started again from its own `onExited` ran and reported the second file's type.
 
-Scenario 23 (a real transfer, the preview in the panel, the real clipboard and
-pasting into other applications) is **Not run**.
+At this development stage, scenario 23 (a real transfer, the preview in the
+panel, the real clipboard and pasting into other applications) was **Not run**.
+The subsequent session below records the parts now exercised with an iPhone.
+
+### Official iPhone received-file actions session, 2026-10-15
+
+| Session field | Value |
+| --- | --- |
+| Tester | jfg96, with assisted protocol, hash and clipboard checks |
+| Source | PR #32, `4f839f87cb02423655decedb8b6886e7c339c55e`, plugin `1.2.7-dev` |
+| Helper | Published `omarchy-nearby-helper 1.2.6`, selected by the PR's unchanged release metadata |
+| Host | Omarchy dev `4.0.0.r7017.g84cfb93-1`, Quickshell `0.3.2-4`, Qt `6.12.0-2` |
+| Image and clipboard tools | ImageMagick `7.1.2.33-3` Q16-HDRI, file `5.48-1`, wl-clipboard `2.3.0-1` |
+| Peer | Official LocalSend on an iPhone, protocol `2.2`, HTTPS; device model, iOS and app versions not rechecked |
+| Network and display | Same Wi-Fi LAN, one monitor; VPN/firewall configuration not rechecked |
+
+The unmodified PR service, panel and copy script ran in a temporary Quickshell
+host using Omarchy's real `Ui` and `Commons` components. The host supplied a
+separate configuration API and isolated helper state and receive directories;
+it did not replace the installed plugin. Test files were sent to the iPhone
+and returned through its official LocalSend client. Incoming approval and the
+visible panel were exercised by the tester; clipboard checks used the real
+Wayland clipboard, with the panel's Copy action also callable by the harness.
+
+| Scenario 23 component | Result | Evidence or deviation |
+| --- | --- | --- |
+| Single PNG receive, preview and Copy | Pass | The 800x600 gradient arrived byte-for-byte intact, its preview was confirmed on screen, and the PNG copied from the result was pasted successfully into Codex |
+| PNG metadata removal | Pass | The input carried a private test comment and text chunks; the copied PNG retained only `IHDR`, `orNT`, `IDAT` and `IEND`, with identical decoded pixels |
+| JPEG receive and oriented image copy | Pass | A 4000x3000 JPEG with EXIF orientation 6 arrived unchanged; Copy produced a 3000x4000 PNG whose decoded RGBA hash matched the original after orientation, and it was pasted into Codex |
+| JPEG preview orientation on screen | Not run | Orientation and pixels of the copied image were verified; the JPEG preview's orientation was not separately confirmed visually |
+| Non-image receive, Copy and file-manager paste | Pass | A 23-byte TXT arrived unchanged, was copied as `text/uri-list`, and pasted into Flea; the pasted file's SHA256 matched the original. This used TXT rather than the scenario's PDF |
+| Text renamed to `.png` | Pass | Detected as `text/plain`, no image preview was shown, and Copy produced a file reference rather than image data |
+| Multiple files in one receive | Pass | PNG and TXT were returned together; both hashes matched, and the result had no single-file preview or Copy action. This used mixed files rather than two pictures |
+| Paste into a separately tested Chromium browser, GTK app and image editor | Not run | Successful image and file pastes in Codex and file paste in Flea do not claim those additional targets were exercised |
+
+The JPEG source and received SHA256 was
+`6981739476206363862e880c1d3dc0a75399efeb14cda322682d2fe25fc634ea`.
+The copied and expected oriented RGBA SHA256 was
+`1d494804045e6afb963f1b2667b563860c06dbef9a460fe2944b88f3a43ed283`.
+The PNG source and received SHA256 was
+`da5f466ebfaa217608d5ecf2fd184d9b24c02f8a198bb69ad825824c98335b40`.
+The TXT, its pasted copy and the text renamed to PNG matched
+`2613cbb051ddc41d0ddddad7ab2d213acae2ed24f598e6c984c9ad58414ff7d8`.
+
+The iPhone initially received without a manual Accept. The tester checked that
+LocalSend Quick Save was enabled; this observation does not demonstrate an
+authorization bypass. After the initial harness setup, PC auto-accept was disabled for the
+recorded return transfers. One TXT request expired while awaiting approval;
+its retry completed after acceptance. The temporary panel had to be opened
+manually for some requests, so this session does not validate the installed
+shell's complete notification-routing behavior.
+
+Cancellation, a live Copy completion after another received result, multiple
+monitors, Android interoperability and loading this PR as the normally
+installed plugin remain **Not run** in this session. The scenario above is a
+partial manual pass, not completion of the entire regression matrix. The
+temporary receiver and monitor were stopped afterwards and the previously
+enabled normal receiver was restored to ready. No contributor code was changed
+for the test.
 
 ## Manual interoperability matrix
 
