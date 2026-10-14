@@ -115,7 +115,7 @@ assert.equal((source.match(/onHovered/g) || []).length,
 assert.doesNotMatch(source, /onHovered[^\n]*if\s*\(v\)\s*\{\s*root\.cursorActive=true/,
   "taking the cursor on enter without releasing it on leave is the bug this replaced")
 
-for (const launcher of ["picker", "folderPicker", "clipboard", "clipboardWriter", "textCopier"]) {
+for (const launcher of ["picker", "folderPicker", "downloadDirPicker", "clipboard", "clipboardWriter", "textCopier"]) {
   assert.match(source, new RegExp(`onRunningChanged:\\s*if\\s*\\(!running && !${launcher}\\.launched`),
     `${launcher} must report a command that never launched, which Quickshell signals by ` +
     "returning running to false without an exit code")
@@ -162,7 +162,7 @@ const functionNames = [
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "clearSecretInputs",
-  "goBack", "selectFiles", "selectFolder", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
+  "goBack", "selectFiles", "selectFolder", "chooseDownloadDir", "useDownloads", "sendClipboard", "copyReceivedText", "moveCursor", "activateCursor",
   "retryHelper", "copyText", "copyUpdateCommand", "copyRepositoryLink", "noteHover",
 ]
 
@@ -195,6 +195,7 @@ function stubEngine() {
     noteTextCopied: record("noteTextCopied"),
     beginOutgoing: record("beginOutgoing"),
     startHelperUpdate: record("startHelperUpdate"),
+    useDownloads: record("useDownloads"),
     viewOpened: record("viewOpened"),
     viewClosed: record("viewClosed"),
   }
@@ -220,6 +221,8 @@ function panel(initial = {}) {
     engine,
     picker: {running: false, launched: false},
     folderPicker: {running: false, launched: false},
+    downloadDirPicker: {running: false, launched: false},
+    downloadDir: "",
     clipboard: {running: false, launched: false},
     clipboardWriter: {running: false, launched: false},
     textCopier: {running: false, launched: false, payload: ""},
@@ -247,7 +250,7 @@ function panel(initial = {}) {
     ...initial,
   }
   context.engine = engine
-  for (const name of ["helperUpdateIndex", "helperCopyCommandIndex", "helperCopyLinkIndex"]) {
+  for (const name of ["useDownloadsIndex", "helperUpdateIndex", "helperCopyCommandIndex", "helperCopyLinkIndex"]) {
     const expression = intBindingExpression(name)
     Object.defineProperty(context, name, {
       enumerable: true,
@@ -303,7 +306,70 @@ function callNames(state) {
   state.activateCursor()
   assert.equal(callNames(state).at(-1), "openIncomingPinSettings",
     "the entry after rescan opens incoming PIN settings")
+  state.selectedIndex = 4
+  state.activateCursor()
+  assert.equal(state.downloadDirPicker.running, true,
+    "the row under the actions opens the folder chooser")
+  state.selectedIndex = 3
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 4, "the folder row must be reachable from the keyboard")
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 4, "the folder row is the last stop when no update is offered")
 }
+
+// The folder is chosen with Omarchy's chooser in directory mode, and only a
+// folder that was actually picked reaches the engine.
+assert.match(source, /id: downloadDirPicker[\s\S]*?command: \["omarchy-file-select","--title","Save received files to","--directory"\]/,
+  "the folder must be chosen with omarchy-file-select in directory mode")
+assert.match(source, /id: downloadDirPicker[\s\S]*?if \(code === 0 && path !== "" && root\.engine\) root\.engine\.setDownloadDir\(path\)/,
+  "a cancelled chooser must leave the folder as it is")
+assert.match(source, /text:"Save to · "\+Model\.folderName\(root\.saveDirectory\)[^\n]*root\.devices\.length\+2[^\n]*root\.devices\.length\+2/,
+  "the folder row shows where the helper really saves and joins keyboard and hover navigation")
+{
+  const state = panel({viewState: "nearby", backendReady: false, selectedIndex: 2})
+  state.activateCursor()
+  assert.equal(state.downloadDirPicker.running, false,
+    "the folder row is hidden with the action row, so its index must not act while the receiver is not ready")
+}
+
+// A chosen folder adds the way back to Downloads under the folder row, and
+// keeps it in the panel when that folder stops the receiver from starting,
+// which hides the folder row with the rest of the actions.
+{
+  const state = panel({viewState: "nearby", devices: [{alias: "A"}], backendReady: true, downloadDir: "/data/in", selectedIndex: 3})
+  assert.equal(state.useDownloadsIndex, 4)
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 4, "Use Downloads follows the folder row")
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 4, "and is the last stop when no update is offered")
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "useDownloads")
+  assert.equal(state.downloadDirPicker.running, false)
+}
+{
+  const state = panel({viewState: "nearby", devices: [], backendReady: false, downloadDir: "/run/media/someone/Stick/in", selectedIndex: -1})
+  assert.equal(state.useDownloadsIndex, 0)
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 0, "with the receiver down the row is reachable right under the switch")
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 0)
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "useDownloads",
+    "a folder that keeps the receiver from starting must be removable from the panel")
+}
+{
+  assert.equal(panel({viewState: "nearby", backendReady: true}).useDownloadsIndex, -1,
+    "with no folder chosen there is nothing to go back from")
+  assert.equal(panel({viewState: "nearby", receiverEnabled: false, backendReady: false, downloadDir: "/data/in"}).useDownloadsIndex, -1)
+  const blocked = panel({viewState: "nearby", backendReady: false, helperUpdateOffered: true, downloadDir: "/data/in"})
+  assert.equal(blocked.useDownloadsIndex, -1, "an unusable helper owns the view, and the folder is not what stopped it")
+  assert.equal(blocked.helperUpdateIndex, 0)
+  const updating = panel({viewState: "nearby", devices: [{alias: "A"}], backendReady: true, helperUpdateOffered: true, downloadDir: "/data/in"})
+  assert.equal(updating.useDownloadsIndex, 4)
+  assert.equal(updating.helperUpdateIndex, 5, "the update row must not share an index with Use Downloads")
+}
+assert.match(source, /Button \{ visible:root\.useDownloadsIndex>=0;[^\n]*text:"Use Downloads"[^\n]*root\.selectedIndex===root\.useDownloadsIndex[^\n]*root\.noteHover\(v,root\.useDownloadsIndex\)[^\n]*onClicked:root\.useDownloads\(\)/,
+  "Use Downloads is drawn where the keyboard index says it is")
 
 // An unusable helper hides the action row, so the update button takes the
 // index rescan would have had. Keyboard users have to be able to reach it:
@@ -328,13 +394,15 @@ function callNames(state) {
   const state = panel({
     viewState: "nearby", devices: [{alias: "A"}], backendReady: true, helperUpdateOffered: true, selectedIndex: 1,
   })
-  assert.equal(state.helperUpdateIndex, 3)
+  assert.equal(state.helperUpdateIndex, 4)
   state.activateCursor()
   assert.equal(callNames(state).at(-1), "forceFullDiscovery",
     "an offered update must not displace rescan while the helper still works")
-  state.selectedIndex = 3
+  state.selectedIndex = 4
   state.activateCursor()
   assert.equal(callNames(state).at(-1), "startHelperUpdate")
+  assert.equal(state.downloadDirPicker.running, false,
+    "the update button must not share an index with the folder row above it")
 }
 
 // Leaving a button must put the highlight out, and moving between two must
@@ -384,7 +452,7 @@ function callNames(state) {
   const state = panel({viewState: "nearby", devices: [{alias: "A"}], selectedIndex: 0})
   assert.equal(state.helperUpdateIndex, -1)
   state.moveCursor(0, 9)
-  assert.equal(state.selectedIndex, 2, "the cursor still stops on incoming PIN settings")
+  assert.equal(state.selectedIndex, 3, "the cursor stops on the folder row, the last one without an update")
 }
 
 {
@@ -423,7 +491,7 @@ function callNames(state) {
   state.moveCursor(0, 1)
   assert.equal(state.selectedIndex, 1)
   state.moveCursor(0, 5)
-  assert.equal(state.selectedIndex, 3, "the cursor stops on incoming PIN settings after rescan")
+  assert.equal(state.selectedIndex, 4, "the cursor stops on the folder row under the action row")
   state.moveCursor(0, -9)
   assert.equal(state.selectedIndex, -1, "the cursor stops on the receiver switch above the list")
   state.selectedIndex = 2

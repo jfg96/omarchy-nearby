@@ -500,6 +500,23 @@ isolated XDG cache; both prefetch and the cached executable reported 1.2.6. GitH
 dependency alert fixed on main. The previously published helper-v1.2.5 tag
 is retained and is superseded by this selection before plugin publication.
 
+### Download folder development validation, 2026-10-12
+
+The development checkout advances to plugin `1.2.7-dev`; the helper is
+unchanged and already resolves `XDG_DOWNLOAD_DIR` first. The Node suites
+passed.
+
+After review the panel offers **Use Downloads** and refuses the home folder.
+On Omarchy's shell with Quickshell 0.3.1, `downloadDir` was set by hand to a
+path that cannot be created: the helper reported "download destination
+unavailable" and the receiver gave up after its retries. Removing `downloadDir`
+from the entry, which is the write **Use Downloads** makes, started the
+receiver again within a second without touching the receiver switch, and the
+helper had no `XDG_DOWNLOAD_DIR` in its environment. Writing a folder back
+restarted it with that folder. Pressing **Use Downloads** in the panel, the
+refusal of the home folder on screen and the rest of scenario 23 (choosing a
+folder in the panel and receiving into it) are **Not run**.
+
 ## Manual interoperability matrix
 
 Run applicable transfer and PIN scenarios with both Android and iOS LocalSend
@@ -580,7 +597,6 @@ complete until those versions and results are written down.
     valid file while preserving its incoming PIN; enable Nearby again and
     confirm that the PIN still applies. Never replace personal settings with
     a FIFO or delete them as a generic recovery step.
-
 22. With an official LocalSend client, send and receive a folder containing
     several nested files and verify exact contents, paths, active file names,
     progress and completion. Receive it again: directories merge and colliding
@@ -590,6 +606,14 @@ complete until those versions and results are written down.
     multiple monitors. Check unreadable folders fail preparation, inner
     symlinks are skipped and hidden components are refused. Record peer OS and
     LocalSend version; Rust loopback tests do not count as this manual pass.
+23. Choose **Save to**, cancel the chooser and confirm nothing changes. Choose a
+    folder: the receiver must restart once, the row must name the folder, and a
+    received file must land there. Restart the shell and confirm the folder is
+    still used. Set `downloadDir` to a path that cannot be created and confirm
+    the panel names it after the retries and still offers **Use Downloads**;
+    choose it and confirm the receiver starts, `downloadDir` is gone from the
+    entry and files go to Downloads again. Choose your home folder and confirm
+    it is refused with the reason.
 
 ## Result record
 
@@ -617,6 +641,7 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 20: desktop integration | Omarchy + peer | Not run | |
 | 21: unsafe settings and recovery | Isolated Omarchy installation | Not run | |
 | 22: folder transfers and lifecycle | Official Android / iOS / desktop client, separate rows | Not run | |
+| 23: folder for received files | Omarchy + peer | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.

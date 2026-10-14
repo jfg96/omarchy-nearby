@@ -40,7 +40,8 @@ Leave Nearby on, choose its device entry on the sender and send files or text.
 Use **Accept** or **Decline** for the incoming request. Approval requests expire;
 ask the sender to retry if the request has expired.
 
-Files go to your configured Downloads directory. Existing files are preserved
+Files go to your configured Downloads directory unless you
+[choose another folder](#folder-for-received-files). Existing files are preserved
 by assigning collision suffixes. Folder hierarchies are created inside that
 destination; an existing directory is merged with the incoming directory and
 individual colliding files receive suffixes, for example
@@ -64,6 +65,27 @@ duplicate notification; requests waiting behind another view can still notify.
 
 On multiple monitors, the views share one receiver. Closing one popup does not
 stop active discovery needed by another open popup.
+
+## Folder for received files
+
+The **Save to** row under Nearby's device list names the folder the receiver
+is saving to. Choose it to pick another folder with Omarchy's file chooser.
+Nearby restarts its receiver to apply the change, which takes about a second;
+choose the folder while no transfer is running, because a restart ends one.
+
+The choice is stored as `downloadDir` in Nearby's entry in
+`~/.config/omarchy/shell.json`, beside the receiver switch, and is handed to
+the helper as `XDG_DOWNLOAD_DIR`. While a folder is chosen, **Use Downloads**
+under that row removes the choice, which goes back to the Downloads lookup
+described under [storage](#storage). Your home folder and the folders above it
+cannot be chosen: received files keep the names their sender gave them, so
+they belong in a folder of their own.
+
+A folder that is missing is created when the receiver starts. If it cannot be
+created, for example because it is on a drive that is no longer connected, the
+receiver does not start and the panel names the folder. **Use Downloads**
+stays in the panel then and starts the receiver again. So does reconnecting
+the drive and turning Nearby off and on.
 
 ## Incoming PIN protection
 
@@ -92,7 +114,7 @@ receiver restarts. Missing PINs do not consume an attempt. See
 | Published helpers | `$XDG_DATA_HOME/omarchy-nearby/helpers`, default `~/.local/share/omarchy-nearby/helpers` |
 | Incoming PIN settings | `$XDG_STATE_HOME/omarchy-nearby/settings.json`, default `~/.local/state/omarchy-nearby/settings.json` |
 | Persistent TLS identity | `identity.json` alongside the PIN settings |
-| Received files | `XDG_DOWNLOAD_DIR`, then the setting in `$XDG_CONFIG_HOME/user-dirs.dirs` (default `~/.config/user-dirs.dirs`), then `~/Downloads`. Relative locations are ignored, as are `user-dirs.dirs` files that are not regular, are owned by another user or exceed 16 KiB |
+| Received files | The [chosen folder](#folder-for-received-files) if there is one; otherwise `XDG_DOWNLOAD_DIR`, then the setting in `$XDG_CONFIG_HOME/user-dirs.dirs` (default `~/.config/user-dirs.dirs`), then `~/Downloads`. Relative locations are ignored, as are `user-dirs.dirs` files that are not regular, are owned by another user or exceed 16 KiB |
 
 Interrupted receives use `.nearby-*.part` files. At startup, Nearby removes only
 its own partial files older than 24 hours. Treat settings and identity files as

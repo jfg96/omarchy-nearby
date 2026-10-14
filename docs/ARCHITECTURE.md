@@ -134,4 +134,11 @@ changing the helper protocol. [identity.rs](../backend/src/identity.rs) uses the
 same state transaction to validate and preserve the TLS identity, which is
 reused for outgoing HTTPS client authentication.
 
+The folder for received files is not security state. Like the receiver
+switch, it lives in Nearby's `shell.json` entry, and the service passes it to
+the helper process as `XDG_DOWNLOAD_DIR`, which the helper already resolved
+first. The helper reads its download directory once, so the service applies a
+change by asking the helper to stop and letting the bounded restart that
+covers any helper exit start it again with the new environment.
+
 See [storage locations](USAGE.md#storage) and [security](SECURITY.md).

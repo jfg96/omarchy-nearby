@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.7-dev
+
+- Choose the folder received files are saved to with **Save to** in the
+  panel. The choice is kept in Nearby's `shell.json` entry and applied by
+  restarting the receiver. **Use Downloads** removes it again, also when the
+  chosen folder has become unavailable and the receiver cannot start. The home
+  folder and the folders above it are refused.
+
 ## 1.2.6
 
 - Require rustls 0.23.45 to reject TLS 1.3 handshake messages crossing

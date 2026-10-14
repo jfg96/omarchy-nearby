@@ -55,6 +55,17 @@ Item {
   readonly property string moduleEntryId: configEntry ? configEntry.id : manifestPluginId
   readonly property var pluginSettings: configEntry ? configEntry.settings : ({})
   readonly property bool receiverEnabled: Model.receiverEnabledIn(configEntry)
+  // The folder for received files is a setting of the entry too. The helper
+  // resolves its download directory once, at startup, and already honours
+  // XDG_DOWNLOAD_DIR, so a chosen folder is handed to it as that variable and
+  // takes effect by restarting it. Empty leaves the XDG lookup as it was.
+  readonly property string downloadDir: Model.downloadDirIn(pluginSettings)
+  onDownloadDirChanged: restartBackend()
+  // What the running helper resolved, which is what the panel shows: it is
+  // the effective location whether or not a folder was chosen.
+  property string saveDirectory: ""
+  property bool restartPending: false
+  readonly property string homeDir: Quickshell.env("HOME") || ""
 
   property string pluginVersion: ""
   property string minHelperVersion: ""
@@ -253,9 +264,12 @@ Item {
   // config object, so it stays confined to legacy hosts that still inject
   // shell.shellConfig: on a scoped shell a mutateShellConfig() that exists but
   // is denied must not capture the toggle and drop the write.
-  function persistReceiverEnabled(enabled) {
+  function persistReceiverEnabled(enabled) { persistSettings({ receiverEnabled: enabled }) }
+  function persistSettings(changes) {
     if (!shell) return
-    var settings = Object.assign({}, pluginSettings, { receiverEnabled: enabled })
+    var settings = Object.assign({}, pluginSettings, changes)
+    // A change to undefined removes the setting from the entry.
+    for (var key in settings) if (settings[key] === undefined) delete settings[key]
     if (hasLegacyShellConfig
         && Model.hasStringBarEntry(effectiveShellConfig, moduleEntryId)
         && typeof shell.mutateShellConfig === "function") {
@@ -265,6 +279,37 @@ Item {
       return
     }
     shell.updateEntryInline(moduleEntryId, settings)
+  }
+  function setDownloadDir(path) {
+    if (Model.downloadDirIn({ downloadDir: path }) === "" || path === downloadDir) return
+    if (Model.containsHome(path, homeDir)) {
+      // Said only while the list the chooser was opened from is still shown,
+      // so it cannot take the place of a request that arrived meanwhile.
+      if (viewState === "nearby") {
+        viewState = "error"
+        reportFailure("Folder not used", "Received files keep the names their sender gave them, so they are not saved straight into your home folder or a folder above it. Choose a folder inside it.")
+      }
+      return
+    }
+    persistSettings({ downloadDir: path })
+  }
+  // Going back to Downloads removes the setting rather than naming a folder,
+  // so the location follows user-dirs.dirs again.
+  function useDownloads() { if (downloadDir !== "") persistSettings({ downloadDir: undefined }) }
+  // A stopped helper is started again by the same bounded restart that covers
+  // one that exits on its own, so asking it to stop is all a restart takes. It
+  // then starts with the environment as it is now.
+  function restartBackend() {
+    if (shutdownPending) return
+    if (backend.running) { restartPending = true; send({command:"shutdown"}); return }
+    // A receiver that gave up, as it does when the previous folder could not
+    // be created, gets its attempts back for the new one. The timer starts it
+    // on the next turn, once the environment of the helper follows the setting.
+    if (!receiverEnabled || backendVersionMismatch || helperMissing) return
+    backendRestart.attempts = 0
+    backendRestart.interval = 0
+    backendRestart.restart()
+    reportFailure("Starting receiver…", "")
   }
   function toggleReceiver() {
     if (shutdownPending) return
@@ -451,6 +496,7 @@ Item {
   function finishText() { incomingText=""; incomingTextPending=false; viewState="nearby"; cursorRequested(0); startDiscovery() }
   function finishTerminal() { viewState="nearby"; cursorRequested(0); startDiscovery() }
   function handleBackendExit(code) {
+    var restarting=restartPending; restartPending=false
     backendReady=false; discoveryActive=false; incomingQueue=[]; incomingTextPending=false; activeIncomingSession=""; incomingPinUpdating=false; pendingIncomingPinEnabled=null; incomingPinError=""; incomingPinCleared(); clearPendingOutgoing()
     if (shutdownPending) { finishReceiverShutdown(); return }
     if (!receiverEnabled) { statusText="Turned off"; errorText=""; return }
@@ -469,12 +515,18 @@ Item {
         var port = backendStartupFailurePort > 0 ? backendStartupFailurePort : 53317
         reportFailure("Port " + port + " in use",
           "LocalSend receiver port " + port + " is already in use. Another LocalSend receiver on this computer may be running. Quit it and enable Nearby again.")
+      } else if (downloadDir !== "") {
+        // The helper does not say why it stopped before it was ready, and a
+        // chosen folder that has gone away is the one cause the user set up.
+        reportFailure("Could not start",
+          "Nearby receiver could not start. Check that the folder for received files is available: " + downloadDir + ". Use Downloads goes back to your Downloads folder.")
       } else {
         reportFailure("Could not start", "Nearby receiver could not start.")
       }
     } else {
       reportFailure(code===0 ? "Receiver stopped" : "Receiver unavailable",
         code===0 ? "Receiver stopped" : "Receiver unavailable")
+      if (restarting) reportFailure("Restarting…", "Restarting the receiver to use the new folder…")
       if (viewState.indexOf("incoming_pin_")===0) { viewState="error"; reportFailure("Backend stopped", "Nearby backend stopped while updating receiver security") }
       else if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; reportFailure("Backend stopped", "Nearby backend stopped during transfer") }
     }
@@ -497,7 +549,7 @@ Item {
         send({command:"shutdown"})
         return
       }
-      backendAcceptedThisRun=true; backendReady=true; backendVersionMismatch=false; backendRestart.attempts=0; statusText="Ready to receive"; errorText=""; if(anyViewOpen&&viewState==="nearby")startDiscovery()
+      saveDirectory=String(event.directory || ""); backendAcceptedThisRun=true; backendReady=true; backendVersionMismatch=false; backendRestart.attempts=0; statusText="Ready to receive"; errorText=""; if(anyViewOpen&&viewState==="nearby")startDiscovery()
     }
     else if (event.event === "incoming_pin_state") {
       incomingPinEnabled=event.enabled===true
@@ -558,6 +610,7 @@ Item {
     // before then would let the helper bind the LocalSend port and announce
     // itself on the network for a user who had turned the receiver off.
     running: root.receiverConfigured && root.receiverEnabled && root.pluginVersion !== ""
+    environment: root.downloadDir !== "" ? ({ XDG_DOWNLOAD_DIR: root.downloadDir }) : ({})
     stdinEnabled: true
     stdout: SplitParser { onRead: function(line) { root.handleEvent(Model.parseLine(line)) } }
     stderr: SplitParser { onRead: function(line) { console.warn("nearby backend", line) } }

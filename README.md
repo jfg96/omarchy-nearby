@@ -66,8 +66,9 @@ While the receiver is off, normal startup does not download the helper.
 4. Enter the destination's PIN if requested, and approve the transfer there.
 
 For incoming transfers, leave Nearby on and use **Accept** or **Decline** when a
-request arrives. Files go to your configured Downloads directory. Received text
-can be copied from the panel.
+request arrives. Files go to your configured Downloads directory, or to the
+folder chosen with **Save to** in the panel. Received text can be copied from
+the panel.
 
 Closing the popup keeps receiving and passive discovery available. Turning
 Nearby off stops the helper, receiver and discovery. Active discovery runs while

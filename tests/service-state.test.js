@@ -143,7 +143,7 @@ function helperDerived(state) {
 
 const functionNames = [
   "viewOpened", "viewClosed", "notificationNeeded",
-  "send", "utf8ByteLength", "bindBackendRunning", "persistReceiverEnabled", "toggleReceiver", "finishReceiverShutdown",
+  "send", "utf8ByteLength", "bindBackendRunning", "persistReceiverEnabled", "persistSettings", "setDownloadDir", "useDownloads", "restartBackend", "toggleReceiver", "finishReceiverShutdown",
   "startDiscovery", "forceFullDiscovery", "stopDiscovery", "chooseDevice", "clearTarget",
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
@@ -179,6 +179,10 @@ function engine(initial = {}) {
     fileShellConfig: null,
     moduleEntryId: "oma.nearby",
     pluginSettings: {},
+    downloadDir: "",
+    homeDir: "/home/someone",
+    saveDirectory: "",
+    restartPending: false,
     receiverConfigured: true,
     openViewCount: 1,
     anyViewOpen: true,
@@ -1156,6 +1160,153 @@ for (const busy of ["sending", "receiving", "pin"]) {
   state.persistReceiverEnabled(false)
   assert.deepEqual(writes, [{tooltip: "keep me", receiverEnabled: false}],
     "persisting the receiver must not drop unrelated inline settings")
+}
+
+// The folder for received files is one more setting of the entry. Choosing it
+// writes the entry and nothing else: the restart follows from the config
+// changing, so a hand-edited shell.json takes the same path as the panel.
+{
+  const config = {version: 1, bar: {layout: {right: [{id: "oma.nearby", receiverEnabled: true}]}}, plugins: []}
+  const entry = Model.barEntry(config, "oma.nearby")
+  const writes = []
+  const state = engine({
+    pluginSettings: entry.settings,
+    moduleEntryId: entry.id,
+    shell: {shellConfig: config, updateEntryInline: (id, settings) => { writes.push(JSON.parse(JSON.stringify(settings))); return true }},
+  })
+  state.setDownloadDir("/home/someone/Pictures/Phone")
+  assert.deepEqual(writes, [{receiverEnabled: true, downloadDir: "/home/someone/Pictures/Phone"}],
+    "the chosen folder must be persisted beside the settings already on the entry")
+  assert.equal(state.sent.length, 0, "choosing a folder must not stop the helper before the config has changed")
+  state.setDownloadDir("relative/path")
+  state.setDownloadDir("")
+  assert.equal(writes.length, 1, "only an absolute path is a folder the helper would use")
+  state.downloadDir = "/home/someone/Pictures/Phone"
+  state.setDownloadDir("/home/someone/Pictures/Phone")
+  assert.equal(writes.length, 1, "choosing the folder already in use must not rewrite the config")
+}
+assert.match(source, /readonly property string downloadDir: Model\.downloadDirIn\(pluginSettings\)\n\s*onDownloadDirChanged: restartBackend\(\)/,
+  "a changed folder must restart the helper, which reads its download directory once")
+assert.match(source, /environment: root\.downloadDir !== "" \? \(\{ XDG_DOWNLOAD_DIR: root\.downloadDir \}\) : \(\{\}\)/,
+  "the chosen folder reaches the helper as XDG_DOWNLOAD_DIR, and no choice leaves its XDG lookup alone")
+{
+  // Applying a new folder is a helper restart through the bounded restart
+  // that already covers a helper stopping on its own.
+  let restarts = 0
+  const state = engine({viewState: "nearby", backendRestart: {attempts: 0, interval: 0, restart: () => { restarts++ }, stop: () => {}}})
+  state.root = state
+  state.restartBackend()
+  assert.deepEqual(state.sent, [{command: "shutdown"}])
+  assert.equal(state.restartPending, true)
+  state.backend.running = false
+  state.handleBackendExit(0)
+  assert.equal(restarts, 1, "the helper must come back after applying the folder")
+  assert.equal(state.restartPending, false)
+  assert.equal(state.statusText, "Restarting…", "a restart the user asked for must not read as a failure")
+  assert.equal(state.viewState, "nearby")
+  // The next exit is an ordinary one again.
+  state.handleBackendExit(0)
+  assert.equal(state.statusText, "Receiver stopped")
+}
+{
+  // A receiver that gave up on a folder it could not create has no helper to
+  // stop. A changed folder gives it its attempts back and starts it.
+  let restarts = 0
+  const stopped = () => ({
+    backendReady: false, statusText: "Could not start", errorText: "Nearby receiver could not start.",
+    backend: {running: false, write: () => { throw new Error("no helper to write to") }},
+    backendRestart: {attempts: 4, interval: 8000, restart: () => { restarts++ }, stop: () => {}},
+  })
+  const state = engine(stopped())
+  state.restartBackend()
+  assert.equal(restarts, 1, "a receiver that gave up must start again once the folder changes")
+  assert.equal(state.backendRestart.attempts, 0)
+  assert.equal(state.backendRestart.interval, 0)
+  assert.equal(state.restartPending, false)
+  assert.equal(state.statusText, "Starting receiver…")
+  assert.equal(state.errorText, "", "the failure of the previous folder must not stay on screen")
+  for (const reason of [{receiverEnabled: false}, {backendVersionMismatch: true}, {helperMissing: true}]) {
+    const held = engine({...stopped(), ...reason})
+    held.restartBackend()
+    assert.equal(restarts, 1, `${Object.keys(reason)[0]} keeps the receiver stopped whatever the folder is`)
+    assert.equal(held.statusText, "Could not start")
+  }
+  const stopping = engine({shutdownPending: true})
+  stopping.restartBackend()
+  assert.equal(stopping.sent.length, 0, "a receiver being turned off must not be restarted")
+  assert.equal(stopping.restartPending, false)
+}
+{
+  // Turning the receiver off while a restart is pending must win.
+  const state = engine({viewState: "nearby", shell: {updateEntryInline: () => true}})
+  state.root = state
+  state.restartBackend()
+  state.toggleReceiver()
+  state.backend.running = false
+  state.handleBackendExit(0)
+  assert.equal(state.statusText, "Turned off")
+  assert.equal(state.restartPending, false)
+}
+{
+  const state = engine({backendReady: false, backendAcceptedThisRun: false})
+  state.handleEvent({event: "ready", helperVersion: "1.0.4", directory: "/home/someone/Pictures/Phone"})
+  assert.equal(state.saveDirectory, "/home/someone/Pictures/Phone",
+    "the panel shows the directory the helper resolved, not the one it was asked for")
+}
+{
+  // The helper does not say why it stopped before it was ready. With a chosen
+  // folder the message has to name it and the way back, because the row that
+  // changes it is hidden while the receiver is down.
+  const state = engine({
+    downloadDir: "/run/media/someone/Stick/in", backendAcceptedThisRun: false,
+    backendRestart: {attempts: 4, interval: 0, restart: () => {}, stop: () => {}},
+    backend: {running: false, write: () => {}},
+  })
+  state.root = state
+  state.handleBackendExit(1)
+  assert.equal(state.statusText, "Could not start")
+  assert.match(state.errorText, /\/run\/media\/someone\/Stick\/in/)
+  assert.match(state.errorText, /Use Downloads/)
+}
+{
+  // Going back to Downloads removes the setting. Writing ~/Downloads instead
+  // would pin that folder and stop following user-dirs.dirs.
+  const config = {version: 1, bar: {layout: {right: [{id: "oma.nearby", receiverEnabled: true, downloadDir: "/data/in"}]}}, plugins: []}
+  const entry = Model.barEntry(config, "oma.nearby")
+  const writes = []
+  const state = engine({
+    pluginSettings: entry.settings, downloadDir: "/data/in", moduleEntryId: entry.id,
+    shell: {shellConfig: config, updateEntryInline: (id, settings) => { writes.push(settings); return true }},
+  })
+  state.useDownloads()
+  assert.equal(writes.length, 1)
+  assert.deepEqual(Object.keys(writes[0]), ["receiverEnabled"],
+    "the entry must lose downloadDir and keep its other settings")
+  state.downloadDir = ""
+  state.useDownloads()
+  assert.equal(writes.length, 1, "with no folder chosen there is nothing to remove")
+}
+{
+  // The home folder and the folders above it are refused, with the reason.
+  const writes = []
+  const state = engine({viewState: "nearby", shell: {updateEntryInline: (id, settings) => { writes.push(settings); return true }}})
+  for (const path of ["/home/someone", "/home/someone/", "/home", "/", "/home/someone/Pictures/.."]) {
+    state.viewState = "nearby"
+    state.errorText = ""
+    state.setDownloadDir(path)
+    assert.equal(state.viewState, "error", `${path} must be refused where the user can read why`)
+    assert.equal(state.statusText, "Folder not used")
+    assert.match(state.errorText, /home folder/)
+  }
+  state.viewState = "incoming"
+  state.errorText = ""
+  state.setDownloadDir("/home/someone")
+  assert.equal(state.viewState, "incoming", "the refusal must not replace a request that arrived while the chooser was open")
+  assert.equal(writes.length, 0, "a refused folder must not be persisted")
+  state.viewState = "nearby"
+  state.setDownloadDir("/home/someone/Pictures")
+  assert.equal(writes.length, 1, "a folder inside the home folder is an ordinary choice")
+  assert.equal(state.viewState, "nearby")
 }
 
 {

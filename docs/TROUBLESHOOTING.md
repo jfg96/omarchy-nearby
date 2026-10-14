@@ -107,6 +107,11 @@ do not paste private clipboard contents into a bug report.
 
 ## Receiver security state or download destination is unavailable
 
+If you chose a [folder for received files](USAGE.md#folder-for-received-files)
+and the receiver no longer starts, check that the folder still exists and is
+writable, or choose **Use Downloads** in the panel to go back to your
+Downloads folder.
+
 Check the panel error and permissions on the
 [documented storage locations](USAGE.md#storage). The download directory must be
 accessible and writable. Invalid or unsafe PIN settings or TLS identity files

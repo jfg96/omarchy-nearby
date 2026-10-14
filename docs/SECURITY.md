@@ -83,12 +83,21 @@ reported after an atomic rename has occurred; in that case durability is not
 guaranteed.
 
 The descriptor-based guarantees above apply to Nearby's private persistent
-security state. Incoming downloads follow the configured Downloads location
+security state. Incoming downloads follow the folder chosen in the panel, which
+the helper receives as `XDG_DOWNLOAD_DIR`, or else the configured Downloads location
 and the vendored LocalSend receive path. To find that location the helper
 reads `user-dirs.dirs` without blocking on a FIFO, only as a regular file owned
 by the user or root, and at most 16 KiB of it; otherwise it uses `~/Downloads`.
 It follows a symlinked `user-dirs.dirs`, which dotfile managers commonly
 create, and ignores relative locations.
+
+The panel does not accept the home folder, or a folder above it, as the chosen
+folder. A received file keeps the name and relative path its sender gave it
+unless that name is already taken. Hidden names are refused, but in such a
+place an accepted folder transfer could still add files and folders, such as
+`~/bin/…`, among your own. The check compares the paths as written: it does
+not follow symbolic links, and a `downloadDir` written into `shell.json` by
+hand is used as it is.
 
 Nearby validates the saved TLS certificate and private key and preserves a valid
 identity across restarts. The helper also reuses that identity when an HTTPS peer
