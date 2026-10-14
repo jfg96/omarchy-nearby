@@ -735,4 +735,31 @@ assert.match(source, /Button \{ visible:root\.receivedFile===""; text:"Done"/,
   }
 }
 
+
+
+// Evaluate the actual process callbacks so a stale result from file A cannot
+// claim that file B was copied, or reappear after Done.
+{
+  const copier = source.slice(source.indexOf("id: fileCopier"), source.indexOf("id: clipboardWriter"))
+  const exitBody = copier.match(/onExited: function\(code\) \{([^\n]+)\}/)[1]
+  const stoppedBody = copier.match(/onRunningChanged: ([^\n]+)/)[1]
+  for (const event of ["exit", "startup failure"]) {
+    for (const current of [
+      {viewState: "success", receivedFile: "/data/B.png"},
+      {viewState: "nearby", receivedFile: "/data/A.png"},
+      {viewState: "success", receivedFile: ""},
+    ]) {
+      const root = {...current, copyNote: ""}
+      vm.runInNewContext(event === "exit" ? `(function(){${exitBody}})()` : stoppedBody,
+        {root, fileCopier: {path: "/data/A.png", launched: false}, running: false, code: 0})
+      assert.equal(root.copyNote, "", "a stale copy callback must leave the current result alone")
+    }
+  }
+  for (const code of [0, 1]) {
+    const root = {viewState: "success", receivedFile: "/data/A.png", copyNote: "Copying…"}
+    vm.runInNewContext(`(function(){${exitBody}})()`, {root, fileCopier: {path: "/data/A.png"}, code})
+    assert.equal(root.copyNote, code === 0 ? "Copied to clipboard" : "Could not copy this file")
+  }
+}
+
 console.log("panel state tests passed")

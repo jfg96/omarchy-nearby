@@ -639,8 +639,8 @@ Panel {
     command: [(root.engine ? root.engine.pluginDir : "") + "/bin/nearby-copy-file", fileCopier.path]
     running: false
     onStarted: fileCopier.launched=true
-    onRunningChanged: if (!running && !fileCopier.launched) root.copyNote="The copy command could not be started"
-    onExited: function(code) { root.copyNote = code===0 ? "Copied to clipboard" : "Could not copy this file" }
+    onRunningChanged: if (!running && !fileCopier.launched && root.viewState === "success" && root.receivedFile !== "" && fileCopier.path === root.receivedFile) root.copyNote="The copy command could not be started"
+    onExited: function(code) { if (root.viewState !== "success" || root.receivedFile === "" || fileCopier.path !== root.receivedFile) return; root.copyNote = code===0 ? "Copied to clipboard" : "Could not copy this file" }
   }
 
   Process {
