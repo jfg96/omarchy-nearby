@@ -6,7 +6,7 @@ const Model = require('../Model.js')
 const strings = require('./strings-stub.js')
 const root = path.resolve(__dirname, '..')
 const languages = require('./i18n-languages.json')
-const REQUIRE_COMPLETE = false // Turn on after every supported catalogue is translated.
+const REQUIRE_COMPLETE = true // Every language supported by Omarchy needs a complete catalogue.
 
 // JSON.parse discards duplicate keys. Walk the tokens first, tracking each
 // object's own keys, including escaped spellings and nested plural objects.
@@ -46,7 +46,7 @@ const notes = parseUnique(fs.readFileSync(path.join(root, 'docs/translation-note
 assert.deepEqual(Object.keys(notes).sort(), Object.keys(english).sort(), 'Every key needs translation context')
 for (const note of Object.values(notes)) assert.ok(typeof note === 'string' && note.trim())
 const placeholders = text => (text.match(/%[1-9]\d*/g) || []).sort()
-const protectedWords = ['Nearby', 'LocalSend', 'GitHub', 'XDG', 'settings.json', 'MiB', 'wl-copy', 'wl-paste', '·', '…']
+const protectedWords = ['Nearby', 'LocalSend', 'GitHub', 'PIN', 'XDG', 'settings.json', 'MiB', 'wl-copy', 'wl-paste', '·', '…']
 function checkText(text, source, key, code) {
   const label = `${code}: ${key}`
   assert.ok(typeof text === 'string' && text.trim().length > 0, `${label}: empty/non-string translation`)
@@ -58,7 +58,10 @@ function checkText(text, source, key, code) {
 function validate(catalogue, code, complete) {
   assert.ok(catalogue && typeof catalogue === 'object' && !Array.isArray(catalogue))
   const missing = Object.keys(english).filter(key => !Object.hasOwn(catalogue, key))
-  if (complete) assert.deepEqual(missing, [], `${code}: missing keys`)
+  if (complete) {
+    assert.deepEqual(missing, [], `${code}: missing keys`)
+    assert.deepEqual(Object.keys(catalogue), Object.keys(english), `${code}: preserve source key order`)
+  }
   for (const [key, value] of Object.entries(catalogue)) {
     assert.ok(Object.hasOwn(english, key), `${code}: unknown key ${key}`)
     const source = english[key]

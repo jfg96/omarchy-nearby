@@ -813,3 +813,29 @@ type exercised the fallback loader: English was present from the initial
 component completion, plural strings resolved, remote placeholders stayed
 literal, and no binding loop occurred. This simulates the missing type; it
 does not replace validation on an actual older Omarchy release.
+
+## Complete catalogue validation — 2026-10-15
+
+The working tree based on `b3a7453` adds the remaining 48 catalogues, covering
+all 50 codes in the installed Omarchy registry, with 145 keys per catalogue
+(144 after the panel layout change removed the unused `phrase.findingDevices`).
+Each was validated after generation. A cross-language sample review corrected
+Italian/Finnish plurals, Arabic dual/zero forms, Romanian PIN grammar, Irish
+receive/retry labels and several chooser titles. These are AI-assisted
+translations without comprehensive native-speaker review.
+
+With strict completeness enabled, the four Node suites, three Bash suites and
+`git diff --check` pass. An isolated Wayland Quickshell process switched through
+all 50 languages and performed 8,000 comparisons of strings, selected plural
+forms, literal remote placeholders and RTL flags, with zero mismatches or binding
+loops. Metrics for the actual shell Button component found no sampled half-width
+control exceeding its label room at the component's minimum font size. This is
+a measurement check, not a visual review of every panel state. Qt logged font
+OpenType-support messages for some South Asian scripts, so this run does not
+establish correct glyph rendering for all languages.
+
+The Wayland harness also opened an unintended blank window while loading shell
+components. Its processes were terminated and confirmed absent. It did not
+change the desktop language or the managed Nearby installation. Further checks
+for this work use non-windowed tools. Full visual review, native-language review
+and real-peer transfer testing remain unperformed. Rust/helper code is unchanged.

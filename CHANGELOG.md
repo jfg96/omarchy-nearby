@@ -8,10 +8,11 @@
   "Finding devices" while the empty list says the same.
 
 - Follow Omarchy's display language for panel text, notifications and file
-  chooser titles, with English fallback on older shells. Add English and
-  Spanish (`es-MX`) catalogues, localized numbers/plurals and mirrored Back
-  controls and horizontal navigation for right-to-left languages. Helper
-  diagnostics remain unchanged. Additional language catalogues are pending.
+  chooser titles, with catalogues for every language in Omarchy's supported
+  registry and English fallback on older shells. Localize numbers/plurals and
+  mirror Back controls and horizontal navigation for right-to-left languages.
+  Helper diagnostics remain unchanged. CI requires every supported catalogue
+  and every translation key.
 
 - Choose the folder received files are saved to with **Save to** in the
   panel. The choice is kept in Nearby's `shell.json` entry and applied by

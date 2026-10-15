@@ -12,8 +12,8 @@ names: Spanish uses `es-MX`, Norwegian `no`, and Chinese `zh-CN` / `zh-TW`.
 Add `i18n/<code>.json`, a flat JSON object in the same order as `i18n/en.json`.
 Keep blank lines between groups. Every English key needs a translation; consult
 `translation-notes.json` for its location and placeholder meanings. English and
-Spanish are complete examples. The validator temporarily permits missing keys
-in other languages while the initial translations are being prepared.
+Spanish are complete examples. Every language in the supported registry must
+have a complete catalogue; CI rejects missing languages or translation keys.
 
 - Values are strings, or plural objects with exactly the categories in the
   language snapshot. Keep placeholders `%1`, `%2`, etc. exactly, including
@@ -33,10 +33,10 @@ in other languages while the initial translations are being prepared.
 
 Run `node tests/i18n.test.js` after each catalogue. It rejects duplicate keys,
 unsupported language codes, unknown keys, incorrect types, plural categories,
-placeholder changes, empty values and altered protected words. With a local
+placeholder changes, empty values, reordered keys and altered protected words
+(including PIN). With a local
 Omarchy installation it also compares the language snapshot against that
-installation. Set `REQUIRE_COMPLETE` to true once every supported catalogue is
-ready; CI must then require every language and every key.
+installation. Completeness is required for every language and every key.
 
 ## Runtime behavior
 
