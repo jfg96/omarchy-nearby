@@ -2,6 +2,11 @@
 
 ## 1.2.7-dev
 
+- Separate the device list from the receiver actions with a rule, dim
+  **Rescan**, **PIN**, **Save to** and **Use Downloads** like **Back**, and
+  align their icons in one column. The rotating status line no longer repeats
+  "Finding devices" while the empty list says the same.
+
 - Choose the folder received files are saved to with **Save to** in the
   panel. The choice is kept in Nearby's `shell.json` entry and applied by
   restarting the receiver. **Use Downloads** removes it again, also when the

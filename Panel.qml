@@ -96,9 +96,10 @@ Panel {
   property bool viewRegistered: false
   property string copyNote: ""
 
+  // None of these repeats the empty device list below, which already says
+  // "Finding devices…" while discovery runs; the hero line would echo it.
   readonly property var nearbyPhrases: [
     "Looking nearby",
-    "Finding devices",
     "Listening locally",
     "Ready to receive",
     "Watching the LAN",
@@ -431,13 +432,17 @@ Panel {
             model: root.devices
             Button { required property var modelData; required property int index; width:parent.width; leftAlign:true; bordered:false; iconText:Model.iconFor(modelData.deviceType); text:modelData.alias; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===index; onHovered:function(v){root.noteHover(v,index)}; onClicked:root.chooseDevice(index) }
           }
+          // The devices are what the panel is for; what follows tunes the
+          // receiver. A rule and the dimmed colour Back already uses keep the
+          // two from reading as one list.
+          PanelSeparator { visible:nearbyActions.visible; width:parent.width }
           Row {
             id:nearbyActions; visible:root.receiverEnabled&&root.backendReady; width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰑐"; text:"Rescan"; tooltipText:"Search for new devices"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length; onHovered:function(v){root.noteHover(v,root.devices.length)}; onClicked:root.forceFullDiscovery() }
-            Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌾"; text:"PIN · "+(root.incomingPinEnabled?"On":"Off"); tooltipText:"Incoming PIN settings"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){root.noteHover(v,root.devices.length+1)}; onClicked:root.openIncomingPinSettings() }
+            Button { width:(parent.width-parent.spacing)/2; leftAlign:true; bordered:false; iconText:"󰑐"; text:"Rescan"; tooltipText:"Search for new devices"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length; onHovered:function(v){root.noteHover(v,root.devices.length)}; onClicked:root.forceFullDiscovery() }
+            Button { width:(parent.width-parent.spacing)/2; leftAlign:true; bordered:false; iconText:"󰌾"; text:"PIN · "+(root.incomingPinEnabled?"On":"Off"); tooltipText:"Incoming PIN settings"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){root.noteHover(v,root.devices.length+1)}; onClicked:root.openIncomingPinSettings() }
           }
-          Button { visible:nearbyActions.visible; width:parent.width; leftAlign:true; bordered:false; iconText:"󰉋"; text:"Save to · "+Model.folderName(root.saveDirectory); tooltipText:"Received files go to "+root.saveDirectory+". Choose another folder."; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+2; onHovered:function(v){root.noteHover(v,root.devices.length+2)}; onClicked:root.chooseDownloadDir() }
-          Button { visible:root.useDownloadsIndex>=0; width:parent.width; leftAlign:true; bordered:false; iconText:"󰕌"; text:"Use Downloads"; tooltipText:"Stop saving to "+root.downloadDir+" and go back to your Downloads folder"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.useDownloadsIndex; onHovered:function(v){root.noteHover(v,root.useDownloadsIndex)}; onClicked:root.useDownloads() }
+          Button { visible:nearbyActions.visible; width:parent.width; leftAlign:true; bordered:false; iconText:"󰉋"; text:"Save to · "+Model.folderName(root.saveDirectory); tooltipText:"Received files go to "+root.saveDirectory+". Choose another folder."; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+2; onHovered:function(v){root.noteHover(v,root.devices.length+2)}; onClicked:root.chooseDownloadDir() }
+          Button { visible:root.useDownloadsIndex>=0; width:parent.width; leftAlign:true; bordered:false; iconText:"󰕌"; text:"Use Downloads"; tooltipText:"Stop saving to "+root.downloadDir+" and go back to your Downloads folder"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.useDownloadsIndex; onHovered:function(v){root.noteHover(v,root.useDownloadsIndex)}; onClicked:root.useDownloads() }
 
           // The checkout pins immutable helper bytes. The launcher resolves
           // them outside the plugin tree, and this action retries/prefetches

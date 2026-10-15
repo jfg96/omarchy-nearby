@@ -762,4 +762,35 @@ assert.match(source, /Button \{ visible:root\.receivedFile===""; text:"Done"/,
   }
 }
 
+// The hero rotates through these while the empty device list below says
+// "Finding devices…"; a phrase that matches it shows the same words twice.
+{
+  const phrases = source.match(/readonly property var nearbyPhrases: \[([\s\S]*?)\]/)
+  assert.notEqual(phrases, null, "the rotating phrases must stay a literal list")
+  const emptyList = source.match(/root\.discoveryActive \? "([^"]+)"/)
+  assert.notEqual(emptyList, null, "the empty list must say discovery is running")
+  const normalize = text => text.replace(/…$/, "").toLowerCase()
+  for (const phrase of phrases[1].match(/"[^"]+"/g).map(value => JSON.parse(value)))
+    assert.notEqual(normalize(phrase), normalize(emptyList[1]), `the hero must not repeat "${emptyList[1]}"`)
+}
+
+// The action row shares the folder row's left edge, so the icons line up in
+// one column instead of floating at the centres of the two halves.
+for (const label of ["Rescan", "PIN · "]) {
+  assert.match(source, new RegExp(`Button \\{ width:\\(parent\\.width-parent\\.spacing\\)/2; leftAlign:true;[^\\n]*text:"${label}`),
+    `${label.trim()} must be left-aligned like the folder row`)
+}
+
+// Devices are the panel's purpose and the rows after them tune the receiver.
+// A rule and the dimmed colour Back uses keep them from reading as one list.
+assert.match(source, /PanelSeparator \{ visible:nearbyActions\.visible; width:parent\.width \}\s*Row \{\s*id:nearbyActions;/,
+  "a rule must separate the devices from the receiver actions")
+for (const label of ['text:"Rescan"', 'text:"PIN · "', 'text:"Save to · "', 'text:"Use Downloads"']) {
+  const line = source.split("\n").find(text => text.includes(label))
+  assert.ok(line, `${label} must exist`)
+  assert.match(line, /foreground:root\.dim;/, `${label} must be dimmed below the devices`)
+}
+assert.match(source, /iconText:Model\.iconFor\(modelData\.deviceType\); text:modelData\.alias; foreground:root\.foreground;/,
+  "devices keep the full foreground")
+
 console.log("panel state tests passed")
