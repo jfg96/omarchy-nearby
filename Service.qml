@@ -79,7 +79,8 @@ Item {
   property var devices: []
   property var selectedDevice: null
   property string viewState: "nearby"
-  property string statusText: "Starting receiver…"
+  property string statusText: strings.t("status.startingReceiver")
+  property bool transferWasOutgoing: false
   property string errorText: ""
   property var incomingQueue: []
   readonly property var incoming: Model.currentIncoming(incomingQueue)
@@ -130,9 +131,8 @@ Item {
   readonly property string helperUpdateDetail: !helperUpdateOffered
     ? ""
     : (helperMissing
-      ? "The helper binary is missing."
-      : "Needs helper " + requiredHelperVersion + " · installed "
-        + (helperVersion !== "" ? helperVersion : "unknown"))
+      ? strings.t("helper.missing")
+      : strings.t("helper.versions", [requiredHelperVersion, helperVersion !== "" ? helperVersion : strings.t("helper.versionUnknown")]))
 
   // Discovery follows the popup, and the popup exists once per monitor, so
   // openness is a count rather than a flag: discovery runs while any view is
@@ -150,6 +150,8 @@ Item {
   signal incomingPinFocusRequested()
   signal focusRestoreRequested()
 
+  Strings { id: strings }
+
   FileView {
     path: root.pluginDir + "/manifest.json"
     printErrors: false
@@ -157,14 +159,14 @@ Item {
       root.pluginVersion = Model.manifestVersion(text(), root.manifestPluginId)
       root.minHelperVersion = Model.manifestMinHelperVersion(text(), root.manifestPluginId)
       if (root.pluginVersion === "") {
-        root.errorText = "Nearby manifest version unavailable."
+        root.errorText = strings.t("status.manifestUnavailable")
         root.statusText = root.errorText
       }
     }
     onLoadFailed: function(error) {
       root.pluginVersion = ""
       root.minHelperVersion = ""
-      root.errorText = "Nearby manifest version unavailable."
+      root.errorText = strings.t("status.manifestUnavailable")
       root.statusText = root.errorText
     }
   }
@@ -298,7 +300,7 @@ Item {
       // so it cannot take the place of a request that arrived meanwhile.
       if (viewState === "nearby") {
         viewState = "error"
-        reportFailure("Folder not used", "Received files keep the names their sender gave them, so they are not saved straight into your home folder or a folder above it. Choose a folder inside it.")
+        reportFailure(strings.t("folder.notUsed"), strings.t("folder.notUsedDetail"))
       }
       return
     }
@@ -320,7 +322,7 @@ Item {
     backendRestart.attempts = 0
     backendRestart.interval = 0
     backendRestart.restart()
-    reportFailure("Starting receiver…", "")
+    reportFailure(strings.t("status.startingReceiver"), "")
   }
   function toggleReceiver() {
     if (shutdownPending) return
@@ -330,7 +332,7 @@ Item {
       backendRestart.attempts = 0
       persistReceiverEnabled(true)
       errorText = ""
-      statusText = "Starting receiver…"
+      statusText = strings.t("status.startingReceiver")
     } else {
       stopDiscovery()
       shutdownPending = true
@@ -350,11 +352,11 @@ Item {
     activeIncomingSession = ""
     clearPendingOutgoing()
     viewState = "nearby"
-    statusText = "Turned off"
+    statusText = strings.t("status.turnedOff")
     errorText = ""
   }
-  function startDiscovery() { discoveryActive = true; errorText = ""; statusText = devices.length ? "Ready" : "Looking nearby…"; send({command:"discovery_start"}) }
-  function forceFullDiscovery() { discoveryActive = true; errorText = ""; statusText = "Scanning local network…"; send({command:"discovery_start",force_full:true}) }
+  function startDiscovery() { discoveryActive = true; errorText = ""; statusText = devices.length ? strings.t("status.ready") : strings.t("status.lookingNearby"); send({command:"discovery_start"}) }
+  function forceFullDiscovery() { discoveryActive = true; errorText = ""; statusText = strings.t("status.scanning"); send({command:"discovery_start",force_full:true}) }
   function stopDiscovery() { discoveryActive = false; send({command:"discovery_stop"}) }
   function chooseDevice(index) { if (index >= 0 && index < devices.length) { selectedDevice = devices[index]; viewState = "target"; cursorRequested(0) } }
   function clearTarget() { viewState = "nearby"; selectedDevice = null; cursorRequested(0) }
@@ -370,7 +372,7 @@ Item {
   function submitIncomingPin(pin) {
     if(incomingPinUpdating||!backendReady)return
     var entered=String(pin || "")
-    if(!/^[A-Za-z0-9._~-]{1,64}$/.test(entered)){incomingPinError="Use 1–64 letters, numbers, dot, underscore, tilde or hyphen";incomingPinFocusRequested();return}
+    if(!/^[A-Za-z0-9._~-]{1,64}$/.test(entered)){incomingPinError=strings.t("pin.rules");incomingPinFocusRequested();return}
     incomingPinUpdating=true; pendingIncomingPinEnabled=true; incomingPinError=""
     send({command:"set_incoming_pin",pin:entered})
   }
@@ -384,7 +386,7 @@ Item {
   function startHelperUpdate() {
     if (helperUpdating || pluginVersion === "" || helperUpdater.running) return
     helperUpdateError=""
-    helperUpdateStatus="Contacting GitHub…"
+    helperUpdateStatus=strings.t("helper.contacting")
     helperUpdateInstalled=false
     helperUpdating=true
     helperUpdater.launched=false
@@ -401,7 +403,7 @@ Item {
     helperUpdateStatus=""
     // The repair command reports success only after the cached helper verifies.
     if (code !== 0 && !helperUpdateInstalled) {
-      if (helperUpdateError === "") helperUpdateError="Nearby could not update the helper."
+      if (helperUpdateError === "") helperUpdateError=strings.t("helper.updateFailed")
       return
     }
     helperUpdateError=""
@@ -413,7 +415,7 @@ Item {
     backendRestart.stop()
     backendRestart.attempts=0
     errorText=""
-    statusText="Starting receiver…"
+    statusText=strings.t("status.startingReceiver")
     // The mismatch shutdown left Process.running written rather than bound, so
     // the binding has to be restored before the new helper can start. Same
     // reason backendRestart calls this instead of assigning true.
@@ -426,14 +428,14 @@ Item {
   function reportFailure(summary, detail) { statusText=summary; errorText=detail }
   function failWith(message) { viewState="error"; errorText=message; statusText=errorText }
   function cancelOutgoing() { send({command:"cancel_outgoing",transfer_id:outgoingTransferId}) }
-  function noteTextCopied() { if (viewState !== "text") return; viewState="success"; statusText="Received" }
+  function noteTextCopied() { if (viewState !== "text") return; viewState="success"; transferWasOutgoing=false; statusText=strings.t("status.received") }
   function clearPendingOutgoing() { pendingOutgoing=null; outgoingTransferId=""; pinError=""; pinCleared() }
   function dispatchPendingOutgoing(pin) {
     if (!pendingOutgoing) return
     transferSequence++
     outgoingTransferId="out-"+Date.now()+"-"+transferSequence
     var command=Model.outgoingCommand(pendingOutgoing,outgoingTransferId,pin)
-    if (!command) { clearPendingOutgoing(); viewState="error"; errorText="Transfer failed"; return }
+    if (!command) { clearPendingOutgoing(); viewState="error"; errorText=strings.t("status.transferFailed"); return }
     pinCleared()
     pinError=""
     send(command)
@@ -441,7 +443,7 @@ Item {
   function beginOutgoing(pending) {
     if(pendingOutgoing||!backend.running)return
     if(pending && pending.kind==="text" && utf8ByteLength(pending.text)>maxOutgoingTextBytes) {
-      failWith("Text is too large (maximum 1 MiB)")
+      failWith(strings.t("status.textTooLarge"))
       return
     }
     pendingOutgoing=pending
@@ -450,25 +452,25 @@ Item {
   function retryWithPin(pin) {
     if (outgoingTransferId !== "") return
     var entered=String(pin || "")
-    if (entered === "") { pinError="Enter the receiver PIN"; pinFocusRequested(); return }
+    if (entered === "") { pinError=strings.t("pin.enterReceiverPin"); pinFocusRequested(); return }
     dispatchPendingOutgoing(entered)
   }
   function showPinPrompt(message) {
     outgoingTransferId=""
     viewState="pin"
     pinError=message
-    statusText="PIN required"
+    statusText=strings.t("status.pinRequired")
     pinFocusRequested()
   }
-  function cancelPin() { if(outgoingTransferId!=="")send({command:"cancel_outgoing",transfer_id:outgoingTransferId}); clearPendingOutgoing(); if(incoming){viewState="incoming";cursorRequested(1)}else if(incomingTextPending){incomingTextPending=false;viewState="text";statusText="Text received";cursorRequested(0)}else{viewState=selectedDevice?"target":"nearby";cursorRequested(0)} focusRestoreRequested() }
-  function acceptIncoming() { if (!incoming) return; send({command:"accept",request_id:incoming.requestId}); viewState="receiving"; transferPeer=incoming.sender; transferName=Model.incomingSummary(incoming.files); progress=0 }
+  function cancelPin() { if(outgoingTransferId!=="")send({command:"cancel_outgoing",transfer_id:outgoingTransferId}); clearPendingOutgoing(); if(incoming){viewState="incoming";cursorRequested(1)}else if(incomingTextPending){incomingTextPending=false;viewState="text";statusText=strings.t("status.textReceived");cursorRequested(0)}else{viewState=selectedDevice?"target":"nearby";cursorRequested(0)} focusRestoreRequested() }
+  function acceptIncoming() { if (!incoming) return; send({command:"accept",request_id:incoming.requestId}); viewState="receiving"; transferPeer=incoming.sender; transferName=Model.incomingSummary(incoming.files, strings); progress=0 }
   function declineIncoming() {
     if (!incoming) return
     var requestId = incoming.requestId
     send({command:"decline",request_id:requestId})
     incomingQueue = Model.removeIncoming(incomingQueue, requestId)
-    if (!incoming&&incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received" }
-    else { viewState = incoming ? "incoming" : "nearby"; statusText = incoming ? "Incoming transfer" : "Declined" }
+    if (!incoming&&incomingTextPending) { incomingTextPending=false; viewState="text"; statusText=strings.t("status.textReceived") }
+    else { viewState = incoming ? "incoming" : "nearby"; statusText = incoming ? strings.t("status.incomingTransfer") : strings.t("status.declined") }
     cursorRequested(incoming ? 1 : 0)
   }
   function finishIncoming(terminalState, message, completed) {
@@ -477,13 +479,14 @@ Item {
     if (incoming) {
       viewState = "incoming"
       cursorRequested(1)
-      statusText = "Incoming transfer"
+      statusText = strings.t("status.incomingTransfer")
       errorText = ""
       progress = 0
       return
     }
-    if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received"; errorText=""; progress=0; return }
+    if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText=strings.t("status.textReceived"); errorText=""; progress=0; return }
     viewState = terminalState
+    transferWasOutgoing = false
     statusText = message
     errorText = terminalState === "error" ? message : ""
     if (completed) progress = 1
@@ -493,13 +496,14 @@ Item {
     if (incoming) {
       viewState = Model.viewAfterOutgoing(true, terminalState)
       cursorRequested(1)
-      statusText = "Incoming transfer"
+      statusText = strings.t("status.incomingTransfer")
       errorText = ""
       progress = 0
       return
     }
-    if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received"; errorText=""; progress=0; return }
+    if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText=strings.t("status.textReceived"); errorText=""; progress=0; return }
     viewState = Model.viewAfterOutgoing(false, terminalState)
+    transferWasOutgoing = true
     statusText = message
     errorText = terminalState === "error" ? message : ""
     if (completed) progress = 1
@@ -527,7 +531,7 @@ Item {
     var restarting=restartPending; restartPending=false
     backendReady=false; discoveryActive=false; incomingQueue=[]; incomingTextPending=false; activeIncomingSession=""; incomingPinUpdating=false; pendingIncomingPinEnabled=null; incomingPinError=""; incomingPinCleared(); clearPendingOutgoing()
     if (shutdownPending) { finishReceiverShutdown(); return }
-    if (!receiverEnabled) { statusText="Turned off"; errorText=""; return }
+    if (!receiverEnabled) { statusText=strings.t("status.turnedOff"); errorText=""; return }
     if (backendVersionMismatch) return
     if (!backendAcceptedThisRun) {
       // An early exit alone does not identify its cause. The helper reports a
@@ -535,28 +539,28 @@ Item {
       // other pre-ready failures remain generic. Both keep the existing
       // bounded retry schedule so a transient conflict can recover.
       if (backendStartupFailureCode === "receiver_security_settings_invalid") {
-        reportFailure("Security settings invalid",
-          "Nearby security settings are invalid. Repair settings.json in your XDG state directory while preserving your incoming PIN; then enable Nearby again.")
+        reportFailure(strings.t("status.securityInvalid"),
+          strings.t("status.securityInvalidDetail"))
       } else if (backendRestart.attempts < 4) {
-        reportFailure("Retrying…", "Nearby receiver could not start. Retrying…")
+        reportFailure(strings.t("status.retrying"), strings.t("status.retryingDetail"))
       } else if (backendStartupFailureCode === "receiver_port_in_use") {
         var port = backendStartupFailurePort > 0 ? backendStartupFailurePort : 53317
-        reportFailure("Port " + port + " in use",
-          "LocalSend receiver port " + port + " is already in use. Another LocalSend receiver on this computer may be running. Quit it and enable Nearby again.")
+        reportFailure(strings.t("status.portInUse", [strings.number(port)]),
+          strings.t("status.portInUseDetail", [strings.number(port)]))
       } else if (downloadDir !== "") {
         // The helper does not say why it stopped before it was ready, and a
         // chosen folder that has gone away is the one cause the user set up.
-        reportFailure("Could not start",
-          "Nearby receiver could not start. Check that the folder for received files is available: " + downloadDir + ". Use Downloads goes back to your Downloads folder.")
+        reportFailure(strings.t("status.couldNotStart"),
+          strings.t("status.couldNotStartFolderDetail", [downloadDir, strings.t("folder.useDownloads")]))
       } else {
-        reportFailure("Could not start", "Nearby receiver could not start.")
+        reportFailure(strings.t("status.couldNotStart"), strings.t("status.couldNotStartDetail"))
       }
     } else {
-      reportFailure(code===0 ? "Receiver stopped" : "Receiver unavailable",
-        code===0 ? "Receiver stopped" : "Receiver unavailable")
-      if (restarting) reportFailure("Restarting…", "Restarting the receiver to use the new folder…")
-      if (viewState.indexOf("incoming_pin_")===0) { viewState="error"; reportFailure("Backend stopped", "Nearby backend stopped while updating receiver security") }
-      else if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; reportFailure("Backend stopped", "Nearby backend stopped during transfer") }
+      reportFailure(code===0 ? strings.t("status.receiverStopped") : strings.t("status.receiverUnavailable"),
+        code===0 ? strings.t("status.receiverStopped") : strings.t("status.receiverUnavailable"))
+      if (restarting) reportFailure(strings.t("status.restarting"), strings.t("status.restartingDetail"))
+      if (viewState.indexOf("incoming_pin_")===0) { viewState="error"; reportFailure(strings.t("status.backendStopped"), strings.t("status.backendStoppedPin")) }
+      else if (viewState==="sending"||viewState==="receiving"||viewState==="pin"||viewState==="incoming") { viewState="error"; reportFailure(strings.t("status.backendStopped"), strings.t("status.backendStoppedTransfer")) }
     }
     if (backendStartupFailureCode !== "receiver_security_settings_invalid" && backendRestart.attempts < 4) { backendRestart.attempts++; backendRestart.interval=Math.min(30000,1000*Math.pow(2,backendRestart.attempts-1)); backendRestart.restart() }
   }
@@ -573,21 +577,21 @@ Item {
       if (!Model.helperSatisfies(requiredHelperVersion, helperVersion)) {
         backendReady=false
         backendVersionMismatch=true
-        reportFailure("Helper out of date", helperUpdateDetail)
+        reportFailure(strings.t("helper.outOfDate"), helperUpdateDetail)
         send({command:"shutdown"})
         return
       }
-      saveDirectory=String(event.directory || ""); backendAcceptedThisRun=true; backendReady=true; backendVersionMismatch=false; backendRestart.attempts=0; statusText="Ready to receive"; errorText=""; if(anyViewOpen&&viewState==="nearby")startDiscovery()
+      saveDirectory=String(event.directory || ""); backendAcceptedThisRun=true; backendReady=true; backendVersionMismatch=false; backendRestart.attempts=0; statusText=strings.t("status.readyToReceive"); errorText=""; if(anyViewOpen&&viewState==="nearby")startDiscovery()
     }
     else if (event.event === "incoming_pin_state") {
       incomingPinEnabled=event.enabled===true
-      if(pendingIncomingPinEnabled!==null){var enabled=pendingIncomingPinEnabled===true;var settingsStillVisible=viewState.indexOf("incoming_pin_")===0;pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError="";incomingPinCleared();if(settingsStillVisible){viewState="incoming_pin_settings";statusText=enabled?"Incoming PIN enabled":"Incoming PIN disabled";cursorRequested(0);focusRestoreRequested()}}
+      if(pendingIncomingPinEnabled!==null){var enabled=pendingIncomingPinEnabled===true;var settingsStillVisible=viewState.indexOf("incoming_pin_")===0;pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError="";incomingPinCleared();if(settingsStillVisible){viewState="incoming_pin_settings";statusText=enabled?strings.t("status.pinEnabled"):strings.t("status.pinDisabled");cursorRequested(0);focusRestoreRequested()}}
     }
     else if (event.event === "incoming_pin_update_failed") {
-      pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError=String(event.message||"Unable to update incoming PIN");incomingPinCleared();if(viewState==="incoming_pin_edit")incomingPinFocusRequested()
+      pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError=String(event.message||strings.t("pin.updateFailed"));incomingPinCleared();if(viewState==="incoming_pin_edit")incomingPinFocusRequested()
     }
-    else if (event.event === "peer_snapshot") { devices=Model.snapshotDevices(event.devices); statusText=devices.length ? "Ready" : "Looking nearby…" }
-    else if (event.event === "device") { devices=Model.upsertDevice(devices,event.device); statusText=devices.length ? "Ready" : "Looking nearby…" }
+    else if (event.event === "peer_snapshot") { devices=Model.snapshotDevices(event.devices); statusText=devices.length ? strings.t("status.ready") : strings.t("status.lookingNearby") }
+    else if (event.event === "device") { devices=Model.upsertDevice(devices,event.device); statusText=devices.length ? strings.t("status.ready") : strings.t("status.lookingNearby") }
     else if (event.event === "discovery_started") discoveryActive=true
     else if (event.event === "discovery_stopped") discoveryActive=false
     else if (event.event === "incoming_request") {
@@ -596,38 +600,38 @@ Item {
       var incomingTakesView = viewState!=="sending" && viewState!=="receiving" && viewState!=="pin"
       if (incomingTakesView) { viewState="incoming"; cursorRequested(1) }
       if (notificationNeeded(incomingTakesView && incoming && incoming.requestId===event.requestId))
-        Quickshell.execDetached(["omarchy-notification-send","--app-name","Nearby","--urgency","normal","Incoming transfer","From "+Model.notificationText(event.sender)+": "+Model.notificationText(Model.incomingSummary(event.files))])
+        Quickshell.execDetached(["omarchy-notification-send","--app-name","Nearby","--urgency","normal",strings.t("status.incomingTransfer"),strings.t("notify.incomingBody", [Model.notificationText(event.sender), Model.notificationText(Model.incomingSummary(event.files, strings))])])
     }
     else if (event.event === "incoming_text") {
       if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
       incomingText=String(event.text || ""); transferPeer=String(event.sender || ""); incomingTextPending=pendingOutgoing!==null; if (!pendingOutgoing) { viewState="text"; stopDiscovery() }
       if (notificationNeeded(!incomingTextPending))
-        Quickshell.execDetached(["omarchy-notification-send","--app-name","Nearby","--urgency","normal","Text received","From "+Model.notificationText(event.sender)])
+        Quickshell.execDetached(["omarchy-notification-send","--app-name","Nearby","--urgency","normal",strings.t("status.textReceived"),strings.t("notify.textBody", [Model.notificationText(event.sender)])])
     }
     else if (event.event === "incoming_accepted") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
     else if (event.event === "incoming_expired") {
       var expiredWasCurrent=incoming&&incoming.requestId===event.requestId
       incomingQueue=Model.removeIncoming(incomingQueue,event.requestId)
       if (expiredWasCurrent&&(viewState==="incoming"||(viewState==="receiving"&&activeIncomingSession===""))) {
-        if (incoming) { statusText="Incoming transfer"; cursorRequested(1) }
-        else if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText="Text received"; errorText="" }
-        else { viewState="error"; errorText="Transfer request expired"; statusText=errorText }
+        if (incoming) { statusText=strings.t("status.incomingTransfer"); cursorRequested(1) }
+        else if (incomingTextPending) { incomingTextPending=false; viewState="text"; statusText=strings.t("status.textReceived"); errorText="" }
+        else { viewState="error"; errorText=strings.t("status.requestExpired"); statusText=errorText }
       }
     }
     else if (event.event === "incoming_progress") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(pendingOutgoing)return; viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0 }
     else if (event.event === "file_received") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(receivedSession!==activeIncomingSession){receivedSession=activeIncomingSession;receivedFileCount=0} receivedFileCount++; lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
-    else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success","Received",true); offerReceivedFile(String(event.sessionId)) }
-    else if (event.event === "incoming_cancelled") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error","Transfer cancelled",false) }
-    else if (event.event === "incoming_failed") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",String(event.message||"Transfer failed"),false) }
+    else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success",strings.t("status.received"),true); offerReceivedFile(String(event.sessionId)) }
+    else if (event.event === "incoming_cancelled") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",strings.t("status.transferCancelled"),false) }
+    else if (event.event === "incoming_failed") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",String(event.message||strings.t("status.transferFailed")),false) }
     else if (event.event === "incoming_declined") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
     else if (event.event === "outgoing_preparing") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; transferName=String(event.name); transferPeer=String(event.target); progress=0; stopDiscovery() }
     else if (event.event === "outgoing_progress") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; if(event.name) transferName=String(event.name); progress=event.total>0 ? event.bytes/event.total : 0 }
-    else if (event.event === "outgoing_done") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("success", "Sent", true) }
-    else if (event.event === "outgoing_cancelled") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", "Transfer cancelled", false) }
+    else if (event.event === "outgoing_done") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("success", strings.t("status.sent"), true) }
+    else if (event.event === "outgoing_cancelled") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", strings.t("status.transferCancelled"), false) }
     else if (event.event === "outgoing_pin_required") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt("") }
-    else if (event.event === "outgoing_invalid_pin") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt("Incorrect PIN") }
-    else if (event.event === "outgoing_failed") { if(event.transferId && String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", String(event.message||"Transfer failed"), false) }
-    else if (event.event === "error") { viewState="error"; errorText=String(event.message||"Transfer failed"); statusText=errorText }
+    else if (event.event === "outgoing_invalid_pin") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt(strings.t("pin.incorrect")) }
+    else if (event.event === "outgoing_failed") { if(event.transferId && String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", String(event.message||strings.t("status.transferFailed")), false) }
+    else if (event.event === "error") { viewState="error"; errorText=String(event.message||strings.t("status.transferFailed")); statusText=errorText }
   }
 
   Process {
@@ -663,8 +667,8 @@ Item {
       if (!root.receiverEnabled || root.pluginVersion === "") return
       root.backendReady=false
       root.helperMissing=true
-      root.reportFailure("Helper unavailable",
-        "Nearby could not prepare its verified helper. Connect to the internet and try Retry helper, or build it with ./build.sh.")
+      root.reportFailure(strings.t("helper.unavailable"),
+        strings.t("helper.unavailableDetail", [strings.t("helper.retry"), "./build.sh"]))
     }
     onExited: function(code) { root.handleBackendExit(code) }
   }
@@ -682,7 +686,7 @@ Item {
       if (running || helperUpdater.launched) return
       root.helperUpdating=false
       root.helperUpdateStatus=""
-      root.helperUpdateError="The Nearby helper repair command is missing. Run omarchy plugin update oma.nearby."
+      root.helperUpdateError=strings.t("helper.repairMissing", ["omarchy plugin update oma.nearby"])
     }
     onExited: function(code) { root.finishHelperUpdate(code) }
   }

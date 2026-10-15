@@ -83,7 +83,7 @@ Run from the repository root. Select checks by the changed behavior:
 
 | Change | Required checks |
 | --- | --- |
-| QML or shared JavaScript | All three Node suites |
+| QML or shared JavaScript | All four Node suites |
 | Rust helper | Formatting, build check, Clippy and helper tests |
 | Vendored Rust | Helper checks plus the separate vendor suite |
 | Launcher or repair | Both distribution Bash suites |
@@ -97,6 +97,7 @@ The complete supported automated suite is:
 node tests/model.test.js
 node tests/panel-state.test.js
 node tests/service-state.test.js
+node tests/i18n.test.js
 bash tests/launcher.test.sh
 bash tests/helper-repair.test.sh
 bash tests/copy-file.test.sh
@@ -136,3 +137,7 @@ version. Helper behavior changes also advance the helper package and compatibili
 floor. Repository-only documentation or CI changes that cannot alter the installed
 plugin do not require a version bump. Follow the
 [release procedure](docs/RELEASING.md) before preparing tags or helper metadata.
+
+A new visible string needs a key in `i18n/en.json`, context in
+`docs/translation-notes.json` and an entry in every supported catalogue. Run
+`node tests/i18n.test.js`; see `docs/TRANSLATING.md` for translation rules.

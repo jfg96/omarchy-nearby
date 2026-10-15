@@ -739,6 +739,16 @@ complete until those versions and results are written down.
     manager. Send two pictures in one transfer: the result must stay plain.
     Receive a text file renamed to `.png`: there must be no preview.
 
+25. In an agreed development installation, keep the panel open and switch
+    between English and Spanish under **Setup > Language**. Verify buttons,
+    rotating phrases, tooltips and chooser titles update without restarting.
+    Repeat with German, Finnish, Bulgarian and Urdu and inspect long
+    half-width buttons. Switch to Arabic and inspect mirrored rows, Back
+    chevrons and horizontal keyboard navigation. Check queued-request plurals
+    in Russian (2, 5, 21), and confirm translated notifications still escape
+    remote markup and preserve literal `%N` inside peer names. Restore the
+    original language. Exercise English fallback without shell translations.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -779,3 +789,53 @@ Keep compatibility claims tied to recorded peer versions and test outcomes.
 The vendor tests include a declared SHA-256 mismatch returning `422`.
 Discovery is not authenticated pairing; TLS fingerprint handling does not
 remove that discovery trust limitation. See [security](docs/SECURITY.md).
+
+## Translation development check — 2026-10-15
+
+The working `feat/i18n` tree based on `4dbb866` was tested in an isolated
+Quickshell process, with a private `OMARCHY_LANGUAGE_FILE` and the receiver
+disabled. It compiled Panel.qml under Wayland, loaded Service.qml and Strings.qml,
+and changed English → es-MX → Arabic without restarting. English and Spanish
+labels and plural strings updated, remote `%2` remained literal, and the Arabic
+language setting enabled the RTL flag with English catalogue fallback. Startup
+showed readable English without binding loops. This does not validate the visual
+layout or Arabic translations. The desktop's own language/plugin settings were
+not changed. Only existing shell deprecation warnings for FloatingWindow width
+and height remained.
+
+The four Node suites and three Bash suites passed. Rust is unchanged and its
+suites were not run for this frontend-only change. Scenario 25 on the actual
+installed panel, long translated labels, other language catalogues, real peers
+and an actual older Omarchy installation remain untested.
+
+A separate isolated component with an intentionally unavailable translations
+type exercised the fallback loader: English was present from the initial
+component completion, plural strings resolved, remote placeholders stayed
+literal, and no binding loop occurred. This simulates the missing type; it
+does not replace validation on an actual older Omarchy release.
+
+## Complete catalogue validation — 2026-10-15
+
+The working tree based on `b3a7453` adds the remaining 48 catalogues, covering
+all 50 codes in the installed Omarchy registry, with 145 keys per catalogue
+(144 after the panel layout change removed the unused `phrase.findingDevices`).
+Each was validated after generation. A cross-language sample review corrected
+Italian/Finnish plurals, Arabic dual/zero forms, Romanian PIN grammar, Irish
+receive/retry labels and several chooser titles. These are AI-assisted
+translations without comprehensive native-speaker review.
+
+With strict completeness enabled, the four Node suites, three Bash suites and
+`git diff --check` pass. An isolated Wayland Quickshell process switched through
+all 50 languages and performed 8,000 comparisons of strings, selected plural
+forms, literal remote placeholders and RTL flags, with zero mismatches or binding
+loops. Metrics for the actual shell Button component found no sampled half-width
+control exceeding its label room at the component's minimum font size. This is
+a measurement check, not a visual review of every panel state. Qt logged font
+OpenType-support messages for some South Asian scripts, so this run does not
+establish correct glyph rendering for all languages.
+
+The Wayland harness also opened an unintended blank window while loading shell
+components. Its processes were terminated and confirmed absent. It did not
+change the desktop language or the managed Nearby installation. Further checks
+for this work use non-windowed tools. Full visual review, native-language review
+and real-peer transfer testing remain unperformed. Rust/helper code is unchanged.

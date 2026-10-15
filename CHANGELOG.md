@@ -2,6 +2,18 @@
 
 ## 1.2.7-dev
 
+- Separate the device list from the receiver actions with a rule, dim
+  **Rescan**, **PIN**, **Save to** and **Use Downloads** like **Back**, and
+  align their icons in one column. The rotating status line no longer repeats
+  "Finding devices" while the empty list says the same.
+
+- Follow Omarchy's display language for panel text, notifications and file
+  chooser titles, with catalogues for every language in Omarchy's supported
+  registry and English fallback on older shells. Localize numbers/plurals and
+  mirror Back controls and horizontal navigation for right-to-left languages.
+  Helper diagnostics remain unchanged. CI requires every supported catalogue
+  and every translation key.
+
 - Choose the folder received files are saved to with **Save to** in the
   panel. The choice is kept in Nearby's `shell.json` entry and applied by
   restarting the receiver. **Use Downloads** removes it again, also when the

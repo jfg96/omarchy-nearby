@@ -4,7 +4,9 @@ Native nearby sharing for Omarchy Quattro, compatible with the LocalSend protoco
 
 Open Nearby from the bar, choose a device, and send files, folders or clipboard text.
 Receive transfers with explicit approval, follow their progress, and optionally
-protect incoming requests with a PIN. Nearby runs its own Rust helper; the
+protect incoming requests with a PIN. Nearby follows the language picked under
+**Setup > Language** when Omarchy provides translations, using English for
+missing translations and on older shells. Nearby runs its own Rust helper; the
 LocalSend application is not required on your Omarchy computer.
 
 > Independent project. Not affiliated with or endorsed by LocalSend or Omarchy.
