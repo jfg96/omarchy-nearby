@@ -776,8 +776,8 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 21: unsafe settings and recovery | Isolated Omarchy installation | Not run | |
 | 22: folder transfers and lifecycle | Official Android / iOS / desktop client, separate rows | Not run | |
 | 23: folder for received files | Omarchy + peer | Not run | |
-
 | 24: received file preview and copy | Omarchy + peer | Not run | |
+| 25: display language and right-to-left layout | Omarchy | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.
@@ -839,3 +839,19 @@ components. Its processes were terminated and confirmed absent. It did not
 change the desktop language or the managed Nearby installation. Further checks
 for this work use non-windowed tools. Full visual review, native-language review
 and real-peer transfer testing remain unperformed. Rust/helper code is unchanged.
+
+## Release check — v1.2.7, 2026-10-15
+
+Plugin `1.2.7` from `main` at `775e0a5` (#32, #33, #38, #39), reusing the
+published `helper-v1.2.6`. `backend/` is unchanged since its source commit
+`b187afc`, so no helper is rebuilt or republished.
+
+The complete supported suite passed locally on that tree: the four Node suites
+(50/50 catalogues, 144 keys), the three Bash suites, `cargo fmt --check`,
+`cargo check`, `cargo clippy -D warnings`, the helper tests and the vendored
+`localsend-rs` tests with `https`. CI passed on `775e0a5`.
+
+The panel layout from #38 was previewed on Omarchy (dev) by hot-reloading the
+installed plugin, with one discovered peer and with an empty list. Scenario 25,
+real-peer transfers with a translated panel, and an actual older Omarchy
+release remain **Not run**.

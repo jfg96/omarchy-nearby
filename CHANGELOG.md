@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.7-dev
+## 1.2.7
 
 - Separate the device list from the receiver actions with a rule, dim
   **Rescan**, **PIN**, **Save to** and **Use Downloads** like **Back**, and
