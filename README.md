@@ -24,7 +24,8 @@ LocalSend application is not required on your Omarchy computer.
 ## Requirements
 
 - Omarchy Quattro with its Quickshell-based shell and `omarchy plugin` manager.
-- Linux x86_64 for the published helper.
+- Linux x86_64 or aarch64 for the published helper. aarch64 requires a release
+  whose helper metadata selects an aarch64 build; otherwise build it locally.
 - A compatible peer on the local network, such as a device running LocalSend.
 - TCP and UDP port `53317` available for LocalSend traffic.
 - Omarchy's `omarchy-file-select` and `omarchy-notification-send` commands,

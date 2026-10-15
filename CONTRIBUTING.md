@@ -8,7 +8,8 @@ separate and preserve existing work in the checkout.
 ## Development environment
 
 Use Git, Bash, Node.js and a Rust toolchain with Cargo, rustfmt and Clippy.
-[CI](.github/workflows/ci.yml) currently uses Rust `1.97.1` on Ubuntu 24.04;
+[CI](.github/workflows/ci.yml) currently uses Rust `1.97.1` on Ubuntu 24.04,
+on both x86_64 and aarch64;
 use that version when reproducing CI results. A passing test run does not
 establish that the UI works: live validation requires Omarchy Quattro and a
 LocalSend-compatible peer.

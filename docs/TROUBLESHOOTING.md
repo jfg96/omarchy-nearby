@@ -74,7 +74,9 @@ exact helper to have been cached already.
 
 For a missing or malformed `helper-release.env`, update the plugin through
 Omarchy's manager; helper repair does not repair source files. Prebuilt helpers
-support Linux x86_64. See [Contributing](../CONTRIBUTING.md) for local builds.
+support Linux x86_64 and, when the installed release selects one, Linux aarch64.
+"No prebuilt helper is available" means the checkout has no helper for this
+machine; see [Contributing](../CONTRIBUTING.md) for local builds.
 
 If an old helper still runs after repair, check whether you previously used
 `build.sh`. A marked developer build takes priority until you

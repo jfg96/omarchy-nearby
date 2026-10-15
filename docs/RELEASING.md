@@ -57,10 +57,12 @@ commit.
    `helper-vX.Y.Z` tag. Tags use stable SemVer without a `-dev` suffix.
 4. Publish the tag to trigger
    [Helper release](../.github/workflows/helper-release.yml). It builds the
-   executable in GitHub Actions, generates checksum/license assets, attests the
-   executable, and publishes a GitHub prerelease.
-5. Download and independently verify the published bytes before selecting them:
-   check byte size, SHA256, provenance and `--version`. Never substitute a
+   x86_64 and aarch64 executables natively in GitHub Actions, generates
+   checksum/license assets, attests each executable, and publishes one GitHub
+   prerelease containing both.
+5. Download and independently verify the published bytes of each executable
+   before selecting them: check byte size, SHA256, provenance and `--version`
+   (run the aarch64 executable on an aarch64 machine). Never substitute a
    locally built executable.
 
 Helper releases remain marked prerelease in GitHub so they do not replace the
@@ -68,8 +70,10 @@ latest stable plugin release. This is independent of their stable-format tags.
 
 ## Select the verified helper
 
-Update all six fields of [helper-release.env](../helper-release.env) with the
-verified release values:
+Update all fields of [helper-release.env](../helper-release.env) with the
+verified release values. The three `AARCH64` fields are optional as a group;
+without them the launcher refuses aarch64 machines, which then need a local
+build. Older helper tags have no aarch64 asset.
 
 | Field | Required value |
 | --- | --- |
@@ -77,6 +81,9 @@ verified release values:
 | `NEARBY_HELPER_ASSET` | `omarchy-nearby-helper-vX.Y.Z-linux-x86_64` |
 | `NEARBY_HELPER_SIZE` | Exact byte size, at most 32 MiB |
 | `NEARBY_HELPER_SHA256` | Lowercase SHA256 of the published bytes |
+| `NEARBY_HELPER_AARCH64_ASSET` | `omarchy-nearby-helper-vX.Y.Z-linux-aarch64` |
+| `NEARBY_HELPER_AARCH64_SIZE` | Exact byte size of the aarch64 helper, at most 32 MiB |
+| `NEARBY_HELPER_AARCH64_SHA256` | Lowercase SHA256 of the published aarch64 bytes |
 | `NEARBY_HELPER_SOURCE_SHA` | Full 40-character source commit |
 | `NEARBY_HELPER_RELEASE_WORKFLOW` | `jfg96/omarchy-nearby/.github/workflows/helper-release.yml` |
 
@@ -101,12 +108,13 @@ Check that the verified executable reports
    Wait for CI to pass on the exact target commit.
 4. Create and publish the matching `vX.Y.Z` tag.
 5. Confirm the **Release** workflow succeeds. It verifies metadata and source,
-   runs checks, downloads the pinned helper, verifies its size/hash/provenance,
+   runs checks, downloads each pinned helper, verifies its size/hash/provenance,
    and publishes the plugin release with third-party license information.
    It does not build or republish the helper executable.
 6. Run **Verify release** manually in GitHub Actions with that exact plugin tag.
-   This independently downloads the selected helper and verifies its size,
-   hash, provenance and reported version. Record the run and outcome.
+   On an x86_64 and an aarch64 runner, it independently downloads the helper
+   selected for that machine and verifies its size, hash, provenance and
+   reported version. Record the run and outcome.
 7. Only after both workflows succeed, fast-forward `stable` to the tag. This
    is the step that offers the release to installed copies:
 

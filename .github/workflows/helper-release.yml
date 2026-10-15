@@ -6,14 +6,23 @@ on:
       - "helper-v*"
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 jobs:
-  release:
-    name: Build and publish helper
-    runs-on: ubuntu-24.04
+  build:
+    name: Build helper (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
     steps:
       - name: Check out tagged source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -65,24 +74,59 @@ jobs:
       - name: Build release helper
         run: cargo build --release --locked --manifest-path backend/Cargo.toml
 
-      - name: Install license generator
-        run: cargo install cargo-about --locked --version 0.9.1 --features cli
-
-      - name: Assemble helper release
+      - name: Assemble helper
         shell: bash
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
+          [[ "$(uname -m)" == "$ARCH" ]]
           version="${GITHUB_REF_NAME#helper-v}"
-          asset="omarchy-nearby-helper-v${version}-linux-x86_64"
+          asset="omarchy-nearby-helper-v${version}-linux-${ARCH}"
           mkdir -p dist
           install -m755 backend/target/release/omarchy-nearby-helper "dist/$asset"
+          [[ "$("dist/$asset" --version)" == "omarchy-nearby-helper $version" ]]
           (cd dist && sha256sum "$asset" > "$asset.sha256")
-          cargo about generate --manifest-path backend/Cargo.toml about.hbs > dist/THIRD_PARTY_LICENSES.html
 
       - name: Attest helper
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
-          subject-path: dist/omarchy-nearby-helper-v*-linux-x86_64
+          subject-path: dist/omarchy-nearby-helper-v*-linux-${{ matrix.arch }}
+
+      - name: Upload helper
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: helper-${{ matrix.arch }}
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish helper release
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        with:
+          toolchain: 1.97.1
+
+      - name: Download helpers
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: helper-*
+          path: dist
+          merge-multiple: true
+
+      - name: Install license generator
+        run: cargo install cargo-about --locked --version 0.9.1 --features cli
+
+      - name: Generate third-party licenses
+        run: cargo about generate --manifest-path backend/Cargo.toml about.hbs > dist/THIRD_PARTY_LICENSES.html
 
       - name: Publish helper release
         env:
@@ -91,6 +135,11 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#helper-v}"
+          for arch in x86_64 aarch64; do
+            asset="omarchy-nearby-helper-v${version}-linux-${arch}"
+            [[ -f "dist/$asset" && -f "dist/$asset.sha256" ]]
+            (cd dist && sha256sum --check "$asset.sha256")
+          done
           gh release create "$GITHUB_REF_NAME" dist/* \
             --verify-tag --generate-notes --prerelease \
             --title "Nearby helper v${version}"

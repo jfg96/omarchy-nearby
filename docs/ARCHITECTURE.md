@@ -106,7 +106,9 @@ probe, or to a bounded subnet scan when no usable cache entry exists.
 
 The tracked [launcher](../bin/nearby-helper-launcher) reads
 [helper-release.env](../helper-release.env) as strict metadata, never as shell
-code. The checkout selects one exact Linux x86_64 asset; it does not resolve
+code. The checkout selects one exact Linux x86_64 asset and optionally one Linux
+aarch64 asset of the same helper tag; the launcher picks the one matching
+`uname -m` and does not resolve
 "latest" at runtime.
 
 Normal startup first checks for a deliberately built local helper and its marker.

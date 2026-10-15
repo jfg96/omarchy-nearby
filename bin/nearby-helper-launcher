@@ -52,6 +52,12 @@ helper_size=""
 helper_sha256=""
 helper_source_sha=""
 helper_release_workflow=""
+# The unprefixed asset fields describe the Linux x86_64 build. A release may
+# also describe a Linux aarch64 build of the same tag and source; its three
+# fields are optional as a group, so older metadata stays valid.
+aarch64_asset=""
+aarch64_size=""
+aarch64_sha256=""
 declare -A seen=()
 while IFS='=' read -r key value || [[ -n ${key:-}${value:-} ]]; do
   [[ -n $key && -n $value && $key != *[[:space:]]* ]] \
@@ -63,28 +69,51 @@ while IFS='=' read -r key value || [[ -n ${key:-}${value:-} ]]; do
     NEARBY_HELPER_ASSET) helper_asset="$value" ;;
     NEARBY_HELPER_SIZE) helper_size="$value" ;;
     NEARBY_HELPER_SHA256) helper_sha256="$value" ;;
+    NEARBY_HELPER_AARCH64_ASSET) aarch64_asset="$value" ;;
+    NEARBY_HELPER_AARCH64_SIZE) aarch64_size="$value" ;;
+    NEARBY_HELPER_AARCH64_SHA256) aarch64_sha256="$value" ;;
     NEARBY_HELPER_SOURCE_SHA) helper_source_sha="$value" ;;
     NEARBY_HELPER_RELEASE_WORKFLOW) helper_release_workflow="$value" ;;
     *) fail "helper-release.env contains unknown field $key" ;;
   esac
 done <"$metadata_file"
 
-[[ ${#seen[@]} == 6 ]] || fail "helper-release.env is incomplete"
+aarch64_fields=0
+for key in NEARBY_HELPER_AARCH64_ASSET NEARBY_HELPER_AARCH64_SIZE NEARBY_HELPER_AARCH64_SHA256; do
+  [[ -z ${seen[$key]+x} ]] || aarch64_fields=$((aarch64_fields + 1))
+done
+(( aarch64_fields == 0 || aarch64_fields == 3 )) \
+  && [[ ${#seen[@]} == $((6 + aarch64_fields)) ]] \
+  || fail "helper-release.env is incomplete"
 [[ $helper_tag =~ ^helper-v([0-9]+\.[0-9]+\.[0-9]+)$ ]] \
   || fail "helper tag is invalid"
 helper_version="${BASH_REMATCH[1]}"
-[[ $helper_asset == "omarchy-nearby-helper-v${helper_version}-linux-x86_64" ]] \
-  || fail "helper asset does not match its tag"
-[[ $helper_size =~ ^[1-9][0-9]*$ ]] || fail "helper size is invalid"
-(( helper_size <= max_helper_bytes )) || fail "helper size exceeds the safety limit"
-[[ $helper_sha256 =~ ^[0-9a-f]{64}$ ]] || fail "helper SHA256 is invalid"
+
+check_asset() {
+  local label="$1" arch="$2" asset="$3" size="$4" sha256="$5"
+  [[ $asset == "omarchy-nearby-helper-v${helper_version}-linux-$arch" ]] \
+    || fail "$label asset does not match its tag"
+  [[ $size =~ ^[1-9][0-9]*$ ]] || fail "$label size is invalid"
+  (( size <= max_helper_bytes )) || fail "$label size exceeds the safety limit"
+  [[ $sha256 =~ ^[0-9a-f]{64}$ ]] || fail "$label SHA256 is invalid"
+}
+check_asset helper x86_64 "$helper_asset" "$helper_size" "$helper_sha256"
+(( aarch64_fields == 0 )) \
+  || check_asset "aarch64 helper" aarch64 "$aarch64_asset" "$aarch64_size" "$aarch64_sha256"
 [[ $helper_source_sha =~ ^[0-9a-f]{40}$ ]] || fail "helper source commit is invalid"
 [[ $helper_release_workflow == "$repository/.github/workflows/helper-release.yml" ]] \
   || fail "helper release workflow is invalid"
 
-case "$(uname -s)/$(uname -m)" in
+platform="$(uname -s)/$(uname -m)"
+case "$platform" in
   Linux/x86_64 | Linux/amd64) ;;
-  *) fail "no prebuilt helper is available for $(uname -s)/$(uname -m)" ;;
+  Linux/aarch64 | Linux/arm64)
+    (( aarch64_fields )) || fail "no prebuilt helper is available for $platform"
+    helper_asset="$aarch64_asset"
+    helper_size="$aarch64_size"
+    helper_sha256="$aarch64_sha256"
+    ;;
+  *) fail "no prebuilt helper is available for $platform" ;;
 esac
 
 data_home="${XDG_DATA_HOME:-${HOME:?HOME is not set}/.local/share}"
