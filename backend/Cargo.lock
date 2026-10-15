@@ -1178,7 +1178,7 @@ dependencies = [
 
 [[package]]
 name = "omarchy-nearby-helper"
-version = "1.2.6"
+version = "1.2.7"
 dependencies = [
  "anyhow",
  "libc",

@@ -879,3 +879,18 @@ the previous launcher, which rejected the aarch64 fields as unknown.
 actionlint 1.7.7 reported no workflow errors; the workflows themselves,
 including the `ubuntu-24.04-arm` jobs, have not run. Scenario 26 and transfers
 with a real peer from the aarch64 machine remain **Not run**.
+
+## Helper 1.2.7 preparation — 2026-10-15
+
+Prepare a new helper tag for the native x86_64/aarch64 distribution from #41.
+Only the helper package version and lockfile advance from 1.2.6 to 1.2.7;
+helper behavior and vendored source are unchanged. The plugin remains
+1.2.8-dev and requires helper 1.2.7. Published metadata remains at 1.2.6
+until the new workflow artifacts have been independently verified.
+
+The complete supported suite passed locally with Rust 1.97.1: four Node
+suites, three Bash suites, formatting, cargo check, Clippy with warnings
+denied, helper tests and the vendored localsend-rs HTTPS suite. The plugin
+validator and git diff --check passed. ARM64 compilation and execution are
+validated by native GitHub runners; this machine is x86_64. Real-device ARM64
+transfers and scenario 26 remain Not run.
