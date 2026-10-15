@@ -749,6 +749,12 @@ complete until those versions and results are written down.
     remote markup and preserve literal `%N` inside peer names. Restore the
     original language. Exercise English fallback without shell translations.
 
+26. On an aarch64 machine, install a release whose metadata selects an aarch64
+    helper and enable Nearby with no local build: the launcher must download
+    the `linux-aarch64` asset into the XDG helper cache and the receiver must
+    become ready. Send and receive a file with a LocalSend peer. On the same
+    release, confirm an x86_64 machine still downloads only the x86_64 asset.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -855,3 +861,21 @@ The panel layout from #38 was previewed on Omarchy (dev) by hot-reloading the
 installed plugin, with one discovered peer and with an empty list. Scenario 25,
 real-peer transfers with a translated panel, and an actual older Omarchy
 release remain **Not run**.
+
+## aarch64 helper development check — 2026-10-15
+
+Plugin `1.2.8-dev` adds optional aarch64 metadata, launcher selection by
+`uname -m`, native aarch64 helper builds in Helper release and aarch64 CI.
+No aarch64 helper has been published, so `helper-release.env` still selects
+only `helper-v1.2.6` for x86_64.
+
+On an Apple MacBook Pro (M1 Max, Asahi kernel with 16 KiB pages) running
+Omarchy 4.0.3, the unchanged launcher failed with "no prebuilt helper is
+available for Linux/aarch64". `build.sh` produced a native aarch64 helper that
+reported `omarchy-nearby-helper 1.2.6`; with that local override the receiver
+reached ready. The complete supported suite passed on that machine, using Rust
+1.99.0 rather than the pinned 1.97.1. The new launcher cases failed against
+the previous launcher, which rejected the aarch64 fields as unknown.
+actionlint 1.7.7 reported no workflow errors; the workflows themselves,
+including the `ubuntu-24.04-arm` jobs, have not run. Scenario 26 and transfers
+with a real peer from the aarch64 machine remain **Not run**.

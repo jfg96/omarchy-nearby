@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.8-dev
+
+- Publish the helper for Linux aarch64 as well as x86_64, so Nearby can run
+  on ARM machines such as Apple Silicon Macs with omarchy-mac, the
+  Asahi-based Omarchy port, once a release selects an aarch64 helper. The launcher picks the helper matching
+  the machine; until then, aarch64 machines still need a local build.
+
 ## 1.2.7
 
 - Separate the device list from the receiver actions with a rule, dim
