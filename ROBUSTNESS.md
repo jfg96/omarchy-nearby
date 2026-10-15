@@ -894,3 +894,32 @@ denied, helper tests and the vendored localsend-rs HTTPS suite. The plugin
 validator and git diff --check passed. ARM64 compilation and execution are
 validated by native GitHub runners; this machine is x86_64. Real-device ARM64
 transfers and scenario 26 remain Not run.
+
+## Release check — v1.2.8, 2026-10-15
+
+Plugin 1.2.8 selects the published helper-v1.2.7 for Linux x86_64 and
+aarch64, from source f2dec01994010a52df511f72ae687d516be3a8f9. Helper
+preparation #42 and its merge commit passed CI on both native architectures.
+Helper release run 38748042831 built, tested and attested both executables,
+checked each --version natively, and published both binaries, their checksums
+and the license page in one prerelease.
+
+Both published executables were downloaded independently. Their checksum files,
+32 MiB size bound, ELF architecture and GitHub provenance passed verification
+against the exact repository, source digest, helper tag and release workflow,
+with self-hosted runners denied. The downloaded x86_64 helper reports
+omarchy-nearby-helper 1.2.7 locally; the ARM64 executable's native version check
+is recorded by the helper build, and independent native verification of the
+published download will run in Verify release before stable advances.
+
+The full supported suite passed locally during helper preparation with Rust
+1.97.1. The release metadata is derived from the published bytes; backend/
+remains identical to the helper source. Scenario 26 (real installation and
+peer transfers on ARM64) remains Not run; there is no local ARM machine.
+No real-peer transfer or installed desktop smoke test is claimed for this
+release.
+
+On the final plugin release tree, all four Node and three Bash suites, the
+plugin validator, whitespace checks and the helper-source tree comparison
+passed. The launcher prefetched the real published x86_64 helper into an
+isolated XDG cache and reported 1.2.7.
