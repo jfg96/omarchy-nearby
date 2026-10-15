@@ -739,6 +739,16 @@ complete until those versions and results are written down.
     manager. Send two pictures in one transfer: the result must stay plain.
     Receive a text file renamed to `.png`: there must be no preview.
 
+25. In an agreed development installation, keep the panel open and switch
+    between English and Spanish under **Setup > Language**. Verify buttons,
+    rotating phrases, tooltips and chooser titles update without restarting.
+    Repeat with German, Finnish, Bulgarian and Urdu and inspect long
+    half-width buttons. Switch to Arabic and inspect mirrored rows, Back
+    chevrons and horizontal keyboard navigation. Check queued-request plurals
+    in Russian (2, 5, 21), and confirm translated notifications still escape
+    remote markup and preserve literal `%N` inside peer names. Restore the
+    original language. Exercise English fallback without shell translations.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -779,3 +789,27 @@ Keep compatibility claims tied to recorded peer versions and test outcomes.
 The vendor tests include a declared SHA-256 mismatch returning `422`.
 Discovery is not authenticated pairing; TLS fingerprint handling does not
 remove that discovery trust limitation. See [security](docs/SECURITY.md).
+
+## Translation development check — 2026-10-15
+
+The working `feat/i18n` tree based on `4dbb866` was tested in an isolated
+Quickshell process, with a private `OMARCHY_LANGUAGE_FILE` and the receiver
+disabled. It compiled Panel.qml under Wayland, loaded Service.qml and Strings.qml,
+and changed English → es-MX → Arabic without restarting. English and Spanish
+labels and plural strings updated, remote `%2` remained literal, and the Arabic
+language setting enabled the RTL flag with English catalogue fallback. Startup
+showed readable English without binding loops. This does not validate the visual
+layout or Arabic translations. The desktop's own language/plugin settings were
+not changed. Only existing shell deprecation warnings for FloatingWindow width
+and height remained.
+
+The four Node suites and three Bash suites passed. Rust is unchanged and its
+suites were not run for this frontend-only change. Scenario 25 on the actual
+installed panel, long translated labels, other language catalogues, real peers
+and an actual older Omarchy installation remain untested.
+
+A separate isolated component with an intentionally unavailable translations
+type exercised the fallback loader: English was present from the initial
+component completion, plural strings resolved, remote placeholders stayed
+literal, and no binding loop occurred. This simulates the missing type; it
+does not replace validation on an actual older Omarchy release.

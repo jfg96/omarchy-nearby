@@ -7,6 +7,12 @@
   align their icons in one column. The rotating status line no longer repeats
   "Finding devices" while the empty list says the same.
 
+- Follow Omarchy's display language for panel text, notifications and file
+  chooser titles, with English fallback on older shells. Add English and
+  Spanish (`es-MX`) catalogues, localized numbers/plurals and mirrored Back
+  controls and horizontal navigation for right-to-left languages. Helper
+  diagnostics remain unchanged. Additional language catalogues are pending.
+
 - Choose the folder received files are saved to with **Save to** in the
   panel. The choice is kept in Nearby's `shell.json` entry and applied by
   restarting the receiver. **Use Downloads** removes it again, also when the

@@ -1,0 +1,473 @@
+{
+  "en": {
+    "name": "English",
+    "englishName": "English",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "da": {
+    "name": "Dansk",
+    "englishName": "Danish",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "ar": {
+    "name": "العربية",
+    "englishName": "Arabic",
+    "direction": "rtl",
+    "plural": [
+      "zero",
+      "one",
+      "two",
+      "few",
+      "many",
+      "other"
+    ]
+  },
+  "fi": {
+    "name": "Suomi",
+    "englishName": "Finnish",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "fr": {
+    "name": "Français",
+    "englishName": "French",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "many",
+      "other"
+    ]
+  },
+  "el": {
+    "name": "Ελληνικά",
+    "englishName": "Greek",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "hu": {
+    "name": "Magyar",
+    "englishName": "Hungarian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "hi": {
+    "name": "हिन्दी",
+    "englishName": "Hindi",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "is": {
+    "name": "Íslenska",
+    "englishName": "Icelandic",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "ja": {
+    "name": "日本語",
+    "englishName": "Japanese",
+    "direction": "ltr",
+    "plural": [
+      "other"
+    ]
+  },
+  "ko": {
+    "name": "한국어",
+    "englishName": "Korean",
+    "direction": "ltr",
+    "plural": [
+      "other"
+    ]
+  },
+  "es-MX": {
+    "name": "Español (México)",
+    "englishName": "Spanish (Mexico)",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "many",
+      "other"
+    ]
+  },
+  "fil": {
+    "name": "Filipino",
+    "englishName": "Filipino",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "pt": {
+    "name": "Português (Portugal)",
+    "englishName": "Portuguese (Portugal)",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "many",
+      "other"
+    ]
+  },
+  "sv": {
+    "name": "Svenska",
+    "englishName": "Swedish",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "tr": {
+    "name": "Türkçe",
+    "englishName": "Turkish",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "vi": {
+    "name": "Tiếng Việt",
+    "englishName": "Vietnamese",
+    "direction": "ltr",
+    "plural": [
+      "other"
+    ]
+  },
+  "ur": {
+    "name": "اردو",
+    "englishName": "Urdu",
+    "direction": "rtl",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "bn": {
+    "name": "বাংলা",
+    "englishName": "Bengali",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "ca": {
+    "name": "Català",
+    "englishName": "Catalan",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "many",
+      "other"
+    ]
+  },
+  "si": {
+    "name": "සිංහල",
+    "englishName": "Sinhala",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "ta": {
+    "name": "தமிழ்",
+    "englishName": "Tamil",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "th": {
+    "name": "ไทย",
+    "englishName": "Thai",
+    "direction": "ltr",
+    "plural": [
+      "other"
+    ]
+  },
+  "uz": {
+    "name": "Oʻzbekcha",
+    "englishName": "Uzbek",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "it": {
+    "name": "Italiano",
+    "englishName": "Italian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "many",
+      "other"
+    ]
+  },
+  "zh-CN": {
+    "name": "简体中文",
+    "englishName": "Chinese (Simplified)",
+    "direction": "ltr",
+    "plural": [
+      "other"
+    ]
+  },
+  "pl": {
+    "name": "Polski",
+    "englishName": "Polish",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "few",
+      "many",
+      "other"
+    ]
+  },
+  "lt": {
+    "name": "Lietuvių",
+    "englishName": "Lithuanian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "few",
+      "other"
+    ]
+  },
+  "ga": {
+    "name": "Gaeilge",
+    "englishName": "Irish",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "two",
+      "few",
+      "many",
+      "other"
+    ]
+  },
+  "nl": {
+    "name": "Nederlands",
+    "englishName": "Dutch",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "no": {
+    "name": "Norsk",
+    "englishName": "Norwegian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "ru": {
+    "name": "Русский",
+    "englishName": "Russian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "few",
+      "many",
+      "other"
+    ]
+  },
+  "id": {
+    "name": "Bahasa Indonesia",
+    "englishName": "Indonesian",
+    "direction": "ltr",
+    "plural": [
+      "other"
+    ]
+  },
+  "de": {
+    "name": "Deutsch",
+    "englishName": "German",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "sw": {
+    "name": "Kiswahili",
+    "englishName": "Swahili",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "fa": {
+    "name": "فارسی",
+    "englishName": "Persian",
+    "direction": "rtl",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "ms": {
+    "name": "Bahasa Melayu",
+    "englishName": "Malay",
+    "direction": "ltr",
+    "plural": [
+      "other"
+    ]
+  },
+  "uk": {
+    "name": "Українська",
+    "englishName": "Ukrainian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "few",
+      "many",
+      "other"
+    ]
+  },
+  "ro": {
+    "name": "Română",
+    "englishName": "Romanian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "few",
+      "other"
+    ]
+  },
+  "cs": {
+    "name": "Čeština",
+    "englishName": "Czech",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "few",
+      "other"
+    ]
+  },
+  "sr": {
+    "name": "Српски",
+    "englishName": "Serbian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "few",
+      "other"
+    ]
+  },
+  "he": {
+    "name": "עברית",
+    "englishName": "Hebrew",
+    "direction": "rtl",
+    "plural": [
+      "one",
+      "two",
+      "other"
+    ]
+  },
+  "bg": {
+    "name": "Български",
+    "englishName": "Bulgarian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "sk": {
+    "name": "Slovenčina",
+    "englishName": "Slovak",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "few",
+      "other"
+    ]
+  },
+  "hr": {
+    "name": "Hrvatski",
+    "englishName": "Croatian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "few",
+      "other"
+    ]
+  },
+  "sl": {
+    "name": "Slovenščina",
+    "englishName": "Slovenian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "two",
+      "few",
+      "other"
+    ]
+  },
+  "zh-TW": {
+    "name": "繁體中文",
+    "englishName": "Chinese (Traditional)",
+    "direction": "ltr",
+    "plural": [
+      "other"
+    ]
+  },
+  "et": {
+    "name": "Eesti",
+    "englishName": "Estonian",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "other"
+    ]
+  },
+  "lv": {
+    "name": "Latviešu",
+    "englishName": "Latvian",
+    "direction": "ltr",
+    "plural": [
+      "zero",
+      "one",
+      "other"
+    ]
+  },
+  "pt-BR": {
+    "name": "Português (Brasil)",
+    "englishName": "Portuguese (Brazil)",
+    "direction": "ltr",
+    "plural": [
+      "one",
+      "many",
+      "other"
+    ]
+  }
+}

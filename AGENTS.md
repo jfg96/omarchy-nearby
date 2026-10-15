@@ -66,7 +66,7 @@ minimal and do not mix unrelated refactors into bug fixes.
 
 Run commands from the repository root. Select checks by the changed behavior:
 
-- QML or shared JavaScript: run all three Node suites below. They exercise
+- QML or shared JavaScript: run all four Node suites below. They exercise
   model logic and inspect/evaluate QML source; they do not launch Quickshell.
 - Rust helper: run formatting, build checks, and helper tests. Vendor changes
   also require the separate vendored crate suite; helper tests do not replace it.
@@ -87,6 +87,7 @@ when practical:
 node tests/model.test.js
 node tests/panel-state.test.js
 node tests/service-state.test.js
+node tests/i18n.test.js
 bash tests/launcher.test.sh
 bash tests/helper-repair.test.sh
 bash tests/copy-file.test.sh
@@ -140,3 +141,7 @@ passing.
   CI. Release helpers must come from the tagged GitHub Actions workflow, not a
   locally built binary. Helper releases stay prereleases so they cannot replace
   the latest stable plugin release in GitHub's default release view.
+
+A new visible string needs a key in `i18n/en.json`, context in
+`docs/translation-notes.json` and an entry in every supported catalogue. Run
+`node tests/i18n.test.js`; see `docs/TRANSLATING.md` for translation rules.

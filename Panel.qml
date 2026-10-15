@@ -13,6 +13,8 @@ Panel {
   // widget registering it would register it once per monitor.
   manageIpc: false
 
+  Strings { id: strings }
+
   // The host may replace moduleName with an instance id. Keep the manifest id
   // stable for registry lookups and filesystem paths.
   readonly property string manifestPluginId: "oma.nearby"
@@ -39,8 +41,8 @@ Panel {
   readonly property var devices: engine ? engine.devices : []
   readonly property var selectedDevice: engine ? engine.selectedDevice : null
   readonly property string viewState: engine ? engine.viewState : "nearby"
-  readonly property string statusText: engine ? engine.statusText : "Nearby engine is not loaded."
-  readonly property string errorText: engine ? engine.errorText : "Nearby engine is not loaded."
+  readonly property string statusText: engine ? engine.statusText : strings.t("engine.notLoaded")
+  readonly property string errorText: engine ? engine.errorText : strings.t("engine.notLoaded")
   readonly property var incomingQueue: engine ? engine.incomingQueue : []
   readonly property var incoming: engine ? engine.incoming : null
   readonly property string incomingText: engine ? engine.incomingText : ""
@@ -99,26 +101,23 @@ Panel {
   // None of these repeats the empty device list below, which already says
   // "Finding devices…" while discovery runs; the hero line would echo it.
   readonly property var nearbyPhrases: [
-    "Looking nearby",
-    "Listening locally",
-    "Ready to receive",
-    "Watching the LAN",
-    "Checking the air"
+    "phrase.lookingNearby", "phrase.listeningLocally", "status.readyToReceive",
+    "phrase.watchingLan", "phrase.checkingAir"
   ]
   readonly property bool rotatingPhrases: opened && receiverEnabled && backendReady && viewState === "nearby" && errorText === ""
   readonly property string heroMetaText: {
     if (viewState === "nearby") {
-      if (!receiverEnabled) return "Turned off"
+      if (!receiverEnabled) return strings.t("status.turnedOff")
       // statusText, never errorText: this line is uppercased and letterspaced,
       // so a full sentence crops mid-word and the body below is already saying
       // the same thing in full.
       if (!backendReady) return statusText
-      return nearbyPhrases[nearbyPhraseIndex % nearbyPhrases.length]
+      return strings.t(nearbyPhrases[nearbyPhraseIndex % nearbyPhrases.length])
     }
-    if (viewState === "incoming_pin_settings") return incomingPinEnabled ? "Protection enabled" : "Protection disabled"
-    if (viewState === "incoming_pin_edit") return incomingPinEnabled ? "Change protection" : "Enable protection"
-    if (viewState === "incoming_pin_disable") return "Confirm disable"
-    if (viewState === "target") return "Ready to receive"
+    if (viewState === "incoming_pin_settings") return incomingPinEnabled ? strings.t("hero.protectionEnabled") : strings.t("hero.protectionDisabled")
+    if (viewState === "incoming_pin_edit") return incomingPinEnabled ? strings.t("hero.changeProtection") : strings.t("hero.enableProtection")
+    if (viewState === "incoming_pin_disable") return strings.t("hero.confirmDisable")
+    if (viewState === "target") return strings.t("status.readyToReceive")
     return statusText
   }
 
@@ -183,7 +182,7 @@ Panel {
   function useDownloads() { if (engine) engine.useDownloads() }
   function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.launched=false; clipboard.running = true }
   function copyReceivedText() { clipboardWriter.launched=false; clipboardWriter.running=true }
-  function copyReceivedFile() { if (receivedFile === "" || fileCopier.running) return; copyNote="Copying…"; fileCopier.path=receivedFile; fileCopier.launched=false; fileCopier.running=true }
+  function copyReceivedFile() { if (receivedFile === "" || fileCopier.running) return; copyNote=strings.t("clipboard.copying"); fileCopier.path=receivedFile; fileCopier.launched=false; fileCopier.running=true }
   onReceivedFileChanged: copyNote=""
 
   // The kit's Button already paints its own mouse hover from containsMouse.
@@ -205,6 +204,7 @@ Panel {
   }
 
   function moveCursor(dx, dy) {
+    if (strings.rightToLeft) dx = -dx
     cursorActive = true
     if (viewState === "nearby") {
       // The update row is the last stop until a failure reveals the two
@@ -314,15 +314,15 @@ Panel {
   Process {
     id: picker
     property bool launched: false
-    command: ["omarchy-file-select","--title","Send nearby","--multiple"]
+    command: ["omarchy-file-select","--title",strings.t("chooser.sendFiles"),"--multiple"]
     running: false
     stdout: StdioCollector { id: pickerOutput; waitForEnd: true }
     onStarted: picker.launched=true
-    onRunningChanged: if (!running && !picker.launched) root.failWith("The file chooser could not be started")
+    onRunningChanged: if (!running && !picker.launched) root.failWith(strings.t("chooser.notStarted"))
     onExited: function(code) {
       // The chooser separates a decision from a fault: 1 is nobody picking
       // anything, and anything above it is a chooser that never opened.
-      if (code > 1) { root.failWith("The file chooser did not open"); return }
+      if (code > 1) { root.failWith(strings.t("chooser.notOpened")); return }
       if (code !== 0 || !root.selectedDevice) return
       var paths=String(pickerOutput.text || "").split("\n").filter(function(v){return v.trim()!==""})
       if (paths.length) root.beginOutgoing({kind:"files",device:root.selectedDevice,paths:paths})
@@ -331,13 +331,13 @@ Panel {
   Process {
     id: folderPicker
     property bool launched: false
-    command: ["omarchy-file-select","--title","Send nearby folder","--directory"]
+    command: ["omarchy-file-select","--title",strings.t("chooser.sendFolder"),"--directory"]
     running: false
     stdout: StdioCollector { id: folderPickerOutput; waitForEnd: true }
     onStarted: folderPicker.launched=true
-    onRunningChanged: if (!running && !folderPicker.launched) root.failWith("The file chooser could not be started")
+    onRunningChanged: if (!running && !folderPicker.launched) root.failWith(strings.t("chooser.notStarted"))
     onExited: function(code) {
-      if (code > 1) { root.failWith("The file chooser did not open"); return }
+      if (code > 1) { root.failWith(strings.t("chooser.notOpened")); return }
       if (code !== 0 || !root.selectedDevice) return
       var paths=String(folderPickerOutput.text || "").split("\n").filter(function(v){return v.trim()!==""})
       if (paths.length) root.beginOutgoing({kind:"files",device:root.selectedDevice,paths:paths})
@@ -348,14 +348,14 @@ Panel {
   Process {
     id: downloadDirPicker
     property bool launched: false
-    command: ["omarchy-file-select","--title","Save received files to","--directory"]
+    command: ["omarchy-file-select","--title",strings.t("chooser.saveTo"),"--directory"]
     running: false
     stdout: StdioCollector { id: downloadDirPickerOutput; waitForEnd: true }
     onStarted: downloadDirPicker.launched=true
-    onRunningChanged: if (!running && !downloadDirPicker.launched && root.viewState === "nearby") root.failWith("The file chooser could not be started")
+    onRunningChanged: if (!running && !downloadDirPicker.launched && root.viewState === "nearby") root.failWith(strings.t("chooser.notStarted"))
     onExited: function(code) {
       if (root.viewState !== "nearby") return
-      if (code > 1) { root.failWith("The file chooser did not open"); return }
+      if (code > 1) { root.failWith(strings.t("chooser.notOpened")); return }
       var path=String(downloadDirPickerOutput.text || "").split("\n")[0]
       if (code === 0 && path !== "" && root.engine) root.engine.setDownloadDir(path)
     }
@@ -367,11 +367,11 @@ Panel {
     running: false
     stdout: StdioCollector { id: clipboardOutput; waitForEnd: true }
     onStarted: clipboard.launched=true
-    onRunningChanged: if (!running && !clipboard.launched) root.failWith("wl-paste is required to read the clipboard")
+    onRunningChanged: if (!running && !clipboard.launched) root.failWith(strings.t("clipboard.pasteMissing"))
     onExited: function(code) {
       var text=String(clipboardOutput.text || "")
       if (code===0 && text.trim()!=="" && root.selectedDevice) root.beginOutgoing({kind:"text",device:root.selectedDevice,text:text})
-      else root.failWith("Clipboard is empty")
+      else root.failWith(strings.t("clipboard.empty"))
     }
   }
 
@@ -382,7 +382,7 @@ Panel {
       Item { NearbyIcon { anchors.centerIn: parent; iconSize: Style.bar.iconFont; color: root.barIconColor } }
     }
     active: root.incoming !== null || root.viewState === "receiving" || root.viewState === "sending" || root.viewState === "pin"
-    tooltipText: !root.receiverEnabled ? "Nearby · Turned off" : (root.backendReady ? (root.viewState === "pin" ? "Nearby · PIN required" : (root.incoming ? "Incoming transfer" : "Nearby · Ready to receive")) : "Nearby · Receiver unavailable")
+    tooltipText: !root.receiverEnabled ? strings.t("bar.turnedOff") : (root.backendReady ? (root.viewState === "pin" ? strings.t("bar.pinRequired") : (root.incoming ? strings.t("status.incomingTransfer") : strings.t("bar.ready"))) : strings.t("bar.unavailable"))
     onPressed: function(code) { root.toggle() }
   }
 
@@ -400,7 +400,7 @@ Panel {
         id: content; width: parent.width; spacing: Style.space(12)
         PanelHero {
           id: hero
-          title: root.viewState.indexOf("incoming_pin_")===0 ? "Incoming PIN" : ((root.viewState === "target" || root.viewState === "pin") && root.selectedDevice ? root.selectedDevice.alias : (root.viewState === "incoming" ? "Incoming" : "Nearby"))
+          title: root.viewState.indexOf("incoming_pin_")===0 ? strings.t("hero.incomingPin") : ((root.viewState === "target" || root.viewState === "pin") && root.selectedDevice ? root.selectedDevice.alias : (root.viewState === "incoming" ? strings.t("hero.incoming") : "Nearby"))
           meta: root.heroMetaText
           detail: ""
           foreground: root.foreground; fontFamily: root.fontFamily
@@ -417,17 +417,17 @@ Panel {
             foreground: root.foreground
             onHovered: function(on) { root.noteHover(on, -1) }
             onToggled: root.toggleReceiver()
-            PanelToolTip { visible: parent.containsMouse; text: root.receiverEnabled ? "Turn Nearby off" : "Turn Nearby on"; fontFamily:root.fontFamily }
+            PanelToolTip { visible: parent.containsMouse; text: root.receiverEnabled ? strings.t("receiver.turnOff") : strings.t("receiver.turnOn"); fontFamily:root.fontFamily }
           }
         }
         PanelSeparator { width: parent.width }
 
         Column {
           visible: root.viewState === "nearby"; width: parent.width; spacing: Style.space(6)
-          PanelSectionHeader { text: root.helperBlocksNearby ? "HELPER" : "DEVICES"; foreground:root.foreground; fontFamily:root.fontFamily }
+          PanelSectionHeader { text: root.helperBlocksNearby ? strings.t("section.helper") : strings.t("section.devices"); foreground:root.foreground; fontFamily:root.fontFamily }
           // Silent while the helper row owns the view: its text there was
           // errorText, which the row states once already.
-          Text { visible: root.devices.length===0 && !root.helperBlocksNearby; width:parent.width; textFormat:Text.PlainText; text: !root.receiverEnabled ? "Nearby is turned off" : (root.discoveryActive ? "Finding devices…" : (root.backendReady ? "No devices nearby" : root.errorText)); wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; topPadding:Style.space(12); bottomPadding:Style.space(12) }
+          Text { visible: root.devices.length===0 && !root.helperBlocksNearby; width:parent.width; textFormat:Text.PlainText; text: !root.receiverEnabled ? strings.t("devices.off") : (root.discoveryActive ? strings.t("devices.finding") : (root.backendReady ? strings.t("devices.none") : root.errorText)); wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; topPadding:Style.space(12); bottomPadding:Style.space(12) }
           Repeater {
             model: root.devices
             Button { required property var modelData; required property int index; width:parent.width; leftAlign:true; bordered:false; iconText:Model.iconFor(modelData.deviceType); text:modelData.alias; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===index; onHovered:function(v){root.noteHover(v,index)}; onClicked:root.chooseDevice(index) }
@@ -438,11 +438,11 @@ Panel {
           PanelSeparator { visible:nearbyActions.visible; width:parent.width }
           Row {
             id:nearbyActions; visible:root.receiverEnabled&&root.backendReady; width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; leftAlign:true; bordered:false; iconText:"󰑐"; text:"Rescan"; tooltipText:"Search for new devices"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length; onHovered:function(v){root.noteHover(v,root.devices.length)}; onClicked:root.forceFullDiscovery() }
-            Button { width:(parent.width-parent.spacing)/2; leftAlign:true; bordered:false; iconText:"󰌾"; text:"PIN · "+(root.incomingPinEnabled?"On":"Off"); tooltipText:"Incoming PIN settings"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){root.noteHover(v,root.devices.length+1)}; onClicked:root.openIncomingPinSettings() }
+            Button { width:(parent.width-parent.spacing)/2; leftAlign:true; bordered:false; iconText:"󰑐"; text:strings.t("action.rescan"); tooltipText:strings.t("action.rescanTooltip"); foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length; onHovered:function(v){root.noteHover(v,root.devices.length)}; onClicked:root.forceFullDiscovery() }
+            Button { width:(parent.width-parent.spacing)/2; leftAlign:true; bordered:false; iconText:"󰌾"; text:(root.incomingPinEnabled?strings.t("action.pinOn"):strings.t("action.pinOff")); tooltipText:strings.t("action.pinTooltip"); foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+1; onHovered:function(v){root.noteHover(v,root.devices.length+1)}; onClicked:root.openIncomingPinSettings() }
           }
-          Button { visible:nearbyActions.visible; width:parent.width; leftAlign:true; bordered:false; iconText:"󰉋"; text:"Save to · "+Model.folderName(root.saveDirectory); tooltipText:"Received files go to "+root.saveDirectory+". Choose another folder."; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+2; onHovered:function(v){root.noteHover(v,root.devices.length+2)}; onClicked:root.chooseDownloadDir() }
-          Button { visible:root.useDownloadsIndex>=0; width:parent.width; leftAlign:true; bordered:false; iconText:"󰕌"; text:"Use Downloads"; tooltipText:"Stop saving to "+root.downloadDir+" and go back to your Downloads folder"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.useDownloadsIndex; onHovered:function(v){root.noteHover(v,root.useDownloadsIndex)}; onClicked:root.useDownloads() }
+          Button { visible:nearbyActions.visible; width:parent.width; leftAlign:true; bordered:false; iconText:"󰉋"; text:strings.t("folder.saveTo", [Model.folderName(root.saveDirectory)]); tooltipText:strings.t("folder.saveToTooltip", [root.saveDirectory]); foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.devices.length+2; onHovered:function(v){root.noteHover(v,root.devices.length+2)}; onClicked:root.chooseDownloadDir() }
+          Button { visible:root.useDownloadsIndex>=0; width:parent.width; leftAlign:true; bordered:false; iconText:"󰕌"; text:strings.t("folder.useDownloads"); tooltipText:strings.t("folder.useDownloadsTooltip", [root.downloadDir]); foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.useDownloadsIndex; onHovered:function(v){root.noteHover(v,root.useDownloadsIndex)}; onClicked:root.useDownloads() }
 
           // The checkout pins immutable helper bytes. The launcher resolves
           // them outside the plugin tree, and this action retries/prefetches
@@ -465,7 +465,7 @@ Panel {
             }
             Text {
               visible:!root.helperUpdating; width:parent.width; textFormat:Text.PlainText; wrapMode:Text.Wrap
-              text:"Nearby will fetch and verify the helper selected by this plugin."
+              text:strings.t("helper.explain")
               color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body
             }
             Button {
@@ -474,8 +474,8 @@ Panel {
               // After a failure the old label gives no sign the press landed,
               // and the error above it stays put; naming the retry is the only
               // thing that distinguishes "not pressed yet" from "pressed once".
-              text: root.helperUpdating ? "Preparing…" : (root.helperUpdateError!=="" ? "Try again" : "Retry helper")
-              tooltipText:"Prepare the verified helper selected by this plugin"
+              text: root.helperUpdating ? strings.t("helper.preparing") : (root.helperUpdateError!=="" ? strings.t("helper.tryAgain") : strings.t("helper.retry"))
+              tooltipText:strings.t("helper.retryTooltip")
               enabled:!root.helperUpdating
               foreground:root.foreground; fontFamily:root.fontFamily
               hasCursor:root.cursorActive&&root.selectedIndex===root.helperUpdateIndex
@@ -489,12 +489,12 @@ Panel {
               visible:root.helperUpdateError!==""; width:parent.width; spacing:Style.space(6)
               Text { width:parent.width; textFormat:Text.PlainText; text:root.helperUpdateError; wrapMode:Text.Wrap; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body }
               PanelSeparator { width:parent.width }
-              Text { width:parent.width; textFormat:Text.PlainText; text:"Or run this in a terminal:"; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+              Text { width:parent.width; textFormat:Text.PlainText; text:strings.t("helper.runInTerminal"); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
               Text { width:parent.width; textFormat:Text.PlainText; text:root.updateCommand; elide:Text.ElideMiddle; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
               Row {
                 width:parent.width; spacing:Style.space(8)
-                Button { width:(parent.width-parent.spacing)/2; bordered:true; iconText:"󰆏"; text:"Copy command"; tooltipText:root.updateCommand; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.helperCopyCommandIndex; onHovered:function(v){root.noteHover(v,root.helperCopyCommandIndex)}; onClicked:root.copyUpdateCommand() }
-                Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌷"; text:"Copy link"; tooltipText:root.repositoryUrl; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.helperCopyLinkIndex; onHovered:function(v){root.noteHover(v,root.helperCopyLinkIndex)}; onClicked:root.copyRepositoryLink() }
+                Button { width:(parent.width-parent.spacing)/2; bordered:true; iconText:"󰆏"; text:strings.t("helper.copyCommand"); tooltipText:root.updateCommand; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.helperCopyCommandIndex; onHovered:function(v){root.noteHover(v,root.helperCopyCommandIndex)}; onClicked:root.copyUpdateCommand() }
+                Button { width:(parent.width-parent.spacing)/2; bordered:false; iconText:"󰌷"; text:strings.t("helper.copyLink"); tooltipText:root.repositoryUrl; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===root.helperCopyLinkIndex; onHovered:function(v){root.noteHover(v,root.helperCopyLinkIndex)}; onClicked:root.copyRepositoryLink() }
               }
               Text { visible:root.copyNote!==""; width:parent.width; textFormat:Text.PlainText; text:root.copyNote; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
             }
@@ -503,92 +503,92 @@ Panel {
 
         Column {
           visible: root.viewState === "target"; width:parent.width; spacing:Style.space(6)
-          PanelSectionHeader { text:"SEND"; foreground:root.foreground; fontFamily:root.fontFamily }
-          Button { width:parent.width; leftAlign:true; iconText:"󰈔"; text:"Send files"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.selectFiles() }
-          Button { width:parent.width; leftAlign:true; iconText:"󰉋"; text:"Send folder"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.selectFolder() }
-          Button { width:parent.width; leftAlign:true; iconText:"󰅇"; text:"Send clipboard"; foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===2; onHovered:function(v){root.noteHover(v,2)}; onClicked:root.sendClipboard() }
-          Button { width:parent.width; leftAlign:true; bordered:false; iconText:"󰅁"; text:"Back"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===3; onHovered:function(v){root.noteHover(v,3)}; onClicked:root.goBack() }
+          PanelSectionHeader { text:strings.t("section.send"); foreground:root.foreground; fontFamily:root.fontFamily }
+          Button { width:parent.width; leftAlign:true; iconText:"󰈔"; text:strings.t("send.files"); foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.selectFiles() }
+          Button { width:parent.width; leftAlign:true; iconText:"󰉋"; text:strings.t("send.folder"); foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.selectFolder() }
+          Button { width:parent.width; leftAlign:true; iconText:"󰅇"; text:strings.t("send.clipboard"); foreground:root.foreground; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===2; onHovered:function(v){root.noteHover(v,2)}; onClicked:root.sendClipboard() }
+          Button { width:parent.width; leftAlign:true; bordered:false; iconText:strings.rightToLeft?"󰅂":"󰅁"; text:strings.t("action.back"); foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===3; onHovered:function(v){root.noteHover(v,3)}; onClicked:root.goBack() }
         }
 
         Column {
           visible: root.viewState === "pin"; width:parent.width; spacing:Style.space(8)
-          PanelSectionHeader { text:"RECEIVER PIN"; foreground:root.foreground; fontFamily:root.fontFamily }
-          Text { textFormat:Text.PlainText; width:parent.width; text:"This receiver requires a PIN"; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          PanelSectionHeader { text:strings.t("section.receiverPin"); foreground:root.foreground; fontFamily:root.fontFamily }
+          Text { textFormat:Text.PlainText; width:parent.width; text:strings.t("pin.receiverRequires"); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           TextField {
-            id: pinInput; width:parent.width; password:true; placeholderText:"PIN"; foreground:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body
+            id: pinInput; width:parent.width; password:true; placeholderText:strings.t("pin.placeholder"); foreground:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body
             onAccepted: root.retryWithPin()
             Keys.onPressed: function(event) { if(event.key===Qt.Key_Escape){root.cancelPin();event.accepted=true} }
           }
           Text { textFormat:Text.PlainText; visible:root.pinError!==""; width:parent.width; text:root.pinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Cancel"; bordered:true; foreground:root.dim; onClicked:root.cancelPin() }
-            Button { width:(parent.width-parent.spacing)/2; text:"Retry"; bordered:true; foreground:root.foreground; onClicked:root.retryWithPin() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.cancel"); bordered:true; foreground:root.dim; onClicked:root.cancelPin() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.retry"); bordered:true; foreground:root.foreground; onClicked:root.retryWithPin() }
           }
         }
 
         Column {
           visible: root.viewState === "incoming_pin_settings"; width:parent.width; spacing:Style.space(8)
-          Button { visible:!root.incomingPinEnabled; width:parent.width; text:"Enable PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.beginIncomingPinEdit() }
+          Button { visible:!root.incomingPinEnabled; width:parent.width; text:strings.t("pin.enable"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.beginIncomingPinEdit() }
           Row { visible:root.incomingPinEnabled; width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Change PIN"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.beginIncomingPinEdit() }
-            Button { width:(parent.width-parent.spacing)/2; text:"Disable PIN"; bordered:true; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.requestDisableIncomingPin() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("pin.change"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.beginIncomingPinEdit() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("pin.disable"); bordered:true; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.requestDisableIncomingPin() }
           }
-          Button { width:parent.width; leftAlign:true; bordered:false; iconText:"󰅁"; text:"Back"; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===(root.incomingPinEnabled?2:1); onHovered:function(v){root.noteHover(v,root.incomingPinEnabled?2:1)}; onClicked:root.goBack() }
+          Button { width:parent.width; leftAlign:true; bordered:false; iconText:strings.rightToLeft?"󰅂":"󰅁"; text:strings.t("action.back"); foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===(root.incomingPinEnabled?2:1); onHovered:function(v){root.noteHover(v,root.incomingPinEnabled?2:1)}; onClicked:root.goBack() }
           Text { textFormat:Text.PlainText; visible:root.incomingPinError!==""; width:parent.width; text:root.incomingPinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
         }
 
         Column {
           visible: root.viewState === "incoming_pin_edit"; width:parent.width; spacing:Style.space(8)
-          PanelSectionHeader { text:root.incomingPinEnabled?"CHANGE PIN":"ENABLE PIN"; foreground:root.foreground; fontFamily:root.fontFamily }
-          Text { textFormat:Text.PlainText; width:parent.width; text:"Use 1–64 letters, numbers, dot, underscore, tilde or hyphen"; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
+          PanelSectionHeader { text:root.incomingPinEnabled?strings.t("section.changePin"):strings.t("section.enablePin"); foreground:root.foreground; fontFamily:root.fontFamily }
+          Text { textFormat:Text.PlainText; width:parent.width; text:strings.t("pin.rules"); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
           TextField {
-            id:incomingPinInput; width:parent.width; password:true; placeholderText:"New PIN"; maximumLength:64; enabled:!root.incomingPinUpdating; foreground:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body
+            id:incomingPinInput; width:parent.width; password:true; placeholderText:strings.t("pin.newPlaceholder"); maximumLength:64; enabled:!root.incomingPinUpdating; foreground:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body
             validator:RegularExpressionValidator { regularExpression:/[A-Za-z0-9._~-]{0,64}/ }
             onAccepted:root.submitIncomingPin()
             Keys.onPressed:function(event){if(event.key===Qt.Key_Escape){root.cancelIncomingPinSettings();event.accepted=true}}
           }
           Text { textFormat:Text.PlainText; visible:root.incomingPinError!==""; width:parent.width; text:root.incomingPinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Cancel"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.dim; onClicked:root.cancelIncomingPinSettings() }
-            Button { width:(parent.width-parent.spacing)/2; text:root.incomingPinUpdating?"Saving…":"Save"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.foreground; onClicked:root.submitIncomingPin() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.cancel"); bordered:true; enabled:!root.incomingPinUpdating; foreground:root.dim; onClicked:root.cancelIncomingPinSettings() }
+            Button { width:(parent.width-parent.spacing)/2; text:root.incomingPinUpdating?strings.t("action.saving"):strings.t("action.save"); bordered:true; enabled:!root.incomingPinUpdating; foreground:root.foreground; onClicked:root.submitIncomingPin() }
           }
         }
 
         Column {
           visible: root.viewState === "incoming_pin_disable"; width:parent.width; spacing:Style.space(8)
-          PanelSectionHeader { text:"DISABLE PIN"; foreground:root.foreground; fontFamily:root.fontFamily }
-          Text { textFormat:Text.PlainText; width:parent.width; text:"New incoming requests will no longer require a PIN."; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
+          PanelSectionHeader { text:strings.t("section.disablePin"); foreground:root.foreground; fontFamily:root.fontFamily }
+          Text { textFormat:Text.PlainText; width:parent.width; text:strings.t("pin.disableDetail"); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
           Text { textFormat:Text.PlainText; visible:root.incomingPinError!==""; width:parent.width; text:root.incomingPinError; color:root.urgent; font.family:root.fontFamily; font.pixelSize:Style.font.body; wrapMode:Text.Wrap }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Cancel"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.dim; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.cancelIncomingPinSettings() }
-            Button { width:(parent.width-parent.spacing)/2; text:root.incomingPinUpdating?"Disabling…":"Disable"; bordered:true; enabled:!root.incomingPinUpdating; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.confirmDisableIncomingPin() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.cancel"); bordered:true; enabled:!root.incomingPinUpdating; foreground:root.dim; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.cancelIncomingPinSettings() }
+            Button { width:(parent.width-parent.spacing)/2; text:root.incomingPinUpdating?strings.t("action.disabling"):strings.t("action.disable"); bordered:true; enabled:!root.incomingPinUpdating; foreground:root.urgent; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.confirmDisableIncomingPin() }
           }
         }
 
         Column {
           visible: root.viewState === "incoming" && root.incoming; width:parent.width; spacing:Style.space(8)
-          Text { width:parent.width; textFormat:Text.PlainText; text:root.incoming ? root.incoming.sender+" wants to send" : ""; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true }
-          Text { width:parent.width; textFormat:Text.PlainText; text:root.incoming ? Model.incomingSummary(root.incoming.files)+" · "+Model.formatBytes(root.incoming.total) : ""; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; elide:Text.ElideRight }
-          Text { textFormat:Text.PlainText; visible:root.incomingQueue.length>1; width:parent.width; text:(root.incomingQueue.length-1)+(root.incomingQueue.length===2 ? " more request" : " more requests"); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Text { width:parent.width; textFormat:Text.PlainText; text:root.incoming ? strings.t("incoming.wantsToSend", [root.incoming.sender]) : ""; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true }
+          Text { width:parent.width; textFormat:Text.PlainText; text:root.incoming ? Model.incomingSummary(root.incoming.files, strings)+" · "+Model.formatBytes(root.incoming.total, strings) : ""; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; elide:Text.ElideRight }
+          Text { textFormat:Text.PlainText; visible:root.incomingQueue.length>1; width:parent.width; text:strings.tn("incoming.moreRequests", root.incomingQueue.length-1, [strings.number(root.incomingQueue.length-1)]); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Decline"; foreground:root.urgent; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.declineIncoming() }
-            Button { width:(parent.width-parent.spacing)/2; text:"Accept"; foreground:root.foreground; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.acceptIncoming() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.decline"); foreground:root.urgent; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.declineIncoming() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.accept"); foreground:root.foreground; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.acceptIncoming() }
           }
         }
 
         Column {
           visible: root.viewState==="sending"||root.viewState==="receiving"; width:parent.width; spacing:Style.space(8)
-          PanelSectionHeader { text:root.viewState==="sending" ? "SENDING" : "RECEIVING"; foreground:root.foreground; fontFamily:root.fontFamily }
+          PanelSectionHeader { text:root.viewState==="sending" ? strings.t("section.sending") : strings.t("section.receiving"); foreground:root.foreground; fontFamily:root.fontFamily }
           Text { width:parent.width; textFormat:Text.PlainText; text:root.transferName; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true; elide:Text.ElideMiddle }
           Rectangle { width:parent.width; height:Style.space(4); radius:height/2; color:Qt.darker(root.foreground,2.2); Rectangle { width:parent.width*Math.max(0,Math.min(1,root.progress)); height:parent.height; radius:height/2; color:root.foreground; Behavior on width { NumberAnimation { duration:120 } } } }
-          Text { textFormat:Text.PlainText; text:Math.round(root.progress*100)+"% · "+(root.viewState==="sending"?"to ":"from ")+root.transferPeer; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
-          Button { visible:root.viewState==="sending"; text:"Cancel"; bordered:true; foreground:root.urgent; hasCursor:root.cursorActive; onClicked:root.cancelOutgoing() }
+          Text { textFormat:Text.PlainText; text:strings.t(root.viewState==="sending"?"transfer.progressTo":"transfer.progressFrom", [strings.number(Math.round(root.progress*100)), root.transferPeer]); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Button { visible:root.viewState==="sending"; text:strings.t("action.cancel"); bordered:true; foreground:root.urgent; hasCursor:root.cursorActive; onClicked:root.cancelOutgoing() }
         }
 
         Column {
           visible: root.viewState==="success"||root.viewState==="error"; width:parent.width; spacing:Style.space(8)
           Text { width:parent.width; textFormat:Text.PlainText; text:root.viewState==="success" ? root.statusText : root.errorText; wrapMode:Text.Wrap; color:root.viewState==="error"?root.urgent:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true }
-          Text { visible:root.viewState==="success"; width:parent.width; textFormat:Text.PlainText; text:root.transferPeer!=="" ? (root.statusText==="Sent"?"to ":"from ")+root.transferPeer : ""; wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Text { visible:root.viewState==="success"; width:parent.width; textFormat:Text.PlainText; text:root.transferPeer!=="" ? strings.t(root.engine && root.engine.transferWasOutgoing ? "transfer.to" : "transfer.from", [root.transferPeer]) : ""; wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           // One received file can be looked at and copied without leaving the
           // panel. The preview is decoded off the UI thread, at the size it is
           // drawn, and only for the picture types the engine identified.
@@ -601,20 +601,20 @@ Panel {
           }
           Text { visible:root.receivedFile!==""; width:parent.width; textFormat:Text.PlainText; text:root.receivedFile.slice(root.receivedFile.lastIndexOf("/")+1); elide:Text.ElideMiddle; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { visible:root.receivedFile!==""; width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Copy"; iconText:"󰆏"; tooltipText:root.receivedIsImage?"Copy the picture":"Copy the file"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.copyReceivedFile() }
-            Button { width:(parent.width-parent.spacing)/2; text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.finishTerminal() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.copy"); iconText:"󰆏"; tooltipText:root.receivedIsImage?strings.t("clipboard.copyPicture"):strings.t("clipboard.copyFile"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.copyReceivedFile() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.done"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.finishTerminal() }
           }
           Text { visible:root.receivedFile!==""&&root.copyNote!==""; width:parent.width; textFormat:Text.PlainText; text:root.copyNote; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
-          Button { visible:root.receivedFile===""; text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive; onClicked:root.finishTerminal() }
+          Button { visible:root.receivedFile===""; text:strings.t("action.done"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive; onClicked:root.finishTerminal() }
         }
 
         Column {
           visible: root.viewState==="text"; width:parent.width; spacing:Style.space(8)
-          PanelSectionHeader { text:"RECEIVED TEXT"; foreground:root.foreground; fontFamily:root.fontFamily }
+          PanelSectionHeader { text:strings.t("section.receivedText"); foreground:root.foreground; fontFamily:root.fontFamily }
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incomingText; wrapMode:Text.Wrap; maximumLineCount:6; elide:Text.ElideRight; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:"Copy"; iconText:"󰆏"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:{root.copyReceivedText()} }
-            Button { width:(parent.width-parent.spacing)/2; text:"Done"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.finishText() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.copy"); iconText:"󰆏"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:{root.copyReceivedText()} }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.done"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.finishText() }
           }
         }
       }
@@ -631,8 +631,8 @@ Panel {
     command: ["wl-copy", textCopier.payload]
     running: false
     onStarted: textCopier.launched=true
-    onRunningChanged: if (!running && !textCopier.launched) root.copyNote="wl-copy is required to copy"
-    onExited: function(code) { root.copyNote = code===0 ? "Copied to clipboard" : "wl-copy is required to copy" }
+    onRunningChanged: if (!running && !textCopier.launched) root.copyNote=strings.t("clipboard.copyMissing")
+    onExited: function(code) { root.copyNote = code===0 ? strings.t("clipboard.copied") : strings.t("clipboard.copyMissing") }
   }
 
   // A received file is copied by a script: a picture has to be converted and
@@ -644,8 +644,8 @@ Panel {
     command: [(root.engine ? root.engine.pluginDir : "") + "/bin/nearby-copy-file", fileCopier.path]
     running: false
     onStarted: fileCopier.launched=true
-    onRunningChanged: if (!running && !fileCopier.launched && root.viewState === "success" && root.receivedFile !== "" && fileCopier.path === root.receivedFile) root.copyNote="The copy command could not be started"
-    onExited: function(code) { if (root.viewState !== "success" || root.receivedFile === "" || fileCopier.path !== root.receivedFile) return; root.copyNote = code===0 ? "Copied to clipboard" : "Could not copy this file" }
+    onRunningChanged: if (!running && !fileCopier.launched && root.viewState === "success" && root.receivedFile !== "" && fileCopier.path === root.receivedFile) root.copyNote=strings.t("clipboard.copyNotStarted")
+    onExited: function(code) { if (root.viewState !== "success" || root.receivedFile === "" || fileCopier.path !== root.receivedFile) return; root.copyNote = code===0 ? strings.t("clipboard.copied") : strings.t("clipboard.copyFailed") }
   }
 
   Process {
@@ -655,7 +655,7 @@ Panel {
     running: false
     stdinEnabled: true
     onStarted: { clipboardWriter.launched=true; write(root.incomingText); stdinEnabled=false }
-    onRunningChanged: if (!running && !clipboardWriter.launched && root.viewState==="text") root.failWith("wl-copy is required to copy received text")
-    onExited: function(code) { stdinEnabled=true; if(root.viewState!=="text")return; if(code===0){root.noteTextCopied()} else root.failWith("wl-copy is required to copy received text") }
+    onRunningChanged: if (!running && !clipboardWriter.launched && root.viewState==="text") root.failWith(strings.t("clipboard.copyTextMissing"))
+    onExited: function(code) { stdinEnabled=true; if(root.viewState!=="text")return; if(code===0){root.noteTextCopied()} else root.failWith(strings.t("clipboard.copyTextMissing")) }
   }
 }

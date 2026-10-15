@@ -2,6 +2,7 @@ const assert = require("node:assert/strict")
 const fs = require("node:fs")
 const vm = require("node:vm")
 const Model = require("../Model.js")
+const strings = require("./strings-stub.js")
 
 const source = fs.readFileSync(require.resolve("../Panel.qml"), "utf8")
 
@@ -42,7 +43,7 @@ assert.match(source, /onOpenedChanged:[\s\S]*?else \{ clearSecretInputs\(\); syn
   "closing a popup must clear locally retained PIN values")
 assert.match(source, /Component\.onDestruction:\s*if \(engine && viewRegistered\) engine\.viewClosed\(\)/,
   "a view torn down while open must release its claim on discovery")
-assert.match(source, /viewState === "incoming_pin_settings"\) return incomingPinEnabled \? "Protection enabled" : "Protection disabled"/,
+assert.match(source, /viewState === "incoming_pin_settings"\) return incomingPinEnabled \? strings\.t\("hero.protectionEnabled"\) : strings\.t\("hero.protectionDisabled"\)/,
   "PIN settings must expose their state in the hero instead of repeating it in the body")
 assert.match(source, /id:nearbyActions/,
   "secondary Nearby actions should share one compact row")
@@ -50,7 +51,7 @@ assert.equal(source.includes('PanelSectionHeader { text: "NEARBY"'), false,
   "the device section must not repeat the panel title")
 assert.equal(source.includes('text:root.incomingPinEnabled?"PIN protection is enabled"'), false,
   "PIN settings must not repeat the state already shown in the hero")
-assert.equal((source.match(/text:"Back"/g) || []).length, 2,
+assert.equal((source.match(/text:strings\.t\("action.back"\)/g) || []).length, 2,
   "the device actions and PIN settings screens both need a visible mouse exit")
 
 assert.equal(source.includes("closeStdin"), false, "Quickshell Process does not expose closeStdin")
@@ -72,15 +73,15 @@ assert.equal(/code\s*===?\s*127/.test(source), false,
 // the repository and recovery command for failures the action cannot cover.
 assert.match(source, /id: helperUpdate[\s\S]*?visible: root\.helperUpdateOffered/,
   "the update row must appear exactly when the engine says the helper needs one")
-assert.match(source, /text: root\.helperUpdating \? "Preparing…" : \(root\.helperUpdateError!=="" \? "Try again" : "Retry helper"\)/,
+assert.match(source, /text: root\.helperUpdating \? strings\.t\("helper.preparing"\) : \(root\.helperUpdateError!=="" \? strings\.t\("helper.tryAgain"\) : strings\.t\("helper.retry"\)\)/,
   "the button must name the retry after a failure, and say it is working while it works")
 assert.match(source, /enabled:!root\.helperUpdating/,
   "a second press while helper repair runs must not start a second download")
 assert.match(source, /visible:root\.helperUpdateError!==""[\s\S]*?root\.updateCommand[\s\S]*?onClicked:root\.copyUpdateCommand\(\)[\s\S]*?onClicked:root\.copyRepositoryLink\(\)/,
   "a failed update must offer the command that fixes it, not only the repository link")
-assert.match(source, /text:"Copy command"[^\n]*hasCursor:[^\n]*helperCopyCommandIndex[^\n]*onHovered:[^\n]*helperCopyCommandIndex/,
+assert.match(source, /text:strings\.t\("helper.copyCommand"\)[^\n]*hasCursor:[^\n]*helperCopyCommandIndex[^\n]*onHovered:[^\n]*helperCopyCommandIndex/,
   "the copy-command fallback must participate in keyboard and hover navigation")
-assert.match(source, /text:"Copy link"[^\n]*hasCursor:[^\n]*helperCopyLinkIndex[^\n]*onHovered:[^\n]*helperCopyLinkIndex/,
+assert.match(source, /text:strings\.t\("helper.copyLink"\)[^\n]*hasCursor:[^\n]*helperCopyLinkIndex[^\n]*onHovered:[^\n]*helperCopyLinkIndex/,
   "the copy-link fallback must participate in keyboard and hover navigation")
 assert.match(source, /readonly property string repositoryUrl: "https:\/\/github\.com\/jfg96\/omarchy-nearby"/,
   "the fallback link must point at the plugin repository")
@@ -94,7 +95,7 @@ assert.match(source, /if \(!backendReady\) return statusText/,
   "the hero must show the short status, not the full error sentence")
 assert.equal(source.includes("return errorText || statusText"), false,
   "the hero must not fall back to the long error text")
-assert.match(source, /text: root\.helperBlocksNearby \? "HELPER" : "DEVICES"/,
+assert.match(source, /text: root\.helperBlocksNearby \? strings\.t\("section.helper"\) : strings\.t\("section.devices"\)/,
   "a view owned by the helper failure must not head its section DEVICES")
 assert.match(source, /visible: root\.devices\.length===0 && !root\.helperBlocksNearby/,
   "the device empty-state line must not repeat the error the update row states")
@@ -128,7 +129,9 @@ for (const [failure, description] of [
   ["The file chooser could not be started", "missing file chooser"],
   ["The file chooser did not open", "file chooser fault"],
 ]) {
-  assert.match(source, new RegExp(`failWith\\("${failure.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"\\)`),
+  const key = Object.keys(require("../i18n/en.json")).find(key => strings.t(key) === failure)
+  assert.ok(key, `${description} must have an English catalogue entry`)
+  assert.ok(source.includes(`failWith(strings.t("${key}"))`),
     `${description} errors must be raised through failWith`)
 }
 
@@ -217,6 +220,7 @@ function panel(initial = {}) {
   const engine = initial.engine === undefined ? stubEngine() : initial.engine
   const context = {
     Model,
+    strings,
     Qt: {callLater: callback => callback()},
     engine,
     picker: {running: false, launched: false},
@@ -321,11 +325,11 @@ function callNames(state) {
 
 // The folder is chosen with Omarchy's chooser in directory mode, and only a
 // folder that was actually picked reaches the engine.
-assert.match(source, /id: downloadDirPicker[\s\S]*?command: \["omarchy-file-select","--title","Save received files to","--directory"\]/,
+assert.match(source, /id: downloadDirPicker[\s\S]*?command: \["omarchy-file-select","--title",strings\.t\("chooser.saveTo"\),"--directory"\]/,
   "the folder must be chosen with omarchy-file-select in directory mode")
 assert.match(source, /id: downloadDirPicker[\s\S]*?if \(code === 0 && path !== "" && root\.engine\) root\.engine\.setDownloadDir\(path\)/,
   "a cancelled chooser must leave the folder as it is")
-assert.match(source, /text:"Save to · "\+Model\.folderName\(root\.saveDirectory\)[^\n]*root\.devices\.length\+2[^\n]*root\.devices\.length\+2/,
+assert.match(source, /text:strings\.t\("folder.saveTo", \[Model\.folderName\(root\.saveDirectory\)\]\)[^\n]*root\.devices\.length\+2[^\n]*root\.devices\.length\+2/,
   "the folder row shows where the helper really saves and joins keyboard and hover navigation")
 {
   const state = panel({viewState: "nearby", backendReady: false, selectedIndex: 2})
@@ -370,7 +374,7 @@ assert.match(source, /text:"Save to · "\+Model\.folderName\(root\.saveDirectory
   assert.equal(updating.useDownloadsIndex, 4)
   assert.equal(updating.helperUpdateIndex, 5, "the update row must not share an index with Use Downloads")
 }
-assert.match(source, /Button \{ visible:root\.useDownloadsIndex>=0;[^\n]*text:"Use Downloads"[^\n]*root\.selectedIndex===root\.useDownloadsIndex[^\n]*root\.noteHover\(v,root\.useDownloadsIndex\)[^\n]*onClicked:root\.useDownloads\(\)/,
+assert.match(source, /Button \{ visible:root\.useDownloadsIndex>=0;[^\n]*text:strings\.t\("folder.useDownloads"\)[^\n]*root\.selectedIndex===root\.useDownloadsIndex[^\n]*root\.noteHover\(v,root\.useDownloadsIndex\)[^\n]*onClicked:root\.useDownloads\(\)/,
   "Use Downloads is drawn where the keyboard index says it is")
 
 // An unusable helper hides the action row, so the update button takes the
@@ -519,7 +523,7 @@ assert.match(source, /Image \{[\s\S]*?sourceSize\.width:[\s\S]*?asynchronous:tru
   "the preview must be decoded off the UI thread at a bounded size")
 assert.match(source, /readonly property bool receivedIsImage: engine \? Model\.previewableImage\(engine\.receivedFileType\) : false/,
   "what counts as a picture is decided by the engine's probe of the bytes")
-assert.match(source, /Button \{ visible:root\.receivedFile===""; text:"Done"/,
+assert.match(source, /Button \{ visible:root\.receivedFile===""; text:strings\.t\("action.done"\)/,
   "the plain Done must give way to the Copy and Done pair, not sit under it")
 
 {
@@ -751,13 +755,13 @@ assert.match(source, /Button \{ visible:root\.receivedFile===""; text:"Done"/,
     ]) {
       const root = {...current, copyNote: ""}
       vm.runInNewContext(event === "exit" ? `(function(){${exitBody}})()` : stoppedBody,
-        {root, fileCopier: {path: "/data/A.png", launched: false}, running: false, code: 0})
+        {strings, root, fileCopier: {path: "/data/A.png", launched: false}, running: false, code: 0})
       assert.equal(root.copyNote, "", "a stale copy callback must leave the current result alone")
     }
   }
   for (const code of [0, 1]) {
     const root = {viewState: "success", receivedFile: "/data/A.png", copyNote: "Copying…"}
-    vm.runInNewContext(`(function(){${exitBody}})()`, {root, fileCopier: {path: "/data/A.png"}, code})
+    vm.runInNewContext(`(function(){${exitBody}})()`, {strings, root, fileCopier: {path: "/data/A.png"}, code})
     assert.equal(root.copyNote, code === 0 ? "Copied to clipboard" : "Could not copy this file")
   }
 }
@@ -765,32 +769,60 @@ assert.match(source, /Button \{ visible:root\.receivedFile===""; text:"Done"/,
 // The hero rotates through these while the empty device list below says
 // "Finding devices…"; a phrase that matches it shows the same words twice.
 {
+  const english = require("../i18n/en.json")
   const phrases = source.match(/readonly property var nearbyPhrases: \[([\s\S]*?)\]/)
   assert.notEqual(phrases, null, "the rotating phrases must stay a literal list")
-  const emptyList = source.match(/root\.discoveryActive \? "([^"]+)"/)
+  const emptyList = source.match(/root\.discoveryActive \? strings\.t\("([^"]+)"\)/)
   assert.notEqual(emptyList, null, "the empty list must say discovery is running")
   const normalize = text => text.replace(/…$/, "").toLowerCase()
-  for (const phrase of phrases[1].match(/"[^"]+"/g).map(value => JSON.parse(value)))
-    assert.notEqual(normalize(phrase), normalize(emptyList[1]), `the hero must not repeat "${emptyList[1]}"`)
+  const finding = english[emptyList[1]]
+  for (const key of phrases[1].match(/"[^"]+"/g).map(value => JSON.parse(value)))
+    assert.notEqual(normalize(english[key]), normalize(finding), `the hero must not repeat "${finding}"`)
 }
 
 // The action row shares the folder row's left edge, so the icons line up in
 // one column instead of floating at the centres of the two halves.
-for (const label of ["Rescan", "PIN · "]) {
-  assert.match(source, new RegExp(`Button \\{ width:\\(parent\\.width-parent\\.spacing\\)/2; leftAlign:true;[^\\n]*text:"${label}`),
-    `${label.trim()} must be left-aligned like the folder row`)
+for (const label of ['text:strings.t("action.rescan")', 'text:(root.incomingPinEnabled?strings.t("action.pinOn")']) {
+  const line = source.split("\n").find(text => text.includes(label))
+  assert.ok(line, `${label} must exist`)
+  assert.match(line, /Button \{ width:\(parent\.width-parent\.spacing\)\/2; leftAlign:true;/,
+    `${label} must be left-aligned like the folder row`)
 }
 
 // Devices are the panel's purpose and the rows after them tune the receiver.
 // A rule and the dimmed colour Back uses keep them from reading as one list.
 assert.match(source, /PanelSeparator \{ visible:nearbyActions\.visible; width:parent\.width \}\s*Row \{\s*id:nearbyActions;/,
   "a rule must separate the devices from the receiver actions")
-for (const label of ['text:"Rescan"', 'text:"PIN · "', 'text:"Save to · "', 'text:"Use Downloads"']) {
+for (const label of ['text:strings.t("action.rescan")', 'text:(root.incomingPinEnabled?strings.t("action.pinOn")', 'text:strings.t("folder.saveTo"', 'text:strings.t("folder.useDownloads")']) {
   const line = source.split("\n").find(text => text.includes(label))
   assert.ok(line, `${label} must exist`)
   assert.match(line, /foreground:root\.dim;/, `${label} must be dimmed below the devices`)
 }
 assert.match(source, /iconText:Model\.iconFor\(modelData\.deviceType\); text:modelData\.alias; foreground:root\.foreground;/,
   "devices keep the full foreground")
+
+
+// The result chooses a sentence from transfer direction, never an English
+// status comparison. Evaluate the binding actually shipped in the panel.
+{
+  const expression = source.match(/text:(root\.transferPeer!==""[^;]+)/)[1]
+  const spanish = require('../i18n/es-MX.json')
+  const translated = {...strings,t:(key,args) => spanish[key].replace('%1',args[0])}
+  for (const outgoing of [true,false]) {
+    const result = vm.runInNewContext(`(${expression})`, {strings:translated,root:{engine:{transferWasOutgoing:outgoing},statusText:'Enviado',transferPeer:'Teléfono'}})
+    assert.equal(result,outgoing ? 'a Teléfono' : 'de Teléfono')
+  }
+}
+
+// Horizontal navigation follows the mirrored row; vertical order stays intact.
+{
+  const state = panel({viewState:'incoming',selectedIndex:0,strings:{...strings,rightToLeft:true}})
+  state.moveCursor(-1,0)
+  assert.equal(state.selectedIndex,1)
+  state.moveCursor(1,0)
+  assert.equal(state.selectedIndex,0)
+  state.moveCursor(0,1)
+  assert.equal(state.selectedIndex,1)
+}
 
 console.log("panel state tests passed")

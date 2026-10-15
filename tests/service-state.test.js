@@ -2,6 +2,7 @@ const assert = require("node:assert/strict")
 const fs = require("node:fs")
 const vm = require("node:vm")
 const Model = require("../Model.js")
+const strings = require("./strings-stub.js")
 
 const source = fs.readFileSync(require.resolve("../Service.qml"), "utf8")
 const manifest = JSON.parse(fs.readFileSync(require.resolve("../manifest.json"), "utf8"))
@@ -31,7 +32,7 @@ for (const method of ["summon", "hide", "toggle"]) {
 // command. That is the failure reinstalling actually fixes.
 assert.match(source, /onRunningChanged:\s*\{[\s\S]*?if \(backend\.launched\) return/,
   "a helper that never launched must be reported from onRunningChanged")
-assert.match(source, /try Retry helper, or build it with \.\/build\.sh\./,
+assert.match(source, /id: backend[\s\S]*?strings\.t\("helper.unavailableDetail", \[strings\.t\("helper.retry"\), "\.\/build\.sh"\]\)/,
   "the recovery hint belongs to the unavailable-helper case")
 assert.match(source, /onStarted:\s*\{[\s\S]*?backendStartupFailureCode=""[\s\S]*?backendStartupFailurePort=0/,
   "each helper attempt must discard a stale startup cause before it runs")
@@ -95,6 +96,7 @@ function backendEligible(state) {
 function configEntry(state) {
   return vm.runInNewContext(`(${extractBinding("configEntry")})`, {
     Model,
+    strings,
     manifestPluginId: "oma.nearby",
     shell: state.shell,
     get effectiveShellConfig() { return state.effectiveShellConfig },
@@ -128,6 +130,7 @@ function extractBinding(name) {
 function helperDerived(state) {
   const scope = {
     Model,
+    strings,
     helperVersion: state.helperVersion,
     pluginVersion: state.pluginVersion,
     minHelperVersion: state.minHelperVersion,
@@ -142,7 +145,7 @@ function helperDerived(state) {
 }
 
 const functionNames = [
-  "viewOpened", "viewClosed", "notificationNeeded",
+  "summonView", "viewOpened", "viewClosed", "notificationNeeded",
   "send", "utf8ByteLength", "bindBackendRunning", "persistReceiverEnabled", "persistSettings", "downloadDirChangeBusy", "setDownloadDir", "useDownloads", "restartBackend", "toggleReceiver", "finishReceiverShutdown",
   "startDiscovery", "forceFullDiscovery", "stopDiscovery", "chooseDevice", "clearTarget",
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
@@ -162,6 +165,7 @@ function engine(initial = {}) {
   const signals = {pinCleared: 0, pinFocusRequested: 0, incomingPinCleared: 0, incomingPinFocusRequested: 0, focusRestoreRequested: 0}
   const context = {
     Model,
+    strings,
     Date: {now: () => 1000},
     Quickshell: {execDetached: command => notified.push(command)},
     Qt: {binding: callback => ({callback})},
@@ -178,6 +182,7 @@ function engine(initial = {}) {
     shell: null,
     fileShellConfig: null,
     moduleEntryId: "oma.nearby",
+    manifestPluginId: "oma.nearby",
     pluginSettings: {},
     downloadDir: "",
     homeDir: "/home/someone",
@@ -1440,6 +1445,7 @@ assert.match(source, /environment: root\.downloadDir !== "" \? \(\{ XDG_DOWNLOAD
   const state = engine({
     shell,
     moduleEntryId: "oma.nearby",
+    manifestPluginId: "oma.nearby",
     pluginSettings: {},
   })
 
@@ -1514,6 +1520,7 @@ assert.match(source, /environment: root\.downloadDir !== "" \? \(\{ XDG_DOWNLOAD
   const state = engine({
     fileShellConfig: config,
     moduleEntryId: "oma.nearby",
+    manifestPluginId: "oma.nearby",
     pluginSettings: {receiverEnabled: false},
     shell: {
       updateEntryInline(id, settings) { writes.push([id, JSON.parse(JSON.stringify(settings))]); return true },
@@ -1536,6 +1543,7 @@ assert.match(source, /environment: root\.downloadDir !== "" \? \(\{ XDG_DOWNLOAD
   const state = engine({
     fileShellConfig: config,
     moduleEntryId: "oma.nearby",
+    manifestPluginId: "oma.nearby",
     pluginSettings: {tooltip: "keep me", receiverEnabled: true},
     shell: {updateEntryInline(id, settings) { writes.push(JSON.parse(JSON.stringify(settings))); return true }},
   })
@@ -1597,6 +1605,44 @@ for (const busy of [
   assert.equal(writes.length, 0, "a late folder action must not persist settings during an active operation")
   assert.equal(state.sent.length, 0, "a late folder action must not shut down the active helper")
   assert.equal(state.viewState, originalView)
+}
+
+
+// Direction is state, independent of the translated success message.
+{
+  const state = engine({viewState:'sending'})
+  state.finishOutgoing('success','Enviado',true)
+  assert.equal(state.transferWasOutgoing,true)
+  state.finishIncoming('success','Recibido',true)
+  assert.equal(state.transferWasOutgoing,false)
+  state.transferWasOutgoing=true
+  state.viewState='text'
+  state.noteTextCopied()
+  assert.equal(state.transferWasOutgoing,false)
+}
+// Translate the whole notification sentence without expanding remote %N or
+// letting peer aliases/filenames introduce notification markup.
+{
+  const spanish = require('../i18n/es-MX.json')
+  const translated = {...strings, t(key,args) {
+    const text = spanish[key]
+    assert.equal(typeof text,'string')
+    return text.replace(/%(\d+)/g,(match,n) => args && args[Number(n)-1] !== undefined ? String(args[Number(n)-1]) : match)
+  }}
+  const state = engine({anyViewOpen:false,strings:translated})
+  state.handleEvent({event:'incoming_request',requestId:'translated',sender:'<b>%2</b>',files:[{name:'<file>&%1'}]})
+  assert.equal(state.notified[0].at(-2),'Transferencia entrante')
+  assert.equal(state.notified[0].at(-1),'De &lt;b&gt;%2&lt;/b&gt;: &lt;file&gt;&amp;%1')
+}
+
+// IPC status values belong to the protocol, regardless of display language.
+{
+  const state = engine({strings:{...strings,t:() => 'desconocido'}})
+  assert.equal(state.summonView('summon'),'unknown')
+  state.shell={summon:() => false}
+  assert.equal(state.summonView('summon'),'unknown')
+  state.shell={summon:() => true}
+  assert.equal(state.summonView('summon'),'ok')
 }
 
 console.log("service state tests passed")

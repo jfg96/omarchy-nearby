@@ -38,18 +38,23 @@ function iconFor(type) {
   return "󰍹"
 }
 
-function formatBytes(bytes) {
+function formatBytes(bytes, strings) {
   var value = Number(bytes || 0)
-  if (value < 1024) return value + " B"
+  var number = function(v, d) { return strings ? strings.number(v, d) : (d === undefined ? String(v) : v.toFixed(d)) }
+  if (value < 1024) return number(value) + " B"
   var units = ["KB", "MB", "GB", "TB"], i = -1
   do { value /= 1024; i++ } while (value >= 1024 && i < units.length - 1)
-  return value.toFixed(value >= 10 ? 0 : 1) + " " + units[i]
+  return number(value, value >= 10 ? 0 : 1) + " " + units[i]
 }
 
-function incomingSummary(files) {
-  if (!files || files.length === 0) return "Transfer"
-  if (files.length === 1) return String(files[0].name || "Transfer")
-  return String(files[0].name || "Transfer") + " + " + (files.length - 1) + " more"
+function incomingSummary(files, strings) {
+  var untitled = strings ? strings.t("transfer.untitled") : "Transfer"
+  if (!files || files.length === 0) return untitled
+  var first = String(files[0].name || untitled)
+  if (files.length === 1) return first
+  var more = files.length - 1
+  if (!strings) return first + " + " + more + " more"
+  return strings.tn("transfer.andMore", more, [first, strings.number(more)])
 }
 
 // Desktop notification bodies are rendered as markup, so remote text must be
