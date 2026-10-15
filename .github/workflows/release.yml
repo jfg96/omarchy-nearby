@@ -85,6 +85,33 @@ jobs:
             --source-ref "refs/tags/$tag" \
             --deny-self-hosted-runners
 
+      - name: Verify referenced aarch64 helper
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset=$(awk -F= '$1 == "NEARBY_HELPER_AARCH64_ASSET" {print $2}' helper-release.env)
+          if [[ -z "$asset" ]]; then
+            echo "helper-release.env references no aarch64 helper"
+            exit 0
+          fi
+          tag=$(awk -F= '$1 == "NEARBY_HELPER_TAG" {print $2}' helper-release.env)
+          size=$(awk -F= '$1 == "NEARBY_HELPER_AARCH64_SIZE" {print $2}' helper-release.env)
+          sha=$(awk -F= '$1 == "NEARBY_HELPER_AARCH64_SHA256" {print $2}' helper-release.env)
+          source_sha=$(awk -F= '$1 == "NEARBY_HELPER_SOURCE_SHA" {print $2}' helper-release.env)
+          workflow=$(awk -F= '$1 == "NEARBY_HELPER_RELEASE_WORKFLOW" {print $2}' helper-release.env)
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "$asset" --dir verify-aarch64
+          helper="verify-aarch64/$asset"
+          [[ "$(stat -c %s -- "$helper")" == "$size" ]]
+          [[ "$(sha256sum "$helper" | cut -d' ' -f1)" == "$sha" ]]
+          gh attestation verify "$helper" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$workflow" \
+            --source-digest "$source_sha" \
+            --source-ref "refs/tags/$tag" \
+            --deny-self-hosted-runners
+
       - name: Install license generator
         run: cargo install cargo-about --locked --version 0.9.1 --features cli
 

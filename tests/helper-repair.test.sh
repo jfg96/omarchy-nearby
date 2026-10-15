@@ -49,6 +49,9 @@ done
 cp "$FAKE_ASSET_FILE" "$output"
 STUB
   chmod 0755 "$stub_bin/curl"
+  printf '#!/usr/bin/env bash\ncase "${1:-}" in -s) echo Linux ;; -m) echo x86_64 ;; *) exit 1 ;; esac\n' \
+    >"$stub_bin/uname"
+  chmod 0755 "$stub_bin/uname"
 }
 
 run_repair() {

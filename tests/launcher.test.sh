@@ -57,6 +57,17 @@ else
 fi
 STUB
   chmod 0755 "$stub_bin/curl"
+  # The selected asset depends on the machine; pin it so results do not
+  # depend on the host running the suite.
+  cat >"$stub_bin/uname" <<'STUB'
+#!/usr/bin/env bash
+case "${1:-}" in
+  -s) printf 'Linux\n' ;;
+  -m) printf '%s\n' "${FAKE_UNAME_M:-x86_64}" ;;
+  *) exit 1 ;;
+esac
+STUB
+  chmod 0755 "$stub_bin/uname"
 }
 
 metadata() {
@@ -71,6 +82,22 @@ metadata() {
     >"$plugin/helper-release.env"
 }
 
+# Serve an aarch64 build and describe it beside the x86_64 one.
+add_aarch64() {
+  local version="${1:-1.2.0}"
+  arm_asset="omarchy-nearby-helper-v$version-linux-aarch64"
+  arm_served="$sandbox/served/$arm_asset"
+  printf '#!/usr/bin/env bash\nprintf "omarchy-nearby-helper %s aarch64\\n"\n' "$version" >"$arm_served"
+  chmod 0755 "$arm_served"
+  arm_size=$(stat -c %s -- "$arm_served")
+  arm_hash=$(sha256sum "$arm_served"); arm_hash=${arm_hash%% *}
+  printf '%s\n' \
+    "NEARBY_HELPER_AARCH64_ASSET=$arm_asset" \
+    "NEARBY_HELPER_AARCH64_SIZE=$arm_size" \
+    "NEARBY_HELPER_AARCH64_SHA256=$arm_hash" \
+    >>"$plugin/helper-release.env"
+}
+
 run_launcher() {
   HOME="$sandbox/home" XDG_DATA_HOME="$data_home" PATH="$stub_bin:$PATH" \
     "$plugin/bin/nearby-helper-launcher" "$@" 2>&1
@@ -79,7 +106,7 @@ run_launcher() {
 installed_path() { printf '%s/helper-v1.2.0/%s' "$data_home/omarchy-nearby/helpers" "$asset"; }
 teardown() {
   [[ -n ${sandbox:-} && -d $sandbox ]] && rm -rf -- "$sandbox"
-  unset FAKE_ASSET_FILE FAKE_CURL_COUNT FAKE_CURL_URL FAKE_CURL_DELAY FAKE_CURL_EXIT FAKE_CURL_SYMLINK
+  unset FAKE_ASSET_FILE FAKE_CURL_COUNT FAKE_CURL_URL FAKE_CURL_DELAY FAKE_CURL_EXIT FAKE_CURL_SYMLINK FAKE_UNAME_M
 }
 
 announce "first prefetch downloads exact immutable bytes outside the checkout"
@@ -280,6 +307,95 @@ output=$(run_launcher --prefetch); status=$?
 assert_eq "$status" "1"
 assert_contains "$output" "unknown field"
 assert_eq "$(<"$FAKE_CURL_COUNT")" "0"
+teardown
+
+announce "an aarch64 machine downloads and runs the aarch64 helper"
+setup
+add_aarch64
+export FAKE_UNAME_M=aarch64 FAKE_ASSET_FILE="$arm_served"
+output=$(run_launcher --prefetch); status=$?
+assert_eq "$status" "0"
+assert_eq "$output" "omarchy-nearby-helper 1.2.0"
+assert_eq "$(<"$FAKE_CURL_URL")" "https://github.com/jfg96/omarchy-nearby/releases/download/helper-v1.2.0/$arm_asset"
+assert_eq "$(sha256sum "$data_home/omarchy-nearby/helpers/helper-v1.2.0/$arm_asset" | cut -d' ' -f1)" "$arm_hash"
+[[ ! -e $(installed_path) ]] || report "the x86_64 helper was installed on aarch64"
+output=$(run_launcher --version); status=$?
+assert_eq "$status" "0"
+assert_eq "$output" "omarchy-nearby-helper 1.2.0 aarch64"
+assert_eq "$(<"$FAKE_CURL_COUNT")" "1"
+teardown
+
+announce "an arm64 machine name selects the aarch64 helper"
+setup
+add_aarch64
+export FAKE_UNAME_M=arm64 FAKE_ASSET_FILE="$arm_served"
+output=$(run_launcher --version); status=$?
+assert_eq "$status" "0"
+assert_eq "$output" "omarchy-nearby-helper 1.2.0 aarch64"
+teardown
+
+announce "an x86_64 machine ignores the aarch64 helper"
+setup
+add_aarch64
+output=$(run_launcher --version); status=$?
+assert_eq "$status" "0"
+assert_eq "$output" "omarchy-nearby-helper 1.2.0"
+assert_eq "$(<"$FAKE_CURL_URL")" "https://github.com/jfg96/omarchy-nearby/releases/download/helper-v1.2.0/$asset"
+teardown
+
+announce "an aarch64 machine without an aarch64 helper fails before network access"
+setup
+export FAKE_UNAME_M=aarch64
+output=$(run_launcher --prefetch); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "no prebuilt helper is available for Linux/aarch64"
+assert_eq "$(<"$FAKE_CURL_COUNT")" "0"
+teardown
+
+announce "an unsupported machine fails before network access"
+setup
+add_aarch64
+export FAKE_UNAME_M=riscv64
+output=$(run_launcher --prefetch); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "no prebuilt helper is available for Linux/riscv64"
+assert_eq "$(<"$FAKE_CURL_COUNT")" "0"
+teardown
+
+announce "a partial aarch64 description fails on every machine"
+setup
+add_aarch64
+sed -i '/^NEARBY_HELPER_AARCH64_SHA256=/d' "$plugin/helper-release.env"
+output=$(run_launcher --prefetch); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "incomplete"
+assert_eq "$(<"$FAKE_CURL_COUNT")" "0"
+teardown
+
+announce "an aarch64 asset from another tag is rejected"
+setup
+add_aarch64
+sed -i 's/^NEARBY_HELPER_AARCH64_ASSET=.*/NEARBY_HELPER_AARCH64_ASSET=omarchy-nearby-helper-v1.1.9-linux-aarch64/' \
+  "$plugin/helper-release.env"
+output=$(run_launcher --prefetch); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "aarch64 helper asset does not match its tag"
+assert_eq "$(<"$FAKE_CURL_COUNT")" "0"
+teardown
+
+announce "an aarch64 download with the wrong hash is rejected"
+setup
+add_aarch64
+export FAKE_UNAME_M=aarch64
+printf 'tampered\n' >>"$arm_served"
+sed -i "s/^NEARBY_HELPER_AARCH64_SIZE=.*/NEARBY_HELPER_AARCH64_SIZE=$(stat -c %s -- "$arm_served")/" \
+  "$plugin/helper-release.env"
+export FAKE_ASSET_FILE="$arm_served"
+output=$(run_launcher --prefetch); status=$?
+assert_eq "$status" "1"
+assert_contains "$output" "failed its SHA256 check"
+[[ ! -e $data_home/omarchy-nearby/helpers/helper-v1.2.0/$arm_asset ]] \
+  || report "a tampered aarch64 helper was installed"
 teardown
 
 if (( failures )); then
