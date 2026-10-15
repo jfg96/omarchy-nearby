@@ -1,0 +1,43 @@
+name: Stable guard
+
+# `stable` is the default branch, so it is what Omarchy's plugin manager
+# installs and updates to. It only fast-forwards to published vX.Y.Z tags; see
+# docs/RELEASING.md. Development and pull requests belong on `main`.
+
+on:
+  push:
+    branches:
+      - stable
+  pull_request:
+    branches:
+      - stable
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Reject pull requests into stable
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "::error::Pull requests target main. stable only moves to a published release tag."
+          exit 1
+
+      - name: Check out the pushed commit
+        if: github.event_name == 'push'
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Require a stable release tag on the pushed commit
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          tags=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+          if [[ -z $tags ]]; then
+            echo "::error::stable is at $(git rev-parse --short HEAD), which has no vX.Y.Z tag. Fast-forward stable only to a published release tag."
+            exit 1
+          fi
+          echo "stable is at release $tags"

@@ -85,6 +85,9 @@ commands, or [troubleshooting](docs/TROUBLESHOOTING.md) if a device does not app
 omarchy plugin update oma.nearby
 ```
 
+Installs and updates follow the `stable` branch, which only moves when a
+release is published, so an update always brings a released version.
+
 Add `--yes` for unattended updates. The next receiver start resolves the helper
 selected by the updated checkout. Deliberate local builds take priority until
 their [developer override is disabled](CONTRIBUTING.md#return-to-the-published-helper).

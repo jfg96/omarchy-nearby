@@ -28,6 +28,24 @@ packaging checks: the selected helper version, Cargo package version and
 the recorded helper source commit. A plugin-only release may reuse the same
 helper when those conditions still hold.
 
+## Branches
+
+Omarchy's plugin manager installs and updates from the repository's default
+branch. `omarchy plugin update` fetches that branch tip and offers any new commit
+as an update; it does not read versions or tags. The default branch is therefore
+`stable`, which only ever points at a published `vX.Y.Z` tag, and development
+happens on `main`.
+
+| Branch | Contents | Moves |
+| --- | --- | --- |
+| `main` | Development: merged pull requests and release preparation | On every merge |
+| `stable` | What users install and update to | Fast-forward to each new `vX.Y.Z` tag, nothing else |
+
+Pull requests target `main`. Never commit to `stable`, open pull requests against
+it, or force-push it. [Stable guard](../.github/workflows/stable-guard.yml)
+rejects pull requests into `stable` and a push that leaves it on an untagged
+commit.
+
 ## Prepare and publish a changed helper
 
 1. Finish helper changes, update Cargo version/lockfile and the plugin's required
@@ -89,6 +107,17 @@ Check that the verified executable reports
 6. Run **Verify release** manually in GitHub Actions with that exact plugin tag.
    This independently downloads the selected helper and verifies its size,
    hash, provenance and reported version. Record the run and outcome.
+7. Only after both workflows succeed, fast-forward `stable` to the tag. This
+   is the step that offers the release to installed copies:
+
+   ```sh
+   git fetch origin
+   git push origin 'vX.Y.Z^{commit}:refs/heads/stable'
+   ```
+
+   Without `--force` the push is refused unless it is a fast-forward. A refused
+   push means `stable` is not an ancestor of the tag; stop and diagnose rather
+   than forcing it.
 
 The independent verifier reads metadata from the requested plugin tag. The
 normal launcher performs size/hash verification; it does not run GitHub
@@ -96,7 +125,7 @@ attestation verification on each user startup.
 
 ## Failed preparation or verification
 
-Resolve failed checks before creating a release tag. Do not move an existing tag
-or rewrite published `main` to hide a release problem. Diagnose failed workflows
+Resolve failed checks before creating a release tag. Do not move an existing tag,
+rewind `stable` or rewrite published `main` to hide a release problem. Diagnose failed workflows
 against their exact source and artifact, and prepare a corrective release when
 published contents need to change.

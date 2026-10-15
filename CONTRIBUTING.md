@@ -118,6 +118,15 @@ suites are unnecessary for a documentation-only change.
 
 ## Proposing changes
 
+Open pull requests against `main`. The repository's default branch is
+`stable`, which is what Omarchy installs and updates to and which only moves on
+releases; GitHub suggests it as the base, so change the base to `main`. An
+installed copy is on `stable`; switch it to `main` before developing in it:
+
+```sh
+git -C ~/.config/omarchy/plugins/oma.nearby switch --track origin/main
+```
+
 Describe the concrete problem, resulting behavior and checks actually performed.
 Identify unverified runtime behavior rather than reporting skipped tests as
 passing. Inspect the final diff for unintended files and whitespace errors.
