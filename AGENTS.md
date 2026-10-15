@@ -41,8 +41,9 @@ minimal and do not mix unrelated refactors into bug fixes.
   staged and atomically installed; never write a published ELF into the plugin
   checkout. `bin/nearby-repair-helper` only asks the launcher to prefetch.
 - Installation and source updates belong exclusively to Omarchy's plugin
-  manager. Do not add a curl-pipe installer or make plugin code modify its git
-  checkout. `build.sh` installs an ignored local developer override into `bin/`;
+  manager. It follows the default branch, `stable`, which only fast-forwards to
+  published `vX.Y.Z` tags; development and pull requests target `main`. Do
+  not add a curl-pipe installer or make plugin code modify its git checkout. `build.sh` installs an ignored local developer override into `bin/`;
   generated helper binaries must not be committed.
 - Source updates can select a different helper through committed release
   metadata. Raise
@@ -122,6 +123,8 @@ passing.
   technical reason makes one necessary, and preserve contributor authorship
   when updating or rebasing the branch.
 - Do not rewrite published `main` solely to make its history look cleaner.
+  Never commit to, force-push or rewind `stable`; it only fast-forwards to a
+  release tag after the release workflows pass (see `docs/RELEASING.md`).
 - Stable plugin releases require matching `manifest.json`, changelog heading
   and `vX.Y.Z` tag. The helper package follows its own `helper-vX.Y.Z` cycle;
   its Cargo files, committed release metadata and published artifact must agree.
