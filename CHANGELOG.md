@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.9-dev
+
+- Click an incoming-transfer notification to open Nearby's panel on that
+  request, ready to accept or decline. The click only opens the panel, and
+  does nothing once the request has expired or been answered, including from
+  the notification history. Shells whose notification helper predates click
+  actions keep the plain notification. Received-text notifications are
+  unchanged.
+
 ## 1.2.8
 
 - Publish and select helper 1.2.7 for Linux aarch64 as well as x86_64, so

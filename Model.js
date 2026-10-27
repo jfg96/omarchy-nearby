@@ -98,6 +98,25 @@ function currentIncoming(queue) {
   return queue && queue.length ? queue[0] : null
 }
 
+function hasIncoming(queue, requestId) {
+  if (!requestId) return false
+  return (queue || []).some(function(request) {
+    return request && request.requestId === requestId
+  })
+}
+
+// Clicking the notification asks the service to show the request, which it
+// does only while that request is pending. A notification helper older than
+// --exec refuses the option before showing anything, so the plain notification
+// is sent instead. Every value is a separate argument; bash never re-parses
+// one as code.
+var INCOMING_NOTIFICATION_SCRIPT = 'id=$1; shift; omarchy-notification-send "$@" --exec omarchy-shell -q oma.nearby showRequest "$id" 2>/dev/null || exec omarchy-notification-send "$@"'
+
+function incomingNotificationCommand(requestId, notifyArgs) {
+  if (!requestId) return ["omarchy-notification-send"].concat(notifyArgs)
+  return ["bash", "-c", INCOMING_NOTIFICATION_SCRIPT, "nearby-notify", String(requestId)].concat(notifyArgs)
+}
+
 function outgoingCommand(pending, transferId, pin) {
   if (!pending || !pending.device || (pending.kind !== "files" && pending.kind !== "text")) return null
   var command = {command:pending.kind === "files" ? "send_files" : "send_text", transfer_id:transferId, device:pending.device}
@@ -320,4 +339,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, notificationText, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, notificationText, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }

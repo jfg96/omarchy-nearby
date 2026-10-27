@@ -215,6 +215,16 @@ Item {
     // because a mismatch otherwise shows up only as a panel that says it is
     // not ready, which is the same thing a port conflict looks like.
     function status(): string { return JSON.stringify({enabled:root.receiverEnabled,ready:root.backendReady,running:backend.running,devices:root.devices.length,helper:root.helperVersion,requires:root.requiredHelperVersion,updateOffered:root.helperUpdateOffered}) }
+    // The click action of an incoming-transfer notification.
+    function showRequest(requestId: string): string { return root.showIncomingRequest(requestId) }
+  }
+
+  // Opens the panel on a request a notification announced, never answering it.
+  // A request that has expired or been answered since then opens nothing, so a
+  // late click or one from the notification history has no effect.
+  function showIncomingRequest(requestId) {
+    if (!Model.hasIncoming(incomingQueue, requestId)) return "expired"
+    return summonView("summon")
   }
 
   function viewOpened() {
@@ -600,7 +610,7 @@ Item {
       var incomingTakesView = viewState!=="sending" && viewState!=="receiving" && viewState!=="pin"
       if (incomingTakesView) { viewState="incoming"; cursorRequested(1) }
       if (notificationNeeded(incomingTakesView && incoming && incoming.requestId===event.requestId))
-        Quickshell.execDetached(["omarchy-notification-send","--app-name","Nearby","--urgency","normal",strings.t("status.incomingTransfer"),strings.t("notify.incomingBody", [Model.notificationText(event.sender), Model.notificationText(Model.incomingSummary(event.files, strings))])])
+        Quickshell.execDetached(Model.incomingNotificationCommand(event.requestId, ["--app-name","Nearby","--urgency","normal",strings.t("status.incomingTransfer"),strings.t("notify.incomingBody", [Model.notificationText(event.sender), Model.notificationText(Model.incomingSummary(event.files, strings))])]))
     }
     else if (event.event === "incoming_text") {
       if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
