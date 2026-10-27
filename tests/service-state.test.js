@@ -152,7 +152,7 @@ const functionNames = [
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
-  "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming",
+  "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "showIncomingRequest",
   "finishIncoming", "finishOutgoing", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
@@ -265,14 +265,23 @@ function engine(initial = {}) {
   return context
 }
 
+// An incoming-transfer notification goes through a small bash wrapper that
+// adds the click action and falls back to the plain notification. Unwrap it
+// so the assertions below read the notification helper's own arguments.
+function notificationArgs(command) {
+  const argv = Array.from(command)
+  return argv[0] === "bash" ? ["omarchy-notification-send", ...argv.slice(5)] : argv
+}
+
 function notificationTitles(state) {
   return state.notified
+    .map(notificationArgs)
     .filter(command => command[0] === "omarchy-notification-send")
     .map(command => command[5])
 }
 
 function notificationCommands(state) {
-  return state.notified.map(command => Array.from(command))
+  return state.notified.map(notificationArgs)
 }
 
 {
@@ -629,6 +638,9 @@ function incoming(requestId, sender = requestId) {
   ]], "an incoming transfer must keep its identity and contents through Omarchy's notification helper")
   assert.deepEqual(notificationTitles(state), ["Incoming transfer"],
     "a closed panel is the case the notification exists for")
+  assert.deepEqual(Array.from(state.notified[0]), Model.incomingNotificationCommand("unseen", [
+    "--app-name", "Nearby", "--urgency", "normal", "Incoming transfer", "From Alice: unseen.txt",
+  ]), "clicking an incoming-transfer notification must ask the service to show that request")
 }
 
 // Open is not the same as displayed. A request that arrives while the panel is
@@ -669,8 +681,45 @@ for (const busy of ["sending", "receiving", "pin"]) {
     "--urgency", "normal",
     "Text received", "From Alice",
   ]], "received text must keep its identity and contents through Omarchy's notification helper")
+  assert.equal(state.notified[0][0], "omarchy-notification-send",
+    "received text has no request to reopen, so its notification keeps no click action")
   assert.deepEqual(notificationTitles(state), ["Text received"])
 }
+
+// The click action of an incoming-transfer notification only opens the panel,
+// and only while the request it announced is still pending. A click after it
+// expired, was declined or accepted, or from the notification history, must do
+// nothing rather than open a panel about something that is gone.
+{
+  const summoned = []
+  const shell = {summon: (id, args) => { summoned.push([id, args]); return true }}
+  const state = engine({viewState: "nearby", anyViewOpen: false, openViewCount: 0, shell})
+  state.handleEvent(incoming("first"))
+  state.handleEvent(incoming("second"))
+  assert.equal(state.showIncomingRequest("second"), "ok",
+    "a request still queued behind another is pending and must open the panel")
+  assert.equal(state.showIncomingRequest("first"), "ok")
+  assert.deepEqual(summoned, [["oma.nearby", "{}"], ["oma.nearby", "{}"]])
+  assert.deepEqual(state.sent, [], "showing a request must never accept or decline it")
+
+  summoned.length = 0
+  state.handleEvent({event: "incoming_expired", requestId: "first"})
+  assert.equal(state.showIncomingRequest("first"), "expired")
+  state.declineIncoming()
+  assert.equal(state.showIncomingRequest("second"), "expired")
+  assert.equal(state.showIncomingRequest("never-seen"), "expired")
+  assert.equal(state.showIncomingRequest(""), "expired")
+  assert.deepEqual(summoned, [], "a request that is gone must not open the panel")
+
+  state.handleEvent(incoming("third"))
+  state.acceptIncoming()
+  state.handleEvent({event: "incoming_accepted", requestId: "third"})
+  assert.equal(state.showIncomingRequest("third"), "expired")
+  assert.deepEqual(summoned, [], "an accepted request is no longer pending")
+}
+
+assert.match(source, /IpcHandler\s*\{[\s\S]*?function showRequest\(requestId: string\): string \{ return root\.showIncomingRequest\(requestId\) \}/,
+  "the notification's click action reaches the service through the oma.nearby IPC target")
 
 // omarchy-notification-send takes options before and after its positionals and
 // treats a description that looks like one of its options (`--image=…`,

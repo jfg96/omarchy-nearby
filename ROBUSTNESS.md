@@ -755,6 +755,14 @@ complete until those versions and results are written down.
     become ready. Send and receive a file with a LocalSend peer. On the same
     release, confirm an x86_64 machine still downloads only the x86_64 asset.
 
+27. With the popup closed, send a file from a LocalSend peer and click the
+    incoming notification: the popup must open on the focused monitor with the
+    request shown and nothing accepted. Decline it. Send again, let the request
+    expire (or answer it from the panel), then click its notification in the
+    notification history: nothing must open. With two requests queued, clicking
+    the second one's notification must open the panel on the first. Received
+    text must still notify without a click action.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -894,6 +902,24 @@ denied, helper tests and the vendored localsend-rs HTTPS suite. The plugin
 validator and git diff --check passed. ARM64 compilation and execution are
 validated by native GitHub runners; this machine is x86_64. Real-device ARM64
 transfers and scenario 26 remain Not run.
+
+## Notification click development check — 2026-10-28
+
+Plugin `1.2.9-dev` makes the incoming-transfer notification click call the
+new `showRequest` IPC method, which opens the panel only while the request is
+pending. The helper is unchanged, so `minHelperVersion` stays at 1.2.7.
+
+The new Node cases failed against the previous code: `Model.hasIncoming`,
+`Model.incomingNotificationCommand` and the service's `showIncomingRequest`
+did not exist. They run the notification wrapper through bash with a stubbed
+`omarchy-notification-send`, covering a current helper, a helper that refuses
+`--exec` (plain notification sent instead) and arguments containing shell
+syntax. On Omarchy 4.5.0rc2, the wrapper sent one real notification through the
+installed `omarchy-notification-send`, and the shell's notification history
+stored its click command as
+`omarchy-shell -q oma.nearby showRequest <id>`. The installed plugin was not
+replaced, so clicking a real notification into this code, scenario 27 and a
+real-peer transfer remain **Not run**.
 
 ## Release check — v1.2.8, 2026-10-15
 

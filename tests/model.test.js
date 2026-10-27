@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict")
+const fs = require("node:fs")
 const Model = require("../Model.js")
 
 const phone = {alias:"<b>Phone</b>",fingerprint:"fp",deviceType:"mobile",ip:"192.0.2.2"}
@@ -87,6 +88,58 @@ assert.deepEqual(Model.removeIncoming([requestA, requestB], "missing"), [request
 assert.equal(Model.currentIncoming([requestA, requestB]), requestA)
 assert.equal(Model.currentIncoming([]), null)
 assert.equal(Model.currentIncoming(null), null)
+assert.equal(Model.hasIncoming([requestA, requestB], "b"), true)
+assert.equal(Model.hasIncoming([requestA, requestB], "missing"), false)
+assert.equal(Model.hasIncoming([requestA], ""), false)
+assert.equal(Model.hasIncoming(null, "a"), false)
+
+// Clicking an incoming-transfer notification opens the panel, but only for a
+// request that is still pending. A shell whose notification helper predates
+// --exec refuses the option without showing anything, so the plain
+// notification is sent instead.
+{
+  const notifyArgs = ["--app-name", "Nearby", "--urgency", "normal", "Incoming transfer", "From Alice: a.txt"]
+  const command = Model.incomingNotificationCommand("req-1", notifyArgs)
+  assert.equal(command[0], "bash")
+  assert.equal(command[1], "-c")
+  assert.deepEqual(command.slice(3), ["nearby-notify", "req-1", ...notifyArgs],
+    "the request id and every notification argument must reach the script as separate arguments")
+  assert.deepEqual(Model.incomingNotificationCommand("", notifyArgs), ["omarchy-notification-send", ...notifyArgs],
+    "a request without an id has nothing to reopen and keeps the plain notification")
+
+  const { spawnSync } = require("node:child_process")
+  const os = require("node:os")
+  const path = require("node:path")
+  const stubs = fs.mkdtempSync(path.join(os.tmpdir(), "nearby-notify-"))
+  const log = path.join(stubs, "calls")
+  fs.writeFileSync(path.join(stubs, "omarchy-notification-send"),
+    "#!/bin/bash\nprintf '%s\\n' \"$(printf '%s\\x1f' \"$@\")\" >> \"$NOTIFY_LOG\"\n" +
+    "if [[ -n ${NOTIFY_LEGACY:-} ]]; then for a in \"$@\"; do [[ $a == --exec ]] && { echo 'Unknown option: --exec' >&2; exit 1; }; done; fi\nexit 0\n",
+    {mode: 0o755})
+  const run = (requestId, args, legacy) => {
+    fs.rmSync(log, {force: true})
+    const env = {PATH: `${stubs}:/usr/bin:/bin`, NOTIFY_LOG: log}
+    if (legacy) env.NOTIFY_LEGACY = "1"
+    const [program, ...rest] = Model.incomingNotificationCommand(requestId, args)
+    const result = spawnSync(program, rest, {env, encoding: "utf8"})
+    assert.equal(result.status, 0, result.stderr)
+    return fs.readFileSync(log, "utf8").trim().split("\n").map(line => line.split("\x1f").slice(0, -1))
+  }
+
+  assert.deepEqual(run("req-1", notifyArgs, false),
+    [[...notifyArgs, "--exec", "omarchy-shell", "-q", "oma.nearby", "showRequest", "req-1"]],
+    "a current helper gets one notification whose click asks the service to show that request")
+  assert.deepEqual(run("req-1", notifyArgs, true),
+    [[...notifyArgs, "--exec", "omarchy-shell", "-q", "oma.nearby", "showRequest", "req-1"], notifyArgs],
+    "a helper without --exec must still deliver the notification, without the click action")
+
+  const hostile = ["--app-name", "Nearby", "--urgency", "normal", "Incoming transfer", "From $(touch pwned) `id` \"; exit 0"]
+  assert.deepEqual(run("$(touch pwned)", hostile, false),
+    [[...hostile, "--exec", "omarchy-shell", "-q", "oma.nearby", "showRequest", "$(touch pwned)"]],
+    "arguments must stay data and never be re-parsed by the shell")
+  assert.equal(fs.existsSync(path.join(stubs, "pwned")) || fs.existsSync("pwned"), false)
+  fs.rmSync(stubs, {recursive: true, force: true})
+}
 const pendingFiles = {kind:"files",device:phone,paths:["/tmp/a","/tmp/b"]}
 const pendingText = {kind:"text",device:phone,text:"hello"}
 assert.equal(Model.outgoingCommand(null, "out-1", null), null)
