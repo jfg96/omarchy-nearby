@@ -39,6 +39,13 @@ consumes JSON events from stdout. Diagnostics go to stderr. Command and event
 definitions live in [the helper](../backend/src/main.rs); producers and consumers
 on the shell side live in [Service.qml](../Service.qml).
 
+Failure events (`outgoing_failed`, `incoming_failed`,
+`incoming_pin_update_failed` and `error`) carry a stable `code`, such as
+`declined` or `disk_full`, beside an English `message`. The service translates
+the code through a table in [Model.js](../Model.js) and shows the message only
+for a code it does not know or an event without one, so either side can be
+newer. A new failure needs a code, its table entry and a translated string.
+
 Request IDs and transfer IDs correlate decisions, progress and terminal events.
 Preserve them when extending the protocol so a late event cannot overwrite a
 new transfer. Incoming and outgoing transfers have separate state.

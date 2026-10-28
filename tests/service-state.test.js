@@ -1828,4 +1828,33 @@ for (const busy of [
   assert.doesNotMatch(JSON.stringify(Array.from(state.notified[0])), /secret/)
 }
 
+// Failures shown in the panel use the helper's code, translated, and fall back
+// to its message when there is no code.
+{
+  const state = engine({viewState: "sending", outgoingTransferId: "tx-1",
+    pendingOutgoing: {kind: "files", device: {fingerprint: "phone"}, paths: ["/a"]}})
+  state.handleEvent({event: "outgoing_failed", transferId: "tx-1", code: "declined", message: "Transfer declined"})
+  assert.equal(state.errorText, "The transfer was declined")
+}
+{
+  const state = engine({viewState: "receiving", activeIncomingSession: "rx"})
+  state.handleEvent({event: "incoming_failed", sessionId: "rx", code: "disk_full", message: "No space left on device (os error 28)"})
+  assert.equal(state.errorText, "There is not enough space to save the files")
+}
+{
+  const state = engine({viewState: "receiving", activeIncomingSession: "rx"})
+  state.handleEvent({event: "incoming_failed", sessionId: "rx", message: "Something only an older helper says"})
+  assert.equal(state.errorText, "Something only an older helper says")
+}
+{
+  const state = engine({viewState: "nearby"})
+  state.handleEvent({event: "error", code: "invalid_command", message: "Invalid backend command"})
+  assert.equal(state.errorText, "Nearby could not handle a request")
+}
+{
+  const state = engine({viewState: "incoming_pin_edit", incomingPinUpdating: true, pendingIncomingPinEnabled: true})
+  state.handleEvent({event: "incoming_pin_update_failed", code: "pin_update_failed", message: "Unable to update incoming PIN"})
+  assert.equal(state.incomingPinError, "Unable to update incoming PIN")
+}
+
 console.log("service state tests passed")

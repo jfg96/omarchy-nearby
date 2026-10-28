@@ -90,6 +90,43 @@ function progressDetail(samples, total, strings) {
   return strings.t("transfer.speed", [formatBytes(rate, strings), formatDuration(left / rate, strings)])
 }
 
+// The helper names each failure with a stable code. A code this table does not
+// know, or a helper that sends none, keeps the helper's English message.
+var FAILURE_KEYS = {
+  rate_limited: "failure.rateLimited",
+  offer_too_large: "failure.offerTooLarge",
+  too_many_files: "failure.tooManyFiles",
+  too_deep: "failure.tooDeep",
+  unsafe_path: "failure.unsafePath",
+  invalid_utf8: "failure.invalidEncoding",
+  no_files: "failure.noFiles",
+  unsupported_entry: "failure.unsupportedEntry",
+  permission_denied: "failure.permissionDenied",
+  unreadable: "failure.unreadable",
+  port_in_use: "failure.portInUse",
+  device_unavailable: "failure.deviceUnavailable",
+  timed_out: "failure.timedOut",
+  declined: "failure.declined",
+  pin_required: "failure.pinRequired",
+  network_unavailable: "failure.networkUnavailable",
+  transfer_failed: "status.transferFailed",
+  busy: "failure.busy",
+  invalid_pin: "failure.invalidPin",
+  text_too_large: "failure.textTooLarge",
+  pin_update_failed: "pin.updateFailed",
+  command_too_long: "failure.internal",
+  invalid_command: "failure.internal",
+  disk_full: "failure.diskFull",
+  integrity_failed: "failure.integrityFailed"
+}
+
+function failureText(code, message, strings, fallbackKey) {
+  var key = Object.prototype.hasOwnProperty.call(FAILURE_KEYS, String(code)) ? FAILURE_KEYS[String(code)] : ""
+  if (key !== "") return strings.t(key)
+  if (message) return String(message)
+  return strings.t(fallbackKey || "status.transferFailed")
+}
+
 // A text message is one offered item under 1 MiB whose preview is the whole
 // message: the rule the receiver itself applies. Its item name is a random one
 // the sender chose, so summaries call it a message instead.
@@ -407,4 +444,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingMessage, incomingSummary, notificationText, progressSamples, progressRate, formatDuration, progressDetail, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, failureText, incomingMessage, incomingSummary, notificationText, progressSamples, progressRate, formatDuration, progressDetail, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }
