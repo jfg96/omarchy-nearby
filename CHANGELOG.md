@@ -8,6 +8,10 @@
   certificate and fingerprint verification are unaffected. Requires helper
   1.2.8.
 
+- Convert a received TIFF or BMP picture to its preview in a separate
+  ImageMagick process, like HEIC, instead of decoding it inside the desktop
+  shell. Only PNG, JPEG, WebP and GIF are decoded by the shell again.
+
 ## 1.2.9
 
 - Click an incoming-transfer notification to open Nearby's panel on that

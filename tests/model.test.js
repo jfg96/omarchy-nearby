@@ -282,16 +282,18 @@ assert.equal(Model.folderName(""), "/")
 assert.equal(Model.folderName("/data/" + "x".repeat(40)), "x".repeat(23) + "…",
   "a long folder name must be cut: the kit's buttons do not elide")
 // The preview decodes a peer's file, so only common raster types are let
-// through, and only by the type read from the bytes. Types a stock shell can
-// decode are drawn directly; phone formats it cannot are converted to a PNG by
-// ImageMagick in a separate process first.
-for (const type of ["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp", "image/x-ms-bmp", "image/tiff"]) {
+// through, and only by the type read from the bytes. Only PNG, JPEG, WebP and
+// GIF are decoded inside the shell. Everything else is converted to a PNG by
+// ImageMagick in a separate process first: phone formats a stock shell cannot
+// decode, and TIFF and BMP, whose decoders the shell must not run on a peer's
+// file, since a fault there would take the whole desktop shell down with it.
+for (const type of ["image/png", "image/jpeg", "image/webp", "image/gif"]) {
   assert.equal(Model.previewableImage(type), true, `${type} must be previewable`)
-  assert.equal(Model.imagePreviewMode(type), "direct", `${type} is decoded by a stock shell`)
+  assert.equal(Model.imagePreviewMode(type), "direct", `${type} is decoded by the shell`)
 }
-for (const type of ["image/heic", "image/heif", "image/avif", "image/jxl"]) {
+for (const type of ["image/heic", "image/heif", "image/avif", "image/jxl", "image/tiff", "image/bmp", "image/x-ms-bmp"]) {
   assert.equal(Model.previewableImage(type), true, `${type} must be previewable`)
-  assert.equal(Model.imagePreviewMode(type), "convert", `${type} needs a decoder a stock shell lacks`)
+  assert.equal(Model.imagePreviewMode(type), "convert", `${type} must never be decoded inside the shell`)
 }
 for (const type of ["image/svg+xml", "image/x-xcf", "image/heic-sequence", "application/pdf", "text/plain", "IMAGE/PNG", "", null, undefined]) {
   assert.equal(Model.previewableImage(type), false, `${type} must not reach an image decoder`)

@@ -64,10 +64,11 @@ type every paste target accepts; the copy carries no metadata such as the
 location a photo was taken at or a comment stored in a PNG. Copying a large
 picture can take a few seconds. Any other file, and a picture that cannot be
 converted, is copied as a file reference, the way a file manager copies it.
-HEIC, AVIF and JPEG XL, the formats phones often save photos in, are previewed
-from a small PNG that ImageMagick converts under `$XDG_RUNTIME_DIR`, because a
-stock shell cannot decode them itself. The file in Downloads is never changed. A transfer of several files shows the
-plain result.
+BMP, TIFF, HEIC, AVIF and JPEG XL are previewed from a small PNG that
+ImageMagick converts under `$XDG_RUNTIME_DIR`: a stock shell cannot decode the
+formats phones often save photos in, and Nearby keeps the others out of the
+shell's process. The file in Downloads is never changed. A transfer of several
+files shows the plain result.
 
 Incoming notifications use Omarchy's notification system and respect Do Not
 Disturb. Clicking an incoming-transfer notification opens the panel on the
