@@ -50,7 +50,7 @@ axum-server = "0.8"
 hyper-util = { version = "0.1", features = ["tokio"] }
 reqwest = { version = "0.13", features = ["json", "stream", "rustls"] }
 tower = "0.5"
-rustls = { version = "0.23.45", features = ["ring"] }
+rustls = { version = "0.23.46", features = ["ring"] }
 tokio-rustls = { version = "0.26", optional = true }
 rustls-pemfile = { version = "2.2", optional = true }
 rcgen = { version = "0.14", optional = true }
