@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 
-# Draw one received picture that the shell cannot decode itself as a small PNG.
+# Draw one received picture that the shell must not decode itself as a small
+# PNG.
 #
 # A stock Omarchy shell has no Qt decoder for the formats phones save photos
-# in, such as HEIC, but ImageMagick reads them. Decoding here also keeps a
-# peer's file out of the shell's own process. The preview is upright and
-# carries no metadata. Its path is printed on success; the previous preview is
-# removed, so only the one on screen remains.
+# in, such as HEIC, but ImageMagick reads them. TIFF and BMP are decoded here
+# too, although Qt reads them, so that a fault in those decoders cannot take
+# the desktop shell down. The preview is upright and carries no metadata. Its
+# path is printed on success; the previous preview is removed, so only the one
+# on screen remains.
 
 set -uo pipefail
 
@@ -30,6 +32,8 @@ case "$(file --brief --mime-type -- "$path")" in
   image/heic|image/heif) coder=heic ;;
   image/avif) coder=avif ;;
   image/jxl) coder=jxl ;;
+  image/tiff) coder=tiff ;;
+  image/bmp|image/x-ms-bmp) coder=bmp ;;
 esac
 [[ -n $coder ]] || fail "not a picture that needs converting"
 

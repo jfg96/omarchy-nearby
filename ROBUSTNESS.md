@@ -984,6 +984,21 @@ plugin validator, whitespace checks and the helper-source tree comparison
 passed. The launcher prefetched the real published x86_64 helper into an
 isolated XDG cache and reported 1.2.7.
 
+## Out-of-process TIFF and BMP previews — 2026-10-28
+
+A review of every change since v1.2.4 against the 1.2.0–1.2.4 hardening found
+the receiver limits, outgoing request bounds and fingerprint pinning, plain-text
+panel rendering, notification escaping and strict launcher metadata intact.
+It found one weakening, introduced by #45: TIFF and BMP pictures from a peer
+were decoded inside the desktop shell. They now go through
+`bin/nearby-preview-image` like HEIC, so only PNG, JPEG, WebP and GIF are
+decoded in the shell, as before #45.
+
+The changed model and preview-image cases failed against the previous code
+and pass now. All four Node suites and the preview Bash suite passed, and the
+real ImageMagick on Omarchy 4.5.0rc2 converted generated TIFF and BMP files to
+PNG previews. Receiving a real TIFF or BMP from a peer remains **Not run**.
+
 ## rustls 0.23.46 security update — 2026-10-28
 
 Dependabot reported GHSA-c8m5-c952-6cm4, GHSA-h2v8-394m-p7vv,

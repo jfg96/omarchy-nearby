@@ -55,7 +55,7 @@ assert_eq "$(stat -c %a "$sandbox/runtime/omarchy-nearby/previews")" "700"
 teardown
 
 announce "every converted type names its own decoder and never the file name"
-for case in image/heif:heic image/avif:avif image/jxl:jxl; do
+for case in image/heif:heic image/avif:avif image/jxl:jxl image/tiff:tiff image/bmp:bmp image/x-ms-bmp:bmp; do
   setup
   odd="$sandbox/files/msl:odd [1] %d.png"
   printf 'bytes' >"$odd"

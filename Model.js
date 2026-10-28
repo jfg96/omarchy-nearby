@@ -65,10 +65,12 @@ function notificationText(value) {
 
 // The preview decodes a received picture inside the shell, so it is limited to
 // the common raster types, as identified from the file's bytes by `file`.
-// Pictures a stock shell decodes itself, and phone formats it cannot, which
-// bin/nearby-preview-image converts to a PNG in a separate process.
-var DIRECT_PREVIEW_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp", "image/x-ms-bmp", "image/tiff"]
-var CONVERTED_PREVIEW_TYPES = ["image/heic", "image/heif", "image/avif", "image/jxl"]
+// Only these pictures are decoded inside the shell. The rest are converted to
+// a PNG by bin/nearby-preview-image in a separate process: phone formats a
+// stock shell cannot decode, and TIFF and BMP, whose decoders must not run on a
+// peer's file in the process that draws the whole desktop shell.
+var DIRECT_PREVIEW_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"]
+var CONVERTED_PREVIEW_TYPES = ["image/heic", "image/heif", "image/avif", "image/jxl", "image/tiff", "image/bmp", "image/x-ms-bmp"]
 
 function imagePreviewMode(mimeType) {
   var type = String(mimeType || "")
