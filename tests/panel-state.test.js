@@ -883,4 +883,18 @@ assert.match(source, /Text \{ visible:root\.incomingMessage!==""; width:parent\.
   "a message must be shown as plain text, at most four lines")
 assert.match(source, /readonly property string incomingMessage: root\.incoming \? Model\.incomingMessage\(root\.incoming\.files\) : ""/)
 
+// The panel takes the keyboard when it opens, with the cursor hidden on the
+// receiver switch, or on Accept when a request arrives. Enter or Space typed
+// into another window at that moment must not turn Nearby off or accept a
+// transfer: like Omarchy's own panels, keys activate only a visible cursor.
+{
+  const handler = source.match(/onActivateRequested: ([^\n]+)/)[1]
+  for (const [cursorActive, expected] of [[false, 0], [true, 1]]) {
+    let activations = 0
+    vm.runInNewContext(handler, {root: {cursorActive, activateCursor: () => { activations++ }}})
+    assert.equal(activations, expected,
+      cursorActive ? "a visible cursor is activated by Enter or Space" : "a hidden cursor must not be activated")
+  }
+}
+
 console.log("panel state tests passed")

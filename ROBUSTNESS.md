@@ -789,6 +789,11 @@ complete until those versions and results are written down.
     onto a nearly full disk: each error must appear in Spanish. Restore the
     original language.
 
+32. Open the popup with `omarchy-shell oma.nearby open` and press Enter, then
+    Space, without touching the arrow keys: Nearby must stay on. Send a file
+    from a peer, open the popup on the request and press Enter: nothing must
+    happen. Press an arrow key, then Enter on Accept: the transfer must start.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -824,6 +829,7 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 29: transfer speed and time left | Omarchy + peer | Not run | |
 | 30: message preview and off-state hint | Omarchy + peer | Not run | |
 | 31: translated transfer errors | Omarchy + peer | Not run | |
+| 32: keyboard activation needs a visible cursor | Omarchy + peer | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.
@@ -1003,6 +1009,20 @@ On the final plugin release tree, all four Node and three Bash suites, the
 plugin validator, whitespace checks and the helper-source tree comparison
 passed. The launcher prefetched the real published x86_64 helper into an
 isolated XDG cache and reported 1.2.7.
+
+## Keyboard activation with a hidden cursor — 2026-10-29
+
+Twice, `shell.json` stored `receiverEnabled:false` shortly after the shell
+restarted, with no one switching Nearby off. Both writes followed the first
+opening of the popup. The popup takes the keyboard when it opens, with a hidden
+cursor on the receiver switch, and `activateCursor` ran on Enter or Space
+regardless of `cursorActive`: a key typed into another window as the popup
+opened turned the receiver off. On a request, the same key accepted the
+transfer. Omarchy's Bluetooth and Audio panels guard their activation with
+`cursorActive`; Nearby now does the same.
+
+The new panel case failed against the previous handler and passes now. All four
+Node suites and `qmllint` passed. Scenario 32 on Omarchy remains **Not run**.
 
 ## Translated helper errors development check — 2026-10-28
 

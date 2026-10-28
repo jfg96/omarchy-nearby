@@ -22,6 +22,11 @@
 - Say how to turn Nearby on when it is off, as Omarchy's Bluetooth panel
   does, instead of repeating that it is off.
 
+- Act on Enter or Space in the popup only once an arrow key has shown the
+  cursor, as Omarchy's own panels do. The popup takes the keyboard when it
+  opens, and a key typed for another window at that moment turned Nearby off,
+  or accepted a transfer when a request was on screen.
+
 - Show transfer and PIN errors in the display language. The helper now names
   each failure with a stable code beside its English message, including disk
   full and damaged files when receiving, and the panel translates it.
