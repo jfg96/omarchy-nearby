@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.9-dev
+## 1.2.9
 
 - Click an incoming-transfer notification to open Nearby's panel on that
   request, ready to accept or decline. The click only opens the panel, and

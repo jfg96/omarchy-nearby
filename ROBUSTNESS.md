@@ -801,6 +801,9 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 23: folder for received files | Omarchy + peer | Not run | |
 | 24: received file preview and copy | Omarchy + peer | Not run | |
 | 25: display language and right-to-left layout | Omarchy | Not run | |
+| 26: aarch64 helper selection and transfers | aarch64 Omarchy + peer | Not run | |
+| 27: incoming notification opens the panel | Omarchy + peer | Not run | |
+| 28: clipboard picture and phone photo formats | Omarchy + peer | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.
@@ -980,3 +983,21 @@ On the final plugin release tree, all four Node and three Bash suites, the
 plugin validator, whitespace checks and the helper-source tree comparison
 passed. The launcher prefetched the real published x86_64 helper into an
 isolated XDG cache and reported 1.2.7.
+
+## Release check — v1.2.9, 2026-10-28
+
+Plugin `1.2.9` from `main` at `be5cb24` (#44, #45), reusing the published
+`helper-v1.2.7`. `backend/` is unchanged since its source commit `f2dec01`,
+and the Cargo package, `minHelperVersion` and selected helper all remain
+1.2.7, so no helper is rebuilt or republished. CI passed on `be5cb24`.
+
+The complete supported suite passed locally on that tree: the four Node suites
+(50/50 catalogues, 145 keys), the five Bash suites, `cargo fmt --check`,
+`cargo check`, `cargo clippy -D warnings`, the helper tests and the vendored
+`localsend-rs` tests with `https` (151 passed, one upstream test ignored).
+The plugin validator and `git diff --check` passed.
+
+Both features were run by the maintainer on Omarchy 4.5.0rc2 with each branch
+installed and a phone (scenarios 27 and 28), as recorded in their development
+checks above; device and app versions were not recorded. Android, aarch64 and
+an older Omarchy release remain **Not run**.
