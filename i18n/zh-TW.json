@@ -33,7 +33,7 @@
   "section.receiving": "接收中",
   "section.receivedText": "收到的文字",
 
-  "devices.off": "Nearby 已關閉",
+  "devices.off": "開啟 Nearby 以傳送和接收",
   "devices.finding": "正在尋找裝置…",
   "devices.none": "附近沒有裝置",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"other": "還有 %1 個請求"},
 
   "transfer.untitled": "傳輸",
+
+  "transfer.message": "訊息",
   "transfer.andMore": {"other": "%1 + 另外 %2 項"},
   "transfer.progressTo": "%1% · 傳送至 %2",
   "transfer.progressFrom": "%1% · 來自 %2",

@@ -33,7 +33,7 @@
   "section.receiving": "MODTAGER",
   "section.receivedText": "MODTAGET TEKST",
 
-  "devices.off": "Nearby er slået fra",
+  "devices.off": "Slå Nearby til for at sende og modtage",
   "devices.finding": "Finder enheder…",
   "devices.none": "Ingen enheder i nærheden",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 anmodning mere", "other": "%1 anmodninger mere"},
 
   "transfer.untitled": "Overførsel",
+
+  "transfer.message": "Besked",
   "transfer.andMore": {"one": "%1 + %2 mere", "other": "%1 + %2 mere"},
   "transfer.progressTo": "%1% · til %2",
   "transfer.progressFrom": "%1% · fra %2",

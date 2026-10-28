@@ -33,7 +33,7 @@
   "section.receiving": "SAŅEMŠANA",
   "section.receivedText": "SAŅEMTAIS TEKSTS",
 
-  "devices.off": "Nearby ir izslēgts",
+  "devices.off": "Ieslēdziet Nearby, lai sūtītu un saņemtu",
   "devices.finding": "Meklē ierīces…",
   "devices.none": "Tuvumā nav ierīču",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"zero": "Vēl %1 pieprasījumu", "one": "Vēl %1 pieprasījums", "other": "Vēl %1 pieprasījumi"},
 
   "transfer.untitled": "Pārsūtīšana",
+
+  "transfer.message": "Ziņojums",
   "transfer.andMore": {"zero": "%1 + vēl %2", "one": "%1 + vēl %2", "other": "%1 + vēl %2"},
   "transfer.progressTo": "%1% · saņēmējs %2",
   "transfer.progressFrom": "%1% · sūtītājs %2",

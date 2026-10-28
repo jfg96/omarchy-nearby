@@ -33,7 +33,7 @@
   "section.receiving": "RECIBIENDO",
   "section.receivedText": "TEXTO RECIBIDO",
 
-  "devices.off": "Nearby está desactivado",
+  "devices.off": "Activa Nearby para enviar y recibir",
   "devices.finding": "Buscando dispositivos…",
   "devices.none": "No hay dispositivos cerca",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 solicitud más", "many": "%1 solicitudes más", "other": "%1 solicitudes más"},
 
   "transfer.untitled": "Transferencia",
+
+  "transfer.message": "Mensaje",
   "transfer.andMore": {"one": "%1 + %2 más", "many": "%1 + %2 más", "other": "%1 + %2 más"},
   "transfer.progressTo": "%1% · a %2",
   "transfer.progressFrom": "%1% · de %2",

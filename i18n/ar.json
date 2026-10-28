@@ -33,7 +33,7 @@
   "section.receiving": "جارٍ الاستقبال",
   "section.receivedText": "النص المستلَم",
 
-  "devices.off": "Nearby متوقف",
+  "devices.off": "شغّل Nearby للإرسال والاستقبال",
   "devices.finding": "جارٍ البحث عن أجهزة…",
   "devices.none": "لا توجد أجهزة قريبة",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"zero": "%1 طلبات إضافية", "one": "طلب إضافي واحد (%1)", "two": "طلبان إضافيان (%1)", "few": "%1 طلبات إضافية", "many": "%1 طلبًا إضافيًا", "other": "%1 طلب إضافي"},
 
   "transfer.untitled": "نقل",
+
+  "transfer.message": "رسالة",
   "transfer.andMore": {"zero": "%1 + %2 ملفات إضافية", "one": "%1 + ملف إضافي واحد (%2)", "two": "%1 + ملفان إضافيان (%2)", "few": "%1 + %2 ملفات إضافية", "many": "%1 + %2 ملفًا إضافيًا", "other": "%1 + %2 ملف إضافي"},
   "transfer.progressTo": "%1% · إلى %2",
   "transfer.progressFrom": "%1% · من %2",

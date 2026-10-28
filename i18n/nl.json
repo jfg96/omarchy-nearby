@@ -33,7 +33,7 @@
   "section.receiving": "ONTVANGEN",
   "section.receivedText": "ONTVANGEN TEKST",
 
-  "devices.off": "Nearby is uitgeschakeld",
+  "devices.off": "Zet Nearby aan om te verzenden en te ontvangen",
   "devices.finding": "Apparaten zoeken…",
   "devices.none": "Geen apparaten in de buurt",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 extra verzoek", "other": "%1 extra verzoeken"},
 
   "transfer.untitled": "Overdracht",
+
+  "transfer.message": "Bericht",
   "transfer.andMore": {"one": "%1 + nog %2", "other": "%1 + nog %2"},
   "transfer.progressTo": "%1% · naar %2",
   "transfer.progressFrom": "%1% · van %2",

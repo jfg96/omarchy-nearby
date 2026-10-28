@@ -44,8 +44,11 @@ If the peer is missing, use **Rescan**. See
 ## Receive
 
 Leave Nearby on, choose its device entry on the sender and send files or text.
-Use **Accept** or **Decline** for the incoming request. Approval requests expire;
-ask the sender to retry if the request has expired.
+Use **Accept** or **Decline** for the incoming request. A text message goes
+through the same approval: its request shows up to four lines of the message,
+so you can see what you are accepting, while its notification only says that
+a message is waiting. Approval requests expire; ask the sender to retry if
+the request has expired.
 
 Files go to your configured Downloads directory unless you
 [choose another folder](#folder-for-received-files). Existing files are preserved

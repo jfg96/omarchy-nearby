@@ -33,7 +33,7 @@
   "section.receiving": "பெறுகிறது",
   "section.receivedText": "பெறப்பட்ட உரை",
 
-  "devices.off": "Nearby முடக்கப்பட்டுள்ளது",
+  "devices.off": "அனுப்பவும் பெறவும் Nearby-ஐ இயக்கவும்",
   "devices.finding": "சாதனங்களைத் தேடுகிறது…",
   "devices.none": "அருகில் சாதனங்கள் இல்லை",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "மேலும் %1 கோரிக்கை", "other": "மேலும் %1 கோரிக்கைகள்"},
 
   "transfer.untitled": "பரிமாற்றம்",
+
+  "transfer.message": "செய்தி",
   "transfer.andMore": {"one": "%1 + மேலும் %2", "other": "%1 + மேலும் %2"},
   "transfer.progressTo": "%1% · %2-க்கு",
   "transfer.progressFrom": "%1% · %2-இலிருந்து",

@@ -33,7 +33,7 @@
   "section.receiving": "प्राप्त कर रहे हैं",
   "section.receivedText": "प्राप्त पाठ",
 
-  "devices.off": "Nearby बंद है",
+  "devices.off": "भेजने और पाने के लिए Nearby चालू करें",
   "devices.finding": "डिवाइस खोज रहे हैं…",
   "devices.none": "आस-पास कोई डिवाइस नहीं",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 और अनुरोध", "other": "%1 और अनुरोध"},
 
   "transfer.untitled": "स्थानांतरण",
+
+  "transfer.message": "संदेश",
   "transfer.andMore": {"one": "%1 + %2 और", "other": "%1 + %2 और"},
   "transfer.progressTo": "%1% · %2 को",
   "transfer.progressFrom": "%1% · %2 से",

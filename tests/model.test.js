@@ -361,4 +361,28 @@ assert.equal(Model.fileUrl("/tmp/a b/é#?%.png"), "file:///tmp/a%20b/%C3%A9%23%3
   assert.equal(Model.formatDuration(5 * 3600 + 30 * 60, strings), "5 h 30 min")
 }
 
+// A LocalSend text message is a request offering exactly one item under 1 MiB
+// whose preview is the whole message, the same rule the receiver applies. The
+// panel shows that text before it is accepted; summaries and notifications
+// call it a message instead of the random name the sender gave the item.
+{
+  const strings = require("./strings-stub.js")
+  const message = [{id: "1", name: "3f2a9c.txt", size: 11, type: "text/plain", preview: "hello there"}]
+  assert.equal(Model.incomingMessage(message), "hello there")
+  assert.equal(Model.incomingSummary(message, strings), "Message")
+  for (const files of [
+    [{name: "a.txt", size: 11, preview: ""}],
+    [{name: "a.txt", size: 11, preview: null}],
+    [{name: "a.txt", size: 11}],
+    [{name: "big.txt", size: 1024 * 1024, preview: "too big to be a message"}],
+    [{name: "a.txt", size: 1, preview: "x"}, {name: "b.txt", size: 1, preview: "y"}],
+    [],
+    null,
+  ]) {
+    assert.equal(Model.incomingMessage(files), "", `not a message: ${JSON.stringify(files)}`)
+  }
+  assert.equal(Model.incomingSummary([{name: "a.txt", size: 1, preview: "x"}, {name: "b.txt", size: 1}], strings), "a.txt + 1 more",
+    "a preview on one of several files is still a file transfer")
+}
+
 console.log("Model tests passed")

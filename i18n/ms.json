@@ -33,7 +33,7 @@
   "section.receiving": "MENERIMA",
   "section.receivedText": "TEKS DITERIMA",
 
-  "devices.off": "Nearby dimatikan",
+  "devices.off": "Hidupkan Nearby untuk menghantar dan menerima",
   "devices.finding": "Mencari peranti…",
   "devices.none": "Tiada peranti berdekatan",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"other": "%1 lagi permintaan"},
 
   "transfer.untitled": "Pemindahan",
+
+  "transfer.message": "Mesej",
   "transfer.andMore": {"other": "%1 + %2 lagi"},
   "transfer.progressTo": "%1% · kepada %2",
   "transfer.progressFrom": "%1% · daripada %2",

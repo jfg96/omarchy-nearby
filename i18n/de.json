@@ -33,7 +33,7 @@
   "section.receiving": "EMPFANGEN",
   "section.receivedText": "EMPFANGENER TEXT",
 
-  "devices.off": "Nearby ist ausgeschaltet",
+  "devices.off": "Schalte Nearby ein, um zu senden und zu empfangen",
   "devices.finding": "Geräte werden gesucht…",
   "devices.none": "Keine Geräte in der Nähe",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 weitere Anfrage", "other": "%1 weitere Anfragen"},
 
   "transfer.untitled": "Übertragung",
+
+  "transfer.message": "Nachricht",
   "transfer.andMore": {"one": "%1 + %2 weitere", "other": "%1 + %2 weitere"},
   "transfer.progressTo": "%1% · an %2",
   "transfer.progressFrom": "%1% · von %2",

@@ -33,7 +33,7 @@
   "section.receiving": "TAR EMOT",
   "section.receivedText": "MOTTAGEN TEXT",
 
-  "devices.off": "Nearby är avstängt",
+  "devices.off": "Slå på Nearby för att skicka och ta emot",
   "devices.finding": "Söker efter enheter…",
   "devices.none": "Inga enheter i närheten",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 förfrågan till", "other": "%1 förfrågningar till"},
 
   "transfer.untitled": "Överföring",
+
+  "transfer.message": "Meddelande",
   "transfer.andMore": {"one": "%1 + %2 till", "other": "%1 + %2 till"},
   "transfer.progressTo": "%1% · till %2",
   "transfer.progressFrom": "%1% · från %2",

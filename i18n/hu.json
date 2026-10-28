@@ -33,7 +33,7 @@
   "section.receiving": "FOGADÁS",
   "section.receivedText": "FOGADOTT SZÖVEG",
 
-  "devices.off": "A Nearby ki van kapcsolva",
+  "devices.off": "Kapcsold be a Nearby-t a küldéshez és fogadáshoz",
   "devices.finding": "Eszközök keresése…",
   "devices.none": "Nincs eszköz a közelben",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "További %1 kérés", "other": "További %1 kérés"},
 
   "transfer.untitled": "Átvitel",
+
+  "transfer.message": "Üzenet",
   "transfer.andMore": {"one": "%1 + még %2", "other": "%1 + még %2"},
   "transfer.progressTo": "%1% · címzett: %2",
   "transfer.progressFrom": "%1% · küldő: %2",

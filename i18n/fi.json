@@ -33,7 +33,7 @@
   "section.receiving": "VASTAANOTETAAN",
   "section.receivedText": "VASTAANOTETTU TEKSTI",
 
-  "devices.off": "Nearby on pois päältä",
+  "devices.off": "Ota Nearby käyttöön lähettääksesi ja vastaanottaaksesi",
   "devices.finding": "Etsitään laitteita…",
   "devices.none": "Ei laitteita lähistöllä",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Vielä %1 pyyntö", "other": "Vielä %1 pyyntöä"},
 
   "transfer.untitled": "Siirto",
+
+  "transfer.message": "Viesti",
   "transfer.andMore": {"one": "%1 + %2 muu", "other": "%1 + %2 muuta"},
   "transfer.progressTo": "%1% · vastaanottaja %2",
   "transfer.progressFrom": "%1% · lähettäjä %2",

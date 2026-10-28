@@ -33,7 +33,7 @@
   "section.receiving": "ПРИЙМАННЯ",
   "section.receivedText": "ОТРИМАНИЙ ТЕКСТ",
 
-  "devices.off": "Nearby вимкнено",
+  "devices.off": "Увімкніть Nearby, щоб надсилати й отримувати",
   "devices.finding": "Пошук пристроїв…",
   "devices.none": "Немає пристроїв поблизу",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Ще %1 запит", "few": "Ще %1 запити", "many": "Ще %1 запитів", "other": "Ще %1 запиту"},
 
   "transfer.untitled": "Передавання",
+
+  "transfer.message": "Повідомлення",
   "transfer.andMore": {"one": "%1 + ще %2", "few": "%1 + ще %2", "many": "%1 + ще %2", "other": "%1 + ще %2"},
   "transfer.progressTo": "%1% · кому: %2",
   "transfer.progressFrom": "%1% · від: %2",

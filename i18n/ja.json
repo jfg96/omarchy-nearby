@@ -33,7 +33,7 @@
   "section.receiving": "受信中",
   "section.receivedText": "受信したテキスト",
 
-  "devices.off": "Nearbyはオフです",
+  "devices.off": "送受信するには Nearby をオンにしてください",
   "devices.finding": "デバイスを検索中…",
   "devices.none": "近くにデバイスがありません",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"other": "ほか%1件の要求"},
 
   "transfer.untitled": "転送",
+
+  "transfer.message": "メッセージ",
   "transfer.andMore": {"other": "%1 + ほか%2件"},
   "transfer.progressTo": "%1% · %2へ",
   "transfer.progressFrom": "%1% · %2から",

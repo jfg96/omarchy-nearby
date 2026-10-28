@@ -33,7 +33,7 @@
   "section.receiving": "GAUNAMA",
   "section.receivedText": "GAUTAS TEKSTAS",
 
-  "devices.off": "Nearby išjungta",
+  "devices.off": "Įjunkite Nearby, kad galėtumėte siųsti ir gauti",
   "devices.finding": "Ieškoma įrenginių…",
   "devices.none": "Netoliese nėra įrenginių",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Dar %1 užklausa", "few": "Dar %1 užklausos", "other": "Dar %1 užklausų"},
 
   "transfer.untitled": "Perdavimas",
+
+  "transfer.message": "Žinutė",
   "transfer.andMore": {"one": "%1 + dar %2", "few": "%1 + dar %2", "other": "%1 + dar %2"},
   "transfer.progressTo": "%1% · gavėjas %2",
   "transfer.progressFrom": "%1% · siuntėjas %2",
