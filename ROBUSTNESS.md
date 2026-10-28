@@ -778,6 +778,12 @@ complete until those versions and results are written down.
     it must disappear when the transfer ends. Start a second transfer: the line
     must not show the first one's figures.
 
+30. Send text from a peer with the popup closed: the notification must say
+    "Message" and carry no text. Open the request: it must show the text, up
+    to four lines, before you accept. Send a file: its request must still show
+    the name and size. Turn Nearby off: the device list must say how to turn
+    it on rather than repeating that it is off.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -811,6 +817,7 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 27: incoming notification opens the panel | Omarchy + peer | Not run | |
 | 28: clipboard picture and phone photo formats | Omarchy + peer | Not run | |
 | 29: transfer speed and time left | Omarchy + peer | Not run | |
+| 30: message preview and off-state hint | Omarchy + peer | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.
@@ -990,6 +997,19 @@ On the final plugin release tree, all four Node and three Bash suites, the
 plugin validator, whitespace checks and the helper-source tree comparison
 passed. The launcher prefetched the real published x86_64 helper into an
 isolated XDG cache and reported 1.2.7.
+
+## Message preview and off-state hint development check — 2026-10-28
+
+Plugin `1.2.10-dev` shows an incoming text message in its request before it
+is accepted. A message is recognised by the receiver's own rule: one offered
+item under 1 MiB whose preview is the whole text. Summaries and the
+notification call it a message, so its content never reaches the notification
+history. When Nearby is off, the device list now says how to turn it on, as
+Omarchy's Bluetooth panel does. The helper is unchanged.
+
+The new model, service and panel cases failed against the previous code and
+pass now. All four Node suites passed with 151 keys in each of the 50
+catalogues. Scenario 30 with a real peer remains **Not run**.
 
 ## Transfer speed and time left development check — 2026-10-28
 

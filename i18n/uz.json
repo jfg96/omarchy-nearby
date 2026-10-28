@@ -33,7 +33,7 @@
   "section.receiving": "QABUL QILINMOQDA",
   "section.receivedText": "QABUL QILINGAN MATN",
 
-  "devices.off": "Nearby oʻchirilgan",
+  "devices.off": "Yuborish va qabul qilish uchun Nearby’ni yoqing",
   "devices.finding": "Qurilmalar qidirilmoqda…",
   "devices.none": "Yaqin atrofda qurilma yoʻq",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Yana %1 ta soʻrov", "other": "Yana %1 ta soʻrov"},
 
   "transfer.untitled": "Uzatish",
+
+  "transfer.message": "Xabar",
   "transfer.andMore": {"one": "%1 + yana %2 ta", "other": "%1 + yana %2 ta"},
   "transfer.progressTo": "%1% · %2 ga",
   "transfer.progressFrom": "%1% · %2 dan",

@@ -15,6 +15,13 @@
 - Show the speed and time left under the percentage while sending or
   receiving, averaged over the last few seconds.
 
+- Show an incoming text message in its request before it is accepted, and
+  call it a message in the summary and notification instead of the random
+  item name the sender chose. The notification never carries the text.
+
+- Say how to turn Nearby on when it is off, as Omarchy's Bluetooth panel
+  does, instead of repeating that it is off.
+
 ## 1.2.9
 
 - Click an incoming-transfer notification to open Nearby's panel on that

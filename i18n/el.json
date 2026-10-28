@@ -33,7 +33,7 @@
   "section.receiving": "ΛΗΨΗ",
   "section.receivedText": "ΛΗΦΘΕΝ ΚΕΙΜΕΝΟ",
 
-  "devices.off": "Το Nearby είναι ανενεργό",
+  "devices.off": "Ενεργοποιήστε το Nearby για αποστολή και λήψη",
   "devices.finding": "Εύρεση συσκευών…",
   "devices.none": "Δεν υπάρχουν κοντινές συσκευές",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 ακόμη αίτημα", "other": "%1 ακόμη αιτήματα"},
 
   "transfer.untitled": "Μεταφορά",
+
+  "transfer.message": "Μήνυμα",
   "transfer.andMore": {"one": "%1 + %2 ακόμη", "other": "%1 + %2 ακόμη"},
   "transfer.progressTo": "%1% · προς %2",
   "transfer.progressFrom": "%1% · από %2",

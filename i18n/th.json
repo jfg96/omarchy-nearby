@@ -33,7 +33,7 @@
   "section.receiving": "กำลังรับ",
   "section.receivedText": "ข้อความที่ได้รับ",
 
-  "devices.off": "Nearby ปิดอยู่",
+  "devices.off": "เปิด Nearby เพื่อส่งและรับ",
   "devices.finding": "กำลังค้นหาอุปกรณ์…",
   "devices.none": "ไม่มีอุปกรณ์ใกล้เคียง",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"other": "อีก %1 คำขอ"},
 
   "transfer.untitled": "การถ่ายโอน",
+
+  "transfer.message": "ข้อความ",
   "transfer.andMore": {"other": "%1 + อีก %2 รายการ"},
   "transfer.progressTo": "%1% · ไปยัง %2",
   "transfer.progressFrom": "%1% · จาก %2",

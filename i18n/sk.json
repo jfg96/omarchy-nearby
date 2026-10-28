@@ -33,7 +33,7 @@
   "section.receiving": "PRIJÍMANIE",
   "section.receivedText": "PRIJATÝ TEXT",
 
-  "devices.off": "Nearby je vypnuté",
+  "devices.off": "Zapnite Nearby na odosielanie a prijímanie",
   "devices.finding": "Hľadanie zariadení…",
   "devices.none": "Žiadne zariadenia v okolí",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Ďalšia %1 požiadavka", "few": "Ďalšie %1 požiadavky", "other": "Ďalších %1 požiadaviek"},
 
   "transfer.untitled": "Prenos",
+
+  "transfer.message": "Správa",
   "transfer.andMore": {"one": "%1 + %2 ďalší", "few": "%1 + %2 ďalšie", "other": "%1 + %2 ďalších"},
   "transfer.progressTo": "%1% · pre %2",
   "transfer.progressFrom": "%1% · od %2",

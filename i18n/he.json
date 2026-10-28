@@ -33,7 +33,7 @@
   "section.receiving": "קבלה",
   "section.receivedText": "טקסט שהתקבל",
 
-  "devices.off": "Nearby כבוי",
+  "devices.off": "הפעל את Nearby כדי לשלוח ולקבל",
   "devices.finding": "מתבצע חיפוש מכשירים…",
   "devices.none": "אין מכשירים בקרבת מקום",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "עוד בקשה אחת (%1)", "two": "עוד שתי בקשות (%1)", "other": "עוד %1 בקשות"},
 
   "transfer.untitled": "העברה",
+
+  "transfer.message": "הודעה",
   "transfer.andMore": {"one": "%1 + עוד קובץ אחד (%2)", "two": "%1 + עוד שני קבצים (%2)", "other": "%1 + עוד %2 קבצים"},
   "transfer.progressTo": "%1% · אל %2",
   "transfer.progressFrom": "%1% · מאת %2",

@@ -875,4 +875,12 @@ assert.match(source, /readonly property string progressDetail: engine \? engine\
 assert.match(source, /Text \{ visible:root\.progressDetail!==""; textFormat:Text\.PlainText; text:root\.progressDetail;/,
   "the speed line must be plain text and hidden while there is no estimate")
 
+// A text request shows its message, as plain text and bounded, in place of the
+// item name and size; any other request keeps the summary line.
+assert.match(source, /Text \{ visible:root\.incomingMessage===""; width:parent\.width; textFormat:Text\.PlainText; text:root\.incoming \? Model\.incomingSummary/,
+  "a file request keeps its summary and size")
+assert.match(source, /Text \{ visible:root\.incomingMessage!==""; width:parent\.width; textFormat:Text\.PlainText; text:root\.incomingMessage; wrapMode:Text\.Wrap; maximumLineCount:4; elide:Text\.ElideRight;/,
+  "a message must be shown as plain text, at most four lines")
+assert.match(source, /readonly property string incomingMessage: root\.incoming \? Model\.incomingMessage\(root\.incoming\.files\) : ""/)
+
 console.log("panel state tests passed")

@@ -33,7 +33,7 @@
   "section.receiving": "গ্রহণ করা হচ্ছে",
   "section.receivedText": "প্রাপ্ত লেখা",
 
-  "devices.off": "Nearby বন্ধ আছে",
+  "devices.off": "পাঠাতে ও গ্রহণ করতে Nearby চালু করুন",
   "devices.finding": "ডিভাইস খুঁজছে…",
   "devices.none": "কাছাকাছি কোনো ডিভাইস নেই",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "আরও %1টি অনুরোধ", "other": "আরও %1টি অনুরোধ"},
 
   "transfer.untitled": "স্থানান্তর",
+
+  "transfer.message": "বার্তা",
   "transfer.andMore": {"one": "%1 + আরও %2টি", "other": "%1 + আরও %2টি"},
   "transfer.progressTo": "%1% · %2-কে",
   "transfer.progressFrom": "%1% · %2 থেকে",

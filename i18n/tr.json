@@ -33,7 +33,7 @@
   "section.receiving": "ALINIYOR",
   "section.receivedText": "ALINAN METİN",
 
-  "devices.off": "Nearby kapalı",
+  "devices.off": "Göndermek ve almak için Nearby'yi açın",
   "devices.finding": "Cihazlar aranıyor…",
   "devices.none": "Yakında cihaz yok",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 istek daha", "other": "%1 istek daha"},
 
   "transfer.untitled": "Aktarım",
+
+  "transfer.message": "Mesaj",
   "transfer.andMore": {"one": "%1 + %2 daha", "other": "%1 + %2 daha"},
   "transfer.progressTo": "%1% · alıcı: %2",
   "transfer.progressFrom": "%1% · gönderen: %2",

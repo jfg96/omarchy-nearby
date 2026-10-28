@@ -33,7 +33,7 @@
   "section.receiving": "MÓTTAKA",
   "section.receivedText": "MÓTTEKINN TEXTI",
 
-  "devices.off": "Slökkt er á Nearby",
+  "devices.off": "Kveiktu á Nearby til að senda og taka á móti",
   "devices.finding": "Leitað að tækjum…",
   "devices.none": "Engin tæki í nágrenninu",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 beiðni í viðbót", "other": "%1 beiðnir í viðbót"},
 
   "transfer.untitled": "Flutningur",
+
+  "transfer.message": "Skilaboð",
   "transfer.andMore": {"one": "%1 + %2 í viðbót", "other": "%1 + %2 í viðbót"},
   "transfer.progressTo": "%1% · til %2",
   "transfer.progressFrom": "%1% · frá %2",

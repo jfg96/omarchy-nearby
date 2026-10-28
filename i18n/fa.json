@@ -33,7 +33,7 @@
   "section.receiving": "در حال دریافت",
   "section.receivedText": "متن دریافتی",
 
-  "devices.off": "Nearby خاموش است",
+  "devices.off": "برای ارسال و دریافت، Nearby را روشن کنید",
   "devices.finding": "در حال یافتن دستگاه‌ها…",
   "devices.none": "دستگاهی در نزدیکی نیست",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 درخواست دیگر", "other": "%1 درخواست دیگر"},
 
   "transfer.untitled": "انتقال",
+
+  "transfer.message": "پیام",
   "transfer.andMore": {"one": "%1 + %2 مورد دیگر", "other": "%1 + %2 مورد دیگر"},
   "transfer.progressTo": "%1% · به %2",
   "transfer.progressFrom": "%1% · از %2",

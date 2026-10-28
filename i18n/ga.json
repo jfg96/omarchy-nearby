@@ -33,7 +33,7 @@
   "section.receiving": "AG FÁIL",
   "section.receivedText": "TÉACS FAIGHTE",
 
-  "devices.off": "Tá Nearby múchta",
+  "devices.off": "Cas Nearby air chun seoladh agus glacadh",
   "devices.finding": "Ag cuardach gléasanna…",
   "devices.none": "Níl aon ghléas in aice láimhe",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 iarratas eile", "two": "%1 iarratas eile", "few": "%1 iarratas eile", "many": "%1 n-iarratas eile", "other": "%1 iarratas eile"},
 
   "transfer.untitled": "Aistriú",
+
+  "transfer.message": "Teachtaireacht",
   "transfer.andMore": {"one": "%1 + %2 eile", "two": "%1 + %2 eile", "few": "%1 + %2 eile", "many": "%1 + %2 eile", "other": "%1 + %2 eile"},
   "transfer.progressTo": "%1% · chuig %2",
   "transfer.progressFrom": "%1% · ó %2",

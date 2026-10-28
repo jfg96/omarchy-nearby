@@ -33,7 +33,7 @@
   "section.receiving": "ПРИЈЕМ",
   "section.receivedText": "ПРИМЉЕНИ ТЕКСТ",
 
-  "devices.off": "Nearby је искључен",
+  "devices.off": "Укључите Nearby да бисте слали и примали",
   "devices.finding": "Тражење уређаја…",
   "devices.none": "Нема уређаја у близини",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Још %1 захтев", "few": "Још %1 захтева", "other": "Још %1 захтева"},
 
   "transfer.untitled": "Пренос",
+
+  "transfer.message": "Порука",
   "transfer.andMore": {"one": "%1 + још %2", "few": "%1 + још %2", "other": "%1 + још %2"},
   "transfer.progressTo": "%1% · за %2",
   "transfer.progressFrom": "%1% · од %2",

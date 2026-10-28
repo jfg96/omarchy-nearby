@@ -33,7 +33,7 @@
   "section.receiving": "MOTTAR",
   "section.receivedText": "MOTTATT TEKST",
 
-  "devices.off": "Nearby er slått av",
+  "devices.off": "Slå på Nearby for å sende og motta",
   "devices.finding": "Finner enheter…",
   "devices.none": "Ingen enheter i nærheten",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 forespørsel til", "other": "%1 forespørsler til"},
 
   "transfer.untitled": "Overføring",
+
+  "transfer.message": "Melding",
   "transfer.andMore": {"one": "%1 + %2 til", "other": "%1 + %2 til"},
   "transfer.progressTo": "%1% · til %2",
   "transfer.progressFrom": "%1% · fra %2",

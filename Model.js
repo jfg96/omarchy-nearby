@@ -90,9 +90,20 @@ function progressDetail(samples, total, strings) {
   return strings.t("transfer.speed", [formatBytes(rate, strings), formatDuration(left / rate, strings)])
 }
 
+// A text message is one offered item under 1 MiB whose preview is the whole
+// message: the rule the receiver itself applies. Its item name is a random one
+// the sender chose, so summaries call it a message instead.
+function incomingMessage(files) {
+  if (!files || files.length !== 1) return ""
+  var file = files[0] || {}
+  var preview = typeof file.preview === "string" ? file.preview : ""
+  return preview !== "" && Number(file.size || 0) < 1024 * 1024 ? preview : ""
+}
+
 function incomingSummary(files, strings) {
   var untitled = strings ? strings.t("transfer.untitled") : "Transfer"
   if (!files || files.length === 0) return untitled
+  if (incomingMessage(files) !== "") return strings ? strings.t("transfer.message") : "Message"
   var first = String(files[0].name || untitled)
   if (files.length === 1) return first
   var more = files.length - 1
@@ -396,4 +407,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, notificationText, progressSamples, progressRate, formatDuration, progressDetail, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingMessage, incomingSummary, notificationText, progressSamples, progressRate, formatDuration, progressDetail, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }

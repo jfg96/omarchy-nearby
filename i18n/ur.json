@@ -33,7 +33,7 @@
   "section.receiving": "وصول کیا جا رہا ہے",
   "section.receivedText": "وصول شدہ متن",
 
-  "devices.off": "Nearby بند ہے",
+  "devices.off": "بھیجنے اور وصول کرنے کے لیے Nearby آن کریں",
   "devices.finding": "آلات تلاش کیے جا رہے ہیں…",
   "devices.none": "آس پاس کوئی آلہ نہیں",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "مزید %1 درخواست", "other": "مزید %1 درخواستیں"},
 
   "transfer.untitled": "منتقلی",
+
+  "transfer.message": "پیغام",
   "transfer.andMore": {"one": "%1 + مزید %2", "other": "%1 + مزید %2"},
   "transfer.progressTo": "%1% · %2 کو",
   "transfer.progressFrom": "%1% · %2 سے",

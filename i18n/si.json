@@ -33,7 +33,7 @@
   "section.receiving": "ලබමින්",
   "section.receivedText": "ලැබුණු පෙළ",
 
-  "devices.off": "Nearby අක්‍රියයි",
+  "devices.off": "යැවීමට සහ ලැබීමට Nearby සක්‍රිය කරන්න",
   "devices.finding": "උපාංග සොයමින්…",
   "devices.none": "අවට උපාංග නැත",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "තවත් ඉල්ලීම් %1ක්", "other": "තවත් ඉල්ලීම් %1"},
 
   "transfer.untitled": "හුවමාරුව",
+
+  "transfer.message": "පණිවිඩය",
   "transfer.andMore": {"one": "%1 + තවත් %2", "other": "%1 + තවත් %2"},
   "transfer.progressTo": "%1% · %2 වෙත",
   "transfer.progressFrom": "%1% · %2 වෙතින්",

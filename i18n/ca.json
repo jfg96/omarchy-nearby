@@ -33,7 +33,7 @@
   "section.receiving": "REBENT",
   "section.receivedText": "TEXT REBUT",
 
-  "devices.off": "Nearby està desactivat",
+  "devices.off": "Activa Nearby per enviar i rebre",
   "devices.finding": "Cercant dispositius…",
   "devices.none": "No hi ha dispositius a prop",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 sol·licitud més", "many": "%1 sol·licituds més", "other": "%1 sol·licituds més"},
 
   "transfer.untitled": "Transferència",
+
+  "transfer.message": "Missatge",
   "transfer.andMore": {"one": "%1 + %2 més", "many": "%1 + %2 més", "other": "%1 + %2 més"},
   "transfer.progressTo": "%1% · a %2",
   "transfer.progressFrom": "%1% · de %2",

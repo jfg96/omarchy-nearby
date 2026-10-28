@@ -45,6 +45,7 @@ Panel {
   readonly property string errorText: engine ? engine.errorText : strings.t("engine.notLoaded")
   readonly property var incomingQueue: engine ? engine.incomingQueue : []
   readonly property var incoming: engine ? engine.incoming : null
+  readonly property string incomingMessage: root.incoming ? Model.incomingMessage(root.incoming.files) : ""
   readonly property string incomingText: engine ? engine.incomingText : ""
   readonly property real progress: engine ? engine.progress : 0
   readonly property string progressDetail: engine ? engine.progressDetail : ""
@@ -589,7 +590,9 @@ Panel {
         Column {
           visible: root.viewState === "incoming" && root.incoming; width:parent.width; spacing:Style.space(8)
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incoming ? strings.t("incoming.wantsToSend", [root.incoming.sender]) : ""; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true }
-          Text { width:parent.width; textFormat:Text.PlainText; text:root.incoming ? Model.incomingSummary(root.incoming.files, strings)+" · "+Model.formatBytes(root.incoming.total, strings) : ""; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; elide:Text.ElideRight }
+          Text { visible:root.incomingMessage===""; width:parent.width; textFormat:Text.PlainText; text:root.incoming ? Model.incomingSummary(root.incoming.files, strings)+" · "+Model.formatBytes(root.incoming.total, strings) : ""; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body; elide:Text.ElideRight }
+          // A message is shown before it is accepted, so the choice is informed.
+          Text { visible:root.incomingMessage!==""; width:parent.width; textFormat:Text.PlainText; text:root.incomingMessage; wrapMode:Text.Wrap; maximumLineCount:4; elide:Text.ElideRight; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Text { textFormat:Text.PlainText; visible:root.incomingQueue.length>1; width:parent.width; text:strings.tn("incoming.moreRequests", root.incomingQueue.length-1, [strings.number(root.incomingQueue.length-1)]); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { width:parent.width; spacing:Style.space(8)
             Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.decline"); foreground:root.urgent; bordered:true; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.declineIncoming() }

@@ -33,7 +33,7 @@
   "section.receiving": "ĐANG NHẬN",
   "section.receivedText": "VĂN BẢN ĐÃ NHẬN",
 
-  "devices.off": "Nearby đã tắt",
+  "devices.off": "Bật Nearby để gửi và nhận",
   "devices.finding": "Đang tìm thiết bị…",
   "devices.none": "Không có thiết bị ở gần",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"other": "%1 yêu cầu khác"},
 
   "transfer.untitled": "Truyền",
+
+  "transfer.message": "Tin nhắn",
   "transfer.andMore": {"other": "%1 + %2 mục nữa"},
   "transfer.progressTo": "%1% · đến %2",
   "transfer.progressFrom": "%1% · từ %2",

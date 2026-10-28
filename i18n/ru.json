@@ -33,7 +33,7 @@
   "section.receiving": "ПРИЁМ",
   "section.receivedText": "ПОЛУЧЕННЫЙ ТЕКСТ",
 
-  "devices.off": "Nearby выключено",
+  "devices.off": "Включите Nearby, чтобы отправлять и получать",
   "devices.finding": "Поиск устройств…",
   "devices.none": "Нет устройств поблизости",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Ещё %1 запрос", "few": "Ещё %1 запроса", "many": "Ещё %1 запросов", "other": "Ещё %1 запроса"},
 
   "transfer.untitled": "Передача",
+
+  "transfer.message": "Сообщение",
   "transfer.andMore": {"one": "%1 + ещё %2", "few": "%1 + ещё %2", "many": "%1 + ещё %2", "other": "%1 + ещё %2"},
   "transfer.progressTo": "%1% · кому: %2",
   "transfer.progressFrom": "%1% · от: %2",

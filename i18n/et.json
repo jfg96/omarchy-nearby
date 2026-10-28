@@ -33,7 +33,7 @@
   "section.receiving": "VASTUVÕTMINE",
   "section.receivedText": "VASTUVÕETUD TEKST",
 
-  "devices.off": "Nearby on välja lülitatud",
+  "devices.off": "Saatmiseks ja vastuvõtmiseks lülita Nearby sisse",
   "devices.finding": "Otsitakse seadmeid…",
   "devices.none": "Läheduses pole seadmeid",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Veel %1 päring", "other": "Veel %1 päringut"},
 
   "transfer.untitled": "Edastus",
+
+  "transfer.message": "Sõnum",
   "transfer.andMore": {"one": "%1 + veel %2", "other": "%1 + veel %2"},
   "transfer.progressTo": "%1% · saajale %2",
   "transfer.progressFrom": "%1% · saatjalt %2",

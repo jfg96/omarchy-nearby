@@ -33,7 +33,7 @@
   "section.receiving": "TUMATANGGAP",
   "section.receivedText": "NATANGGAP NA TEKSTO",
 
-  "devices.off": "Naka-off ang Nearby",
+  "devices.off": "I-on ang Nearby para magpadala at tumanggap",
   "devices.finding": "Naghahanap ng mga device…",
   "devices.none": "Walang device sa malapit",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "%1 pang kahilingan", "other": "%1 pang kahilingan"},
 
   "transfer.untitled": "Paglilipat",
+
+  "transfer.message": "Mensahe",
   "transfer.andMore": {"one": "%1 + %2 pa", "other": "%1 + %2 pa"},
   "transfer.progressTo": "%1% · papunta kay %2",
   "transfer.progressFrom": "%1% · mula kay %2",

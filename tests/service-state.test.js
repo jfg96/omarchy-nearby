@@ -1815,4 +1815,17 @@ for (const busy of [
   assert.equal(state.progressDetail, "10 MB/s · 15 s left")
 }
 
+// A text request's notification names it a message and never carries its
+// content, which would otherwise stay in the notification history.
+{
+  const state = engine({viewState: "nearby", anyViewOpen: false})
+  state.handleEvent({event: "incoming_request", requestId: "msg", sender: "Alice",
+    files: [{id: "1", name: "3f2a9c.txt", size: 18, type: "text/plain", preview: "my secret password"}], total: 18})
+  assert.deepEqual(notificationCommands(state), [[
+    "omarchy-notification-send", "--app-name", "Nearby", "--urgency", "normal",
+    "Incoming transfer", "From Alice: Message",
+  ]])
+  assert.doesNotMatch(JSON.stringify(Array.from(state.notified[0])), /secret/)
+}
+
 console.log("service state tests passed")

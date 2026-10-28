@@ -33,7 +33,7 @@
   "section.receiving": "PREJEMANJE",
   "section.receivedText": "PREJETO BESEDILO",
 
-  "devices.off": "Nearby je izklopljen",
+  "devices.off": "Vklopite Nearby za pošiljanje in prejemanje",
   "devices.finding": "Iskanje naprav…",
   "devices.none": "V bližini ni naprav",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Še %1 zahteva", "two": "Še %1 zahtevi", "few": "Še %1 zahteve", "other": "Še %1 zahtev"},
 
   "transfer.untitled": "Prenos",
+
+  "transfer.message": "Sporočilo",
   "transfer.andMore": {"one": "%1 + še %2", "two": "%1 + še %2", "few": "%1 + še %2", "other": "%1 + še %2"},
   "transfer.progressTo": "%1% · za %2",
   "transfer.progressFrom": "%1% · od %2",

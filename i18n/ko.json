@@ -33,7 +33,7 @@
   "section.receiving": "받는 중",
   "section.receivedText": "받은 텍스트",
 
-  "devices.off": "Nearby가 꺼져 있습니다",
+  "devices.off": "보내고 받으려면 Nearby를 켜세요",
   "devices.finding": "기기 찾는 중…",
   "devices.none": "주변에 기기가 없습니다",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"other": "요청 %1개 더 있음"},
 
   "transfer.untitled": "전송",
+
+  "transfer.message": "메시지",
   "transfer.andMore": {"other": "%1 외 %2개"},
   "transfer.progressTo": "%1% · %2에게",
   "transfer.progressFrom": "%1% · %2에서",

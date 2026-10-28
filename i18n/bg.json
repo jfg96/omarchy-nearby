@@ -33,7 +33,7 @@
   "section.receiving": "ПОЛУЧАВАНЕ",
   "section.receivedText": "ПОЛУЧЕН ТЕКСТ",
 
-  "devices.off": "Nearby е изключено",
+  "devices.off": "Включете Nearby, за да изпращате и получавате",
   "devices.finding": "Търсене на устройства…",
   "devices.none": "Няма устройства наблизо",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Още %1 заявка", "other": "Още %1 заявки"},
 
   "transfer.untitled": "Прехвърляне",
+
+  "transfer.message": "Съобщение",
   "transfer.andMore": {"one": "%1 + още %2", "other": "%1 + още %2"},
   "transfer.progressTo": "%1% · до %2",
   "transfer.progressFrom": "%1% · от %2",

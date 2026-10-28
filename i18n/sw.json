@@ -33,7 +33,7 @@
   "section.receiving": "INAPOKEA",
   "section.receivedText": "MAANDISHI YALIYOPOKEWA",
 
-  "devices.off": "Nearby imezimwa",
+  "devices.off": "Washa Nearby ili kutuma na kupokea",
   "devices.finding": "Kutafuta vifaa…",
   "devices.none": "Hakuna vifaa karibu",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Ombi %1 zaidi", "other": "Maombi %1 zaidi"},
 
   "transfer.untitled": "Uhamisho",
+
+  "transfer.message": "Ujumbe",
   "transfer.andMore": {"one": "%1 + %2 zaidi", "other": "%1 + %2 zaidi"},
   "transfer.progressTo": "%1% · kwenda %2",
   "transfer.progressFrom": "%1% · kutoka %2",

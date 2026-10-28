@@ -33,7 +33,7 @@
   "section.receiving": "SE PRIMEȘTE",
   "section.receivedText": "TEXT PRIMIT",
 
-  "devices.off": "Nearby este dezactivat",
+  "devices.off": "Activează Nearby pentru a trimite și primi",
   "devices.finding": "Caut dispozitive…",
   "devices.none": "Niciun dispozitiv în apropiere",
 
@@ -117,6 +117,8 @@
   "incoming.moreRequests": {"one": "Încă %1 cerere", "few": "Încă %1 cereri", "other": "Încă %1 de cereri"},
 
   "transfer.untitled": "Transfer",
+
+  "transfer.message": "Mesaj",
   "transfer.andMore": {"one": "%1 + încă %2", "few": "%1 + încă %2", "other": "%1 + încă %2"},
   "transfer.progressTo": "%1% · către %2",
   "transfer.progressFrom": "%1% · de la %2",
