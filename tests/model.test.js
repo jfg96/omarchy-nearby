@@ -385,4 +385,35 @@ assert.equal(Model.fileUrl("/tmp/a b/é#?%.png"), "file:///tmp/a%20b/%C3%A9%23%3
     "a preview on one of several files is still a file transfer")
 }
 
+// The helper names each failure with a stable code, translated here. A code
+// this shell does not know, or a helper that sends none, keeps its English
+// message, so nothing is lost when one side is newer than the other.
+{
+  const strings = require("./strings-stub.js")
+  const codes = ["rate_limited", "offer_too_large", "too_many_files", "too_deep", "unsafe_path", "invalid_utf8",
+    "no_files", "unsupported_entry", "permission_denied", "unreadable", "port_in_use", "device_unavailable",
+    "timed_out", "declined", "pin_required", "network_unavailable", "transfer_failed", "busy", "invalid_pin",
+    "text_too_large", "pin_update_failed", "command_too_long", "invalid_command", "disk_full", "integrity_failed"]
+  for (const code of codes) {
+    const text = Model.failureText(code, "helper text", strings)
+    assert.notEqual(text, "helper text", `${code} must be translated`)
+    assert.ok(text.length > 0)
+  }
+  assert.equal(Model.failureText("declined", "Transfer declined", strings), "The transfer was declined")
+  assert.equal(Model.failureText("disk_full", "No space left on device (os error 28)", strings),
+    "There is not enough space to save the files")
+  assert.equal(Model.failureText("from_the_future", "Something new", strings), "Something new")
+  assert.equal(Model.failureText("", "Transfer declined", strings), "Transfer declined")
+  assert.equal(Model.failureText(undefined, "", strings, "pin.updateFailed"), "Unable to update incoming PIN")
+  assert.equal(Model.failureText(undefined, undefined, strings), "Transfer failed")
+  assert.equal(Model.failureText("toString", "kept", strings), "kept", "only the table's own codes are looked up")
+
+  // Every code the helper can send has an entry, read from its source.
+  const helper = fs.readFileSync(require.resolve("../backend/src/main.rs"), "utf8")
+  const sent = new Set([...helper.matchAll(/"code":"([a-z_]+)"/g), ...helper.matchAll(/\("([a-z_]+)", "/g),
+    ...helper.matchAll(/^\s+"([a-z_]+)"$/gm)].map(match => match[1]))
+  for (const code of ["receiver_port_in_use", "receiver_security_settings_invalid"]) sent.delete(code)
+  for (const code of sent) assert.ok(codes.includes(code), `helper code ${code} has no translation`)
+}
+
 console.log("Model tests passed")

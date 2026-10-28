@@ -22,6 +22,10 @@
 - Say how to turn Nearby on when it is off, as Omarchy's Bluetooth panel
   does, instead of repeating that it is off.
 
+- Show transfer and PIN errors in the display language. The helper now names
+  each failure with a stable code beside its English message, including disk
+  full and damaged files when receiving, and the panel translates it.
+
 ## 1.2.9
 
 - Click an incoming-transfer notification to open Nearby's panel on that

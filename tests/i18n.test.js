@@ -83,7 +83,7 @@ const used = new Set()
 for (const file of ['Panel.qml', 'Service.qml', 'Model.js']) {
   const source = fs.readFileSync(path.join(root, file), 'utf8')
   // Includes conditional keys and the rotating phrase array, as well as t/tn.
-  for (const match of source.matchAll(/"((?:bar|hero|phrase|receiver|section|devices|action|folder|chooser|send|clipboard|helper|pin|incoming|transfer|status|notify|engine)\.[A-Za-z]+)"/g)) used.add(match[1])
+  for (const match of source.matchAll(/"((?:bar|hero|phrase|receiver|section|devices|action|folder|chooser|send|clipboard|helper|pin|incoming|transfer|status|notify|engine|failure)\.[A-Za-z]+)"/g)) used.add(match[1])
 }
 assert.deepEqual([...used].sort(), Object.keys(english).sort(), 'Used keys and English catalogue must match exactly')
 

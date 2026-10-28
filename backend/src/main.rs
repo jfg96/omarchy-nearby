@@ -217,46 +217,79 @@ fn emit(value: Value) {
     println!("{}", value);
 }
 
-fn human_error(error: &anyhow::Error) -> &'static str {
+/// A failure as a stable code the shell translates, and an English message for
+/// logs and for shells that predate the code.
+fn classify_error(error: &anyhow::Error) -> (&'static str, &'static str) {
     if matches!(
         error.downcast_ref::<LocalSendError>(),
         Some(LocalSendError::RateLimited)
     ) {
-        return "Too many incorrect PIN attempts";
+        return ("rate_limited", "Too many incorrect PIN attempts");
     }
     let text = format!("{error:#}").to_lowercase();
     if text.contains("offer exceeds 2 mib") {
-        "Too many files or long names: transfer offer exceeds 2 MiB"
+        (
+            "offer_too_large",
+            "Too many files or long names: transfer offer exceeds 2 MiB",
+        )
     } else if text.contains("10,000 files") {
-        "Transfer exceeds 10,000 files"
+        ("too_many_files", "Transfer exceeds 10,000 files")
     } else if text.contains("32 levels") {
-        "Folder exceeds 32 directory levels"
+        ("too_deep", "Folder exceeds 32 directory levels")
     } else if text.contains("unsafe remote file name") {
-        "Unsupported file path: hidden components, unsafe names or path too long"
+        (
+            "unsafe_path",
+            "Unsupported file path: hidden components, unsafe names or path too long",
+        )
     } else if text.contains("not valid utf-8") || text.contains("no valid utf-8 name") {
-        "File name is not valid UTF-8"
+        ("invalid_utf8", "File name is not valid UTF-8")
     } else if text.contains("no transferable files") {
-        "Selected folders contain no transferable files"
+        ("no_files", "Selected folders contain no transferable files")
     } else if text.contains("unsupported entry") {
-        "Selected folder contains an unsupported entry"
+        (
+            "unsupported_entry",
+            "Selected folder contains an unsupported entry",
+        )
     } else if text.contains("permission") {
-        "Permission denied"
+        ("permission_denied", "Permission denied")
     } else if text.contains("cannot read") || text.contains("cannot inspect") {
-        "Could not read every selected file or folder"
+        ("unreadable", "Could not read every selected file or folder")
     } else if text.contains("address already in use") || text.contains("addrinuse") {
-        "Port 53317 is already in use"
+        ("port_in_use", "Port 53317 is already in use")
     } else if text.contains("refused") || text.contains("unreachable") {
-        "Device unavailable"
+        ("device_unavailable", "Device unavailable")
     } else if text.contains("timeout") || text.contains("timed out") {
-        "Transfer timed out"
+        ("timed_out", "Transfer timed out")
     } else if text.contains("403") || text.contains("rejected") {
-        "Transfer declined"
+        ("declined", "Transfer declined")
     } else if text.contains("401") || text.contains("pin") {
-        "PIN required"
+        ("pin_required", "PIN required")
     } else if text.contains("network") || text.contains("socket") {
-        "Network unavailable"
+        ("network_unavailable", "Network unavailable")
     } else {
-        "Transfer failed"
+        ("transfer_failed", "Transfer failed")
+    }
+}
+
+/// The receiver reports a failed session as free text: its own messages, or an
+/// I/O error from saving a file. The text stays the event's message.
+fn receive_failure_code(message: &str) -> &'static str {
+    let text = message.to_lowercase();
+    if text.contains("no space left") || text.contains("quota") {
+        "disk_full"
+    } else if text.contains("permission denied") || text.contains("read-only") {
+        "permission_denied"
+    } else if text.contains("symlink") || text.contains("unsafe") {
+        "unsafe_path"
+    } else if text.contains("did not match")
+        || text.contains("integrity")
+        || text.contains("validate")
+    {
+        "integrity_failed"
+    } else if text.contains("timed out") || text.contains("timeout") {
+        "timed_out"
+    } else {
+        "transfer_failed"
     }
 }
 
@@ -1313,7 +1346,7 @@ async fn main() -> Result<()> {
                     session_id,
                     message,
                 } => emit(
-                    json!({"event":"incoming_failed","sessionId":session_id,"message":message}),
+                    json!({"event":"incoming_failed","sessionId":session_id,"code":receive_failure_code(&message),"message":message}),
                 ),
                 _ => {}
             }
@@ -1350,8 +1383,8 @@ async fn main() -> Result<()> {
             },
             line = lines.next_line() => {
                 let Some(line)=line? else {break};
-                let CommandLine::Line(line)=line else {emit(json!({"event":"error","message":"Backend command exceeds 2 MiB limit"}));continue;};
-                let command: Command = match serde_json::from_slice(&line) { Ok(v)=>v, Err(_)=>{emit(json!({"event":"error","message":"Invalid backend command"}));continue;} };
+                let CommandLine::Line(line)=line else {emit(json!({"event":"error","code":"command_too_long","message":"Backend command exceeds 2 MiB limit"}));continue;};
+                let command: Command = match serde_json::from_slice(&line) { Ok(v)=>v, Err(_)=>{emit(json!({"event":"error","code":"invalid_command","message":"Invalid backend command"}));continue;} };
                 match command {
                     Command::DiscoveryStart { force_full } => {
                         if force_full && let Some(control)=discovery.take(){let _=control.stop.send(());}
@@ -1361,30 +1394,30 @@ async fn main() -> Result<()> {
                     Command::Accept { request_id } => { let ok=pending.lock().unwrap().remove(&request_id).is_some_and(|req|req.accept()); emit(if ok {json!({"event":"incoming_accepted","requestId":request_id})} else {json!({"event":"incoming_expired","requestId":request_id})}); },
                     Command::Decline { request_id } => { let ok=pending.lock().unwrap().remove(&request_id).is_some_and(|req|req.decline()); emit(if ok {json!({"event":"incoming_declined","requestId":request_id})} else {json!({"event":"incoming_expired","requestId":request_id})}); },
                     Command::SendFiles { transfer_id,device,paths,pin } => {
-                        if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Another transfer is already active"}));continue;}
-                        if !valid_outgoing_pin(pin.as_deref()){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Invalid receiver PIN"}));continue;}
+                        if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"code":"busy","message":"Another transfer is already active"}));continue;}
+                        if !valid_outgoing_pin(pin.as_deref()){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"code":"invalid_pin","message":"Invalid receiver PIN"}));continue;}
                         let (tx,rx)=oneshot::channel(); outgoing=Some(OutgoingControl{id:transfer_id.clone(),cancel:tx});
                         let (identity,certificate,done)=(identity.clone(),certificate.clone(),out_done_tx.clone()); tokio::spawn(async move {
                             let event=match send_payload(transfer_id.clone(),identity,certificate,device,paths,None,pin,rx).await {
                                 Ok(SendPayloadOutcome::Finished)=>None,
                                 Ok(SendPayloadOutcome::PinRequired)=>Some(json!({"event":"outgoing_pin_required","transferId":transfer_id})),
                                 Ok(SendPayloadOutcome::InvalidPin)=>Some(json!({"event":"outgoing_invalid_pin","transferId":transfer_id})),
-                                Err(error)=>Some(json!({"event":"outgoing_failed","transferId":transfer_id,"message":human_error(&error)})),
+                                Err(error)=>{let (code,message)=classify_error(&error);Some(json!({"event":"outgoing_failed","transferId":transfer_id,"code":code,"message":message}))},
                             };
                             let _=done.send(OutgoingDone{id:transfer_id,event});
                         });
                     }
                     Command::SendText { transfer_id,device,text,pin } => {
-                        if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Another transfer is already active"}));continue;}
-                        if !outgoing_text_within_limit(&text){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Text is too large (maximum 1 MiB)"}));continue;}
-                        if !valid_outgoing_pin(pin.as_deref()){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"message":"Invalid receiver PIN"}));continue;}
+                        if outgoing.is_some(){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"code":"busy","message":"Another transfer is already active"}));continue;}
+                        if !outgoing_text_within_limit(&text){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"code":"text_too_large","message":"Text is too large (maximum 1 MiB)"}));continue;}
+                        if !valid_outgoing_pin(pin.as_deref()){emit(json!({"event":"outgoing_failed","transferId":transfer_id,"code":"invalid_pin","message":"Invalid receiver PIN"}));continue;}
                         let (tx,rx)=oneshot::channel(); outgoing=Some(OutgoingControl{id:transfer_id.clone(),cancel:tx});
                         let (identity,certificate,done)=(identity.clone(),certificate.clone(),out_done_tx.clone()); tokio::spawn(async move {
                             let event=match send_payload(transfer_id.clone(),identity,certificate,device,vec![],Some(text),pin,rx).await {
                                 Ok(SendPayloadOutcome::Finished)=>None,
                                 Ok(SendPayloadOutcome::PinRequired)=>Some(json!({"event":"outgoing_pin_required","transferId":transfer_id})),
                                 Ok(SendPayloadOutcome::InvalidPin)=>Some(json!({"event":"outgoing_invalid_pin","transferId":transfer_id})),
-                                Err(error)=>Some(json!({"event":"outgoing_failed","transferId":transfer_id,"message":human_error(&error)})),
+                                Err(error)=>{let (code,message)=classify_error(&error);Some(json!({"event":"outgoing_failed","transferId":transfer_id,"code":code,"message":message}))},
                             };
                             let _=done.send(OutgoingDone{id:transfer_id,event});
                         });
@@ -1393,13 +1426,13 @@ async fn main() -> Result<()> {
                     Command::SetIncomingPin { pin } => {
                         match update_incoming_pin(&mut server,&settings_path,&mut receiver_settings,Some(pin)).await {
                             Ok(())=>emit(json!({"event":"incoming_pin_state","enabled":true})),
-                            Err(_)=>emit(json!({"event":"incoming_pin_update_failed","message":"Unable to update incoming PIN"})),
+                            Err(_)=>emit(json!({"event":"incoming_pin_update_failed","code":"pin_update_failed","message":"Unable to update incoming PIN"})),
                         }
                     },
                     Command::DisableIncomingPin => {
                         match update_incoming_pin(&mut server,&settings_path,&mut receiver_settings,None).await {
                             Ok(())=>emit(json!({"event":"incoming_pin_state","enabled":false})),
-                            Err(_)=>emit(json!({"event":"incoming_pin_update_failed","message":"Unable to update incoming PIN"})),
+                            Err(_)=>emit(json!({"event":"incoming_pin_update_failed","code":"pin_update_failed","message":"Unable to update incoming PIN"})),
                         }
                     },
                     Command::Shutdown => break,
@@ -2354,7 +2387,62 @@ mod tests {
     #[test]
     fn pin_rate_limit_has_a_specific_user_message() {
         let error = anyhow::Error::from(LocalSendError::RateLimited);
-        assert_eq!(human_error(&error), "Too many incorrect PIN attempts");
+        assert_eq!(
+            classify_error(&error),
+            ("rate_limited", "Too many incorrect PIN attempts")
+        );
+    }
+
+    #[test]
+    fn outgoing_failures_carry_a_code_the_shell_translates() {
+        for (cause, code) in [
+            ("transfer offer exceeds 2 MiB", "offer_too_large"),
+            ("Transfer exceeds 10,000 files", "too_many_files"),
+            ("folder exceeds 32 levels", "too_deep"),
+            ("Unsafe remote file name", "unsafe_path"),
+            ("file name is not valid UTF-8", "invalid_utf8"),
+            ("selected folders contain no transferable files", "no_files"),
+            ("folder contains an unsupported entry", "unsupported_entry"),
+            ("Permission denied (os error 13)", "permission_denied"),
+            ("cannot read /home/someone/a", "unreadable"),
+            ("Address already in use (os error 98)", "port_in_use"),
+            ("Connection refused (os error 111)", "device_unavailable"),
+            ("operation timed out", "timed_out"),
+            ("HTTP 403 Forbidden", "declined"),
+            ("HTTP 401 Unauthorized", "pin_required"),
+            ("network is down", "network_unavailable"),
+            ("something unexpected", "transfer_failed"),
+        ] {
+            assert_eq!(
+                classify_error(&anyhow!(cause.to_string())).0,
+                code,
+                "{cause}"
+            );
+        }
+    }
+
+    #[test]
+    fn receive_failures_carry_a_code_the_shell_translates() {
+        for (message, code) in [
+            ("No space left on device (os error 28)", "disk_full"),
+            ("Disk quota exceeded (os error 122)", "disk_full"),
+            ("Permission denied (os error 13)", "permission_denied"),
+            ("Read-only file system (os error 30)", "permission_denied"),
+            ("Unsafe symlink in remote path", "unsafe_path"),
+            (
+                "Received size did not match the request",
+                "integrity_failed",
+            ),
+            (
+                "Received file failed integrity validation",
+                "integrity_failed",
+            ),
+            ("Could not validate received file", "integrity_failed"),
+            ("Transfer timed out", "timed_out"),
+            ("Broken pipe (os error 32)", "transfer_failed"),
+        ] {
+            assert_eq!(receive_failure_code(message), code, "{message}");
+        }
     }
 
     #[tokio::test]

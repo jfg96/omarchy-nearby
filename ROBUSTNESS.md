@@ -784,6 +784,11 @@ complete until those versions and results are written down.
     the name and size. Turn Nearby off: the device list must say how to turn
     it on rather than repeating that it is off.
 
+31. With the display language set to Spanish, have the peer decline a
+    transfer, send to a device that has just been switched off, and receive
+    onto a nearly full disk: each error must appear in Spanish. Restore the
+    original language.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -818,6 +823,7 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 28: clipboard picture and phone photo formats | Omarchy + peer | Not run | |
 | 29: transfer speed and time left | Omarchy + peer | Not run | |
 | 30: message preview and off-state hint | Omarchy + peer | Not run | |
+| 31: translated transfer errors | Omarchy + peer | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.
@@ -997,6 +1003,22 @@ On the final plugin release tree, all four Node and three Bash suites, the
 plugin validator, whitespace checks and the helper-source tree comparison
 passed. The launcher prefetched the real published x86_64 helper into an
 isolated XDG cache and reported 1.2.7.
+
+## Translated helper errors development check — 2026-10-28
+
+Helper `1.2.8` (still unpublished) names every failure it reports to the shell
+with a stable `code` beside its English `message`. `classify_error` replaces
+`human_error`, and `receive_failure_code` classifies the receiver's free-text
+session failures: disk full, permission denied, unsafe path, integrity,
+timeout or a generic failure. The service translates the code through
+`Model.failureText` and keeps the message for unknown codes and older helpers.
+`minHelperVersion` is already 1.2.8, so no further version change is needed.
+
+The new helper tests did not compile against the previous code, and the new
+model and service cases failed there; all pass now. A model test reads every
+code from the helper source and requires a translation for each. All four Node
+suites passed with 173 keys in each of the 50 catalogues. Scenario 31 with a
+real peer remains **Not run**.
 
 ## Message preview and off-state hint development check — 2026-10-28
 

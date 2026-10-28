@@ -621,7 +621,7 @@ Item {
       if(pendingIncomingPinEnabled!==null){var enabled=pendingIncomingPinEnabled===true;var settingsStillVisible=viewState.indexOf("incoming_pin_")===0;pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError="";incomingPinCleared();if(settingsStillVisible){viewState="incoming_pin_settings";statusText=enabled?strings.t("status.pinEnabled"):strings.t("status.pinDisabled");cursorRequested(0);focusRestoreRequested()}}
     }
     else if (event.event === "incoming_pin_update_failed") {
-      pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError=String(event.message||strings.t("pin.updateFailed"));incomingPinCleared();if(viewState==="incoming_pin_edit")incomingPinFocusRequested()
+      pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError=Model.failureText(event.code, event.message, strings, "pin.updateFailed");incomingPinCleared();if(viewState==="incoming_pin_edit")incomingPinFocusRequested()
     }
     else if (event.event === "peer_snapshot") { devices=Model.snapshotDevices(event.devices); statusText=devices.length ? strings.t("status.ready") : strings.t("status.lookingNearby") }
     else if (event.event === "device") { devices=Model.upsertDevice(devices,event.device); statusText=devices.length ? strings.t("status.ready") : strings.t("status.lookingNearby") }
@@ -655,7 +655,7 @@ Item {
     else if (event.event === "file_received") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(receivedSession!==activeIncomingSession){receivedSession=activeIncomingSession;receivedFileCount=0} receivedFileCount++; lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
     else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success",strings.t("status.received"),true); offerReceivedFile(String(event.sessionId)) }
     else if (event.event === "incoming_cancelled") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",strings.t("status.transferCancelled"),false) }
-    else if (event.event === "incoming_failed") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",String(event.message||strings.t("status.transferFailed")),false) }
+    else if (event.event === "incoming_failed") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",Model.failureText(event.code, event.message, strings),false) }
     else if (event.event === "incoming_declined") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
     else if (event.event === "outgoing_preparing") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; transferName=String(event.name); transferPeer=String(event.target); progress=0; resetProgressRate(); stopDiscovery() }
     else if (event.event === "outgoing_progress") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; if(event.name) transferName=String(event.name); progress=event.total>0 ? event.bytes/event.total : 0; noteProgress(event.bytes, event.total) }
@@ -663,8 +663,8 @@ Item {
     else if (event.event === "outgoing_cancelled") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", strings.t("status.transferCancelled"), false) }
     else if (event.event === "outgoing_pin_required") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt("") }
     else if (event.event === "outgoing_invalid_pin") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt(strings.t("pin.incorrect")) }
-    else if (event.event === "outgoing_failed") { if(event.transferId && String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", String(event.message||strings.t("status.transferFailed")), false) }
-    else if (event.event === "error") { viewState="error"; errorText=String(event.message||strings.t("status.transferFailed")); statusText=errorText }
+    else if (event.event === "outgoing_failed") { if(event.transferId && String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", Model.failureText(event.code, event.message, strings), false) }
+    else if (event.event === "error") { viewState="error"; errorText=Model.failureText(event.code, event.message, strings); statusText=errorText }
   }
 
   Process {
