@@ -2,6 +2,10 @@
 
 ## 1.2.10-dev
 
+- Click a received-text notification to open Nearby's panel on that text,
+  like an incoming-transfer notification. The click does nothing once the
+  text has been copied, dismissed or replaced.
+
 - Require rustls 0.23.46 in the helper (GHSA-c8m5-c952-6cm4,
   GHSA-h2v8-394m-p7vv, GHSA-vp88-798v-h67f, GHSA-w44r-93j7-qv28). Nearby does
   not use the affected Debug output, Brotli decompression or ECH, and

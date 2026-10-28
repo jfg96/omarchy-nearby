@@ -117,16 +117,18 @@ function hasIncoming(queue, requestId) {
   })
 }
 
-// Clicking the notification asks the service to show the request, which it
-// does only while that request is pending. A notification helper older than
-// --exec refuses the option before showing anything, so the plain notification
-// is sent instead. Every value is a separate argument; bash never re-parses
-// one as code.
-var INCOMING_NOTIFICATION_SCRIPT = 'id=$1; shift; omarchy-notification-send "$@" --exec omarchy-shell -q oma.nearby showRequest "$id" 2>/dev/null || exec omarchy-notification-send "$@"'
+// Clicking an incoming notification asks the service to show what it
+// announced: showRequest for a transfer request, showText for received text.
+// The service does so only while it is still there. A notification helper
+// older than --exec refuses the option before showing anything, so the plain
+// notification is sent instead. Every value is a separate argument; bash never
+// re-parses one as code.
+var NOTIFICATION_SCRIPT = 'method=$1 id=$2; shift 2; omarchy-notification-send "$@" --exec omarchy-shell -q oma.nearby "$method" "$id" 2>/dev/null || exec omarchy-notification-send "$@"'
+var NOTIFICATION_METHODS = ["showRequest", "showText"]
 
-function incomingNotificationCommand(requestId, notifyArgs) {
-  if (!requestId) return ["omarchy-notification-send"].concat(notifyArgs)
-  return ["bash", "-c", INCOMING_NOTIFICATION_SCRIPT, "nearby-notify", String(requestId)].concat(notifyArgs)
+function notificationCommand(method, id, notifyArgs) {
+  if (!id || NOTIFICATION_METHODS.indexOf(method) < 0) return ["omarchy-notification-send"].concat(notifyArgs)
+  return ["bash", "-c", NOTIFICATION_SCRIPT, "nearby-notify", method, String(id)].concat(notifyArgs)
 }
 
 function outgoingCommand(pending, transferId, pin) {
@@ -351,4 +353,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, notificationText, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, notificationText, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, notificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }

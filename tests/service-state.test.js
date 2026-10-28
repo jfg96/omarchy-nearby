@@ -152,7 +152,7 @@ const functionNames = [
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
-  "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "showIncomingRequest",
+  "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "showIncomingRequest", "showReceivedText",
   "finishIncoming", "finishOutgoing", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "previewReceivedFile", "previewMade", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
@@ -215,6 +215,7 @@ function engine(initial = {}) {
     errorText: "",
     incomingQueue: [],
     incomingText: "",
+    incomingTextSession: "",
     incomingTextPending: false,
     lastReceivedPath: "",
     receivedSession: "",
@@ -272,7 +273,7 @@ function engine(initial = {}) {
 // so the assertions below read the notification helper's own arguments.
 function notificationArgs(command) {
   const argv = Array.from(command)
-  return argv[0] === "bash" ? ["omarchy-notification-send", ...argv.slice(5)] : argv
+  return argv[0] === "bash" ? ["omarchy-notification-send", ...argv.slice(6)] : argv
 }
 
 function notificationTitles(state) {
@@ -640,7 +641,7 @@ function incoming(requestId, sender = requestId) {
   ]], "an incoming transfer must keep its identity and contents through Omarchy's notification helper")
   assert.deepEqual(notificationTitles(state), ["Incoming transfer"],
     "a closed panel is the case the notification exists for")
-  assert.deepEqual(Array.from(state.notified[0]), Model.incomingNotificationCommand("unseen", [
+  assert.deepEqual(Array.from(state.notified[0]), Model.notificationCommand("showRequest", "unseen", [
     "--app-name", "Nearby", "--urgency", "normal", "Incoming transfer", "From Alice: unseen.txt",
   ]), "clicking an incoming-transfer notification must ask the service to show that request")
 }
@@ -677,16 +678,50 @@ for (const busy of ["sending", "receiving", "pin"]) {
 
 {
   const state = engine({viewState: "nearby", anyViewOpen: false})
-  state.handleEvent({event: "incoming_text", sender: "Alice", text: "hello"})
+  state.handleEvent({event: "incoming_text", sessionId: "s1", sender: "Alice", text: "hello"})
   assert.deepEqual(notificationCommands(state), [[
     "omarchy-notification-send", "--app-name", "Nearby",
     "--urgency", "normal",
     "Text received", "From Alice",
   ]], "received text must keep its identity and contents through Omarchy's notification helper")
-  assert.equal(state.notified[0][0], "omarchy-notification-send",
-    "received text has no request to reopen, so its notification keeps no click action")
+  assert.deepEqual(Array.from(state.notified[0]), Model.notificationCommand("showText", "s1", [
+    "--app-name", "Nearby", "--urgency", "normal", "Text received", "From Alice",
+  ]), "clicking a received-text notification must ask the service to show that text, like a transfer")
   assert.deepEqual(notificationTitles(state), ["Text received"])
 }
+
+// The click on a received-text notification opens the panel only while that
+// text is still on screen or waiting behind a transfer. Once it was copied or
+// dismissed, or replaced by newer text, a click does nothing.
+{
+  const summoned = []
+  const shell = {summon: (id, args) => { summoned.push([id, args]); return true }}
+  const state = engine({viewState: "nearby", anyViewOpen: false, openViewCount: 0, shell})
+  state.handleEvent({event: "incoming_text", sessionId: "first", sender: "Alice", text: "one"})
+  assert.equal(state.showReceivedText("first"), "ok")
+  assert.deepEqual(summoned, [["oma.nearby", "{}"]])
+  state.handleEvent({event: "incoming_text", sessionId: "second", sender: "Alice", text: "two"})
+  assert.equal(state.showReceivedText("first"), "expired", "older text that was replaced is gone")
+  assert.equal(state.showReceivedText(""), "expired")
+  state.noteTextCopied()
+  assert.equal(state.showReceivedText("second"), "expired", "copied text leaves the text view")
+  assert.equal(summoned.length, 1)
+
+  const dismissed = engine({viewState: "nearby", anyViewOpen: false, openViewCount: 0, shell})
+  dismissed.handleEvent({event: "incoming_text", sessionId: "s", sender: "Alice", text: "hi"})
+  dismissed.finishText()
+  assert.equal(dismissed.showReceivedText("s"), "expired", "dismissed text is gone")
+
+  // Text held behind an outgoing transfer is not on screen yet but still pending.
+  const held = engine({viewState: "sending", anyViewOpen: false, openViewCount: 0, shell,
+    pendingOutgoing: {kind: "text", device: {fingerprint: "phone"}, text: "outgoing"}})
+  held.handleEvent({event: "incoming_text", sessionId: "held", sender: "Alice", text: "later"})
+  assert.equal(held.incomingTextPending, true)
+  assert.equal(held.showReceivedText("held"), "ok")
+}
+
+assert.match(source, /IpcHandler\s*\{[\s\S]*?function showText\(sessionId: string\): string \{ return root\.showReceivedText\(sessionId\) \}/,
+  "the received-text notification's click action reaches the service through the oma.nearby IPC target")
 
 // The click action of an incoming-transfer notification only opens the panel,
 // and only while the request it announced is still pending. A click after it

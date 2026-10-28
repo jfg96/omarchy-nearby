@@ -85,6 +85,8 @@ Item {
   property var incomingQueue: []
   readonly property var incoming: Model.currentIncoming(incomingQueue)
   property string incomingText: ""
+  // The helper session the text arrived in, which its notification names.
+  property string incomingTextSession: ""
   property bool incomingTextPending: false
   property string lastReceivedPath: ""
   // The one file the receive on screen delivered, offered for preview and
@@ -218,8 +220,9 @@ Item {
     // because a mismatch otherwise shows up only as a panel that says it is
     // not ready, which is the same thing a port conflict looks like.
     function status(): string { return JSON.stringify({enabled:root.receiverEnabled,ready:root.backendReady,running:backend.running,devices:root.devices.length,helper:root.helperVersion,requires:root.requiredHelperVersion,updateOffered:root.helperUpdateOffered}) }
-    // The click action of an incoming-transfer notification.
+    // The click actions of the incoming-transfer and received-text notifications.
     function showRequest(requestId: string): string { return root.showIncomingRequest(requestId) }
+    function showText(sessionId: string): string { return root.showReceivedText(sessionId) }
   }
 
   // Opens the panel on a request a notification announced, never answering it.
@@ -227,6 +230,13 @@ Item {
   // late click or one from the notification history has no effect.
   function showIncomingRequest(requestId) {
     if (!Model.hasIncoming(incomingQueue, requestId)) return "expired"
+    return summonView("summon")
+  }
+  // The same for received text: it is there while the text view shows it or
+  // while it waits behind a transfer, and gone once copied, dismissed or
+  // replaced by newer text.
+  function showReceivedText(sessionId) {
+    if (!sessionId || sessionId !== incomingTextSession || incomingText === "" || (viewState !== "text" && !incomingTextPending)) return "expired"
     return summonView("summon")
   }
 
@@ -626,13 +636,13 @@ Item {
       var incomingTakesView = viewState!=="sending" && viewState!=="receiving" && viewState!=="pin"
       if (incomingTakesView) { viewState="incoming"; cursorRequested(1) }
       if (notificationNeeded(incomingTakesView && incoming && incoming.requestId===event.requestId))
-        Quickshell.execDetached(Model.incomingNotificationCommand(event.requestId, ["--app-name","Nearby","--urgency","normal",strings.t("status.incomingTransfer"),strings.t("notify.incomingBody", [Model.notificationText(event.sender), Model.notificationText(Model.incomingSummary(event.files, strings))])]))
+        Quickshell.execDetached(Model.notificationCommand("showRequest", event.requestId, ["--app-name","Nearby","--urgency","normal",strings.t("status.incomingTransfer"),strings.t("notify.incomingBody", [Model.notificationText(event.sender), Model.notificationText(Model.incomingSummary(event.files, strings))])]))
     }
     else if (event.event === "incoming_text") {
       if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
-      incomingText=String(event.text || ""); transferPeer=String(event.sender || ""); incomingTextPending=pendingOutgoing!==null; if (!pendingOutgoing) { viewState="text"; stopDiscovery() }
+      incomingText=String(event.text || ""); incomingTextSession=String(event.sessionId || ""); transferPeer=String(event.sender || ""); incomingTextPending=pendingOutgoing!==null; if (!pendingOutgoing) { viewState="text"; stopDiscovery() }
       if (notificationNeeded(!incomingTextPending))
-        Quickshell.execDetached(["omarchy-notification-send","--app-name","Nearby","--urgency","normal",strings.t("status.textReceived"),strings.t("notify.textBody", [Model.notificationText(event.sender)])])
+        Quickshell.execDetached(Model.notificationCommand("showText", event.sessionId, ["--app-name","Nearby","--urgency","normal",strings.t("status.textReceived"),strings.t("notify.textBody", [Model.notificationText(event.sender)])]))
     }
     else if (event.event === "incoming_accepted") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
     else if (event.event === "incoming_expired") {

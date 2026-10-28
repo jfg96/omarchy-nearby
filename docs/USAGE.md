@@ -73,7 +73,9 @@ Incoming notifications use Omarchy's notification system and respect Do Not
 Disturb. Clicking an incoming-transfer notification opens the panel on the
 focused monitor with the request shown; it never accepts or declines it. Once
 the request has expired or been answered, the click does nothing, including
-from the notification history. On a shell whose notification helper predates
+from the notification history. Clicking a received-text notification likewise
+opens the panel on that text until it is copied, dismissed or replaced by
+newer text. On a shell whose notification helper predates
 click actions, the notification appears without one. A request already
 displayed in the open panel does not also need a duplicate notification;
 requests waiting behind another view can still notify.
@@ -159,6 +161,7 @@ These commands address the loaded `oma.nearby` service in the Omarchy shell:
 | `omarchy-shell oma.nearby status` | Report service state as JSON |
 | `omarchy-shell oma.nearby retryHelper` | Request verification/repair of the selected published helper |
 | `omarchy-shell oma.nearby showRequest <id>` | Open the popup if incoming request `<id>` is still pending, otherwise report `expired`; used by the incoming notification |
+| `omarchy-shell oma.nearby showText <id>` | Open the popup if the text received in session `<id>` is still shown or waiting, otherwise report `expired`; used by the received-text notification |
 
 Popup commands do not toggle the receiver. An `ok` response acknowledges a
 command; it does not prove that startup, repair or a transfer has completed.

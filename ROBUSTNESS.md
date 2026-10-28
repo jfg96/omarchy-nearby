@@ -760,8 +760,10 @@ complete until those versions and results are written down.
     request shown and nothing accepted. Decline it. Send again, let the request
     expire (or answer it from the panel), then click its notification in the
     notification history: nothing must open. With two requests queued, clicking
-    the second one's notification must open the panel on the first. Received
-    text must still notify without a click action.
+    the second one's notification must open the panel on the first. Send text
+    with the popup closed and click its notification: the popup must open on
+    the text. Copy it, then click that notification in the history: nothing
+    must open.
 
 28. Receive a HEIC photo from an iPhone, and an AVIF or JPEG XL picture if a
     peer can send one: each must show an upright preview and Copy must paste
@@ -983,6 +985,22 @@ On the final plugin release tree, all four Node and three Bash suites, the
 plugin validator, whitespace checks and the helper-source tree comparison
 passed. The launcher prefetched the real published x86_64 helper into an
 isolated XDG cache and reported 1.2.7.
+
+## Received-text notification click development check — 2026-10-28
+
+Plugin `1.2.10-dev` gives the received-text notification the same click action
+as the incoming-transfer one: the new `showText` IPC method opens the panel
+only while the text from that helper session is shown or waiting behind a
+transfer. `Model.notificationCommand` now builds both actions and refuses any
+method other than `showRequest` and `showText`. The helper is unchanged.
+
+The new Node cases failed against the previous code (no
+`Model.notificationCommand` or `showReceivedText`) and pass now, covering
+replaced, copied, dismissed and held text, and the wrapper run through bash
+with a stubbed notification helper. On Omarchy 4.5.0rc2 one real notification
+was sent through the wrapper, and the shell's history stored its click command
+as `omarchy-shell -q oma.nearby showText <id>`. Clicking a real received-text
+notification into this code remains **Not run**.
 
 ## rustls 0.23.46 security update — 2026-10-28
 
