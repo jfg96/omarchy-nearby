@@ -92,6 +92,12 @@ requests waiting behind another view can still notify.
 | Nearby on, all popups closed | Receiver and passive discovery available |
 | Nearby on, a popup open | Active discovery also runs |
 
+The popup can be used from the keyboard: the arrow keys show and move the
+cursor, Enter or Space activates the highlighted item, and Escape goes back.
+Enter and Space do nothing until an arrow key has shown the cursor, so typing
+meant for another window when the popup opens cannot turn Nearby off or accept
+a transfer.
+
 On multiple monitors, the views share one receiver. Closing one popup does not
 stop active discovery needed by another open popup.
 

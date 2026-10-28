@@ -416,7 +416,10 @@ Panel {
       id: keyCatcher; anchors.fill: parent
       blocked: (root.viewState==="pin" && pinInput.activeFocus)||(root.viewState==="incoming_pin_edit"&&incomingPinInput.activeFocus)
       onMoveRequested: function(dx,dy){root.moveCursor(dx,dy)}
-      onActivateRequested: root.activateCursor()
+      // Keys act only on a visible cursor, as in Omarchy's own panels: the
+      // panel takes the keyboard when it opens, and Enter or Space meant for
+      // another window must not turn Nearby off or accept a transfer.
+      onActivateRequested: if (root.cursorActive) root.activateCursor()
       onCloseRequested: root.goBack()
       Column {
         id: content; width: parent.width; spacing: Style.space(12)
