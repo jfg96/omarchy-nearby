@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "کلپ بورڈ پڑھنے کے لیے wl-paste درکار ہے",
   "clipboard.empty": "کلپ بورڈ خالی ہے",
+  "clipboard.imageFailed": "کلپ بورڈ کی تصویر پڑھی نہیں جا سکی",
   "clipboard.copyMissing": "کاپی کرنے کے لیے wl-copy درکار ہے",
   "clipboard.copyTextMissing": "وصول شدہ متن کاپی کرنے کے لیے wl-copy درکار ہے",
   "clipboard.copied": "کلپ بورڈ پر کاپی ہو گیا",

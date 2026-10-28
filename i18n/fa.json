@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "برای خواندن تخته‌گیره به wl-paste نیاز است",
   "clipboard.empty": "تخته‌گیره خالی است",
+  "clipboard.imageFailed": "خواندن تصویر تخته‌گیره ممکن نشد",
   "clipboard.copyMissing": "برای رونوشت به wl-copy نیاز است",
   "clipboard.copyTextMissing": "برای رونوشت متن دریافتی به wl-copy نیاز است",
   "clipboard.copied": "در تخته‌گیره رونوشت شد",

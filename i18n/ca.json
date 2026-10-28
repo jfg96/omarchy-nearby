@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Cal wl-paste per llegir el porta-retalls",
   "clipboard.empty": "El porta-retalls és buit",
+  "clipboard.imageFailed": "No s'ha pogut llegir la imatge del porta-retalls",
   "clipboard.copyMissing": "Cal wl-copy per copiar",
   "clipboard.copyTextMissing": "Cal wl-copy per copiar el text rebut",
   "clipboard.copied": "Copiat al porta-retalls",

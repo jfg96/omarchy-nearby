@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "පසුරු පුවරුව කියවීමට wl-paste අවශ්‍යයි",
   "clipboard.empty": "පසුරු පුවරුව හිස්ය",
+  "clipboard.imageFailed": "පසුරු පුවරුවේ රූපය කියවිය නොහැකි විය",
   "clipboard.copyMissing": "පිටපත් කිරීමට wl-copy අවශ්‍යයි",
   "clipboard.copyTextMissing": "ලැබුණු පෙළ පිටපත් කිරීමට wl-copy අවශ්‍යයි",
   "clipboard.copied": "පසුරු පුවරුවට පිටපත් කළා",

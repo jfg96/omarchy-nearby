@@ -2,7 +2,8 @@
 
 Native nearby sharing for Omarchy Quattro, compatible with the LocalSend protocol.
 
-Open Nearby from the bar, choose a device, and send files, folders or clipboard text.
+Open Nearby from the bar, choose a device, and send files, folders, or the
+clipboard's text or picture.
 Receive transfers with explicit approval, follow their progress, and optionally
 protect incoming requests with a PIN. Nearby follows the language picked under
 **Setup > Language** when Omarchy provides translations, using English for

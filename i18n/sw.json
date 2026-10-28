@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "wl-paste inahitajika kusoma ubao wa kunakili",
   "clipboard.empty": "Ubao wa kunakili hauna kitu",
+  "clipboard.imageFailed": "Haikuweza kusoma picha kwenye ubao wa kunakili",
   "clipboard.copyMissing": "wl-copy inahitajika kunakili",
   "clipboard.copyTextMissing": "wl-copy inahitajika kunakili maandishi yaliyopokewa",
   "clipboard.copied": "Imenakiliwa kwenye ubao wa kunakili",

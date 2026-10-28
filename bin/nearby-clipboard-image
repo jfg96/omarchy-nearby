@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+# Save the picture on the clipboard, such as a screenshot, as a file Nearby can
+# send, and print its path.
+#
+# Exits 3 when the clipboard holds text, or holds no picture, so the panel
+# reads it as text instead. Text wins: copying spreadsheet cells also offers a
+# picture of them, and the text is what was meant. The file lives in a private
+# runtime folder and replaces the previous one; the folder is emptied when the
+# session ends.
+
+set -uo pipefail
+
+readonly max_bytes=$((100 * 1024 * 1024))
+
+fail() {
+  printf 'nearby-clipboard-image: %s\n' "$*" >&2
+  exit 1
+}
+
+(( $# == 0 )) || fail "usage: nearby-clipboard-image"
+command -v wl-paste >/dev/null 2>&1 || exit 3
+types=$(wl-paste --list-types 2>/dev/null) || exit 3
+
+offered=()
+while IFS= read -r type; do
+  case $type in
+    text/plain|text/plain\;*|TEXT|STRING|UTF8_STRING) exit 3 ;;
+  esac
+  offered+=("$type")
+done <<<"$types"
+
+# The extension comes from this list, never from the type a client offered.
+chosen="" extension=""
+for candidate in image/png:png image/jpeg:jpg image/webp:webp image/gif:gif \
+  image/avif:avif image/heic:heic image/jxl:jxl image/bmp:bmp image/tiff:tiff; do
+  for type in "${offered[@]}"; do
+    if [[ $type == "${candidate%%:*}" ]]; then
+      chosen=$type extension=${candidate#*:}
+      break 2
+    fi
+  done
+done
+[[ -n $chosen ]] || exit 3
+
+runtime=${XDG_RUNTIME_DIR:-}
+[[ $runtime == /* && -d $runtime ]] || fail "XDG_RUNTIME_DIR is not available"
+directory=$runtime/omarchy-nearby
+for folder in "$directory" "$directory/clipboard"; do
+  mkdir -p -m 0700 -- "$folder" 2>/dev/null
+  [[ -d $folder && ! -L $folder && -O $folder ]] || fail "unsafe clipboard folder: $folder"
+done
+directory+=/clipboard
+
+partial=$(mktemp "$directory/.partial-XXXXXX") || fail "could not create a file"
+trap 'rm -f -- "$partial"' EXIT
+wl-paste --type "$chosen" 2>/dev/null | head -c $((max_bytes + 1)) >"$partial"
+statuses=("${PIPESTATUS[@]}")
+size=$(stat -c %s -- "$partial")
+(( size <= max_bytes )) || fail "the picture is larger than 100 MiB"
+(( statuses[0] == 0 && statuses[1] == 0 && size > 0 )) || fail "could not read the picture"
+
+for old in "$directory"/clipboard-*; do
+  [[ -e $old ]] && rm -f -- "$old"
+done
+picture="$directory/clipboard-$(date +%Y%m%d-%H%M%S).$extension"
+mv -f -- "$partial" "$picture" || fail "could not save the picture"
+trap - EXIT
+printf '%s\n' "$picture"

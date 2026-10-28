@@ -36,10 +36,14 @@ address every 5 seconds and at most 8 at a time.
 
 The panel previews a received picture, which means decoding a file a peer
 chose. That happens only after the transfer was accepted, only for a single
-received file, and only when `file` identifies its contents as PNG, JPEG, WebP
-or GIF; the name and the type the sender declared are not consulted. The
-preview is decoded off the UI thread at the size it is drawn. Copying such a
-picture converts it with ImageMagick, restricted to the decoder for the
+received file, and only when `file` identifies its contents as PNG, JPEG, WebP,
+GIF, BMP, TIFF, HEIC/HEIF, AVIF or JPEG XL; the name and the type the sender
+declared are not consulted. The first six are decoded by the shell, off the UI
+thread at the size they are drawn. HEIC, AVIF and JPEG XL are never decoded in
+the shell: a separate ImageMagick process converts them, with the bounds below,
+to an upright PNG of at most 1024 pixels a side and without metadata, in a
+private folder under `$XDG_RUNTIME_DIR`, and the shell shows that PNG. Copying
+such a picture converts it with ImageMagick, restricted to the decoder for the
 identified type, fed on standard input so the file name is never interpreted,
 and bounded to 16,000 pixels a side, 128 megapixels, 2 GiB of pixel memory
 with no disk storage, and 30 seconds. A picture outside those bounds is copied

@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "클립보드를 읽으려면 wl-paste가 필요합니다",
   "clipboard.empty": "클립보드가 비어 있습니다",
+  "clipboard.imageFailed": "클립보드의 이미지를 읽을 수 없습니다",
   "clipboard.copyMissing": "복사하려면 wl-copy가 필요합니다",
   "clipboard.copyTextMissing": "받은 텍스트를 복사하려면 wl-copy가 필요합니다",
   "clipboard.copied": "클립보드에 복사됨",

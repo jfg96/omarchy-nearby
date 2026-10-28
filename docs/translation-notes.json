@@ -62,6 +62,7 @@
   "send.clipboard": "Destination screen send action.",
   "clipboard.pasteMissing": "Clipboard copy/paste action or status.",
   "clipboard.empty": "Clipboard copy/paste action or status.",
+  "clipboard.imageFailed": "Error when Send clipboard cannot save the picture (for example a screenshot) on the clipboard to send it.",
   "clipboard.copyMissing": "Clipboard copy/paste action or status.",
   "clipboard.copyTextMissing": "Clipboard copy/paste action or status.",
   "clipboard.copied": "Clipboard copy/paste action or status.",

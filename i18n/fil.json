@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Kailangan ang wl-paste para basahin ang clipboard",
   "clipboard.empty": "Walang laman ang clipboard",
+  "clipboard.imageFailed": "Hindi mabasa ang larawan sa clipboard",
   "clipboard.copyMissing": "Kailangan ang wl-copy para kumopya",
   "clipboard.copyTextMissing": "Kailangan ang wl-copy para kopyahin ang natanggap na teksto",
   "clipboard.copied": "Nakopya sa clipboard",

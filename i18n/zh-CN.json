@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "读取剪贴板需要 wl-paste",
   "clipboard.empty": "剪贴板为空",
+  "clipboard.imageFailed": "无法读取剪贴板中的图片",
   "clipboard.copyMissing": "复制需要 wl-copy",
   "clipboard.copyTextMissing": "复制收到的文本需要 wl-copy",
   "clipboard.copied": "已复制到剪贴板",

@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Starpliktuves lasīšanai nepieciešams wl-paste",
   "clipboard.empty": "Starpliktuve ir tukša",
+  "clipboard.imageFailed": "Neizdevās nolasīt attēlu starpliktuvē",
   "clipboard.copyMissing": "Kopēšanai nepieciešams wl-copy",
   "clipboard.copyTextMissing": "Saņemtā teksta kopēšanai nepieciešams wl-copy",
   "clipboard.copied": "Nokopēts starpliktuvē",

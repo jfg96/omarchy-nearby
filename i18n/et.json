@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Lõikelaua lugemiseks on vaja programmi wl-paste",
   "clipboard.empty": "Lõikelaud on tühi",
+  "clipboard.imageFailed": "Lõikelaual olevat pilti ei õnnestunud lugeda",
   "clipboard.copyMissing": "Kopeerimiseks on vaja programmi wl-copy",
   "clipboard.copyTextMissing": "Vastuvõetud teksti kopeerimiseks on vaja programmi wl-copy",
   "clipboard.copied": "Kopeeritud lõikelauale",

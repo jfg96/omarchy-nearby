@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Cần wl-paste để đọc bộ nhớ tạm",
   "clipboard.empty": "Bộ nhớ tạm trống",
+  "clipboard.imageFailed": "Không thể đọc hình ảnh trong bộ nhớ tạm",
   "clipboard.copyMissing": "Cần wl-copy để sao chép",
   "clipboard.copyTextMissing": "Cần wl-copy để sao chép văn bản đã nhận",
   "clipboard.copied": "Đã sao chép vào bộ nhớ tạm",

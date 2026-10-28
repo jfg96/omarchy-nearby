@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Se necesita wl-paste para leer el portapapeles",
   "clipboard.empty": "El portapapeles está vacío",
+  "clipboard.imageFailed": "No se pudo leer la imagen del portapapeles",
   "clipboard.copyMissing": "Se necesita wl-copy para copiar",
   "clipboard.copyTextMissing": "Se necesita wl-copy para copiar el texto recibido",
   "clipboard.copied": "Copiado al portapapeles",

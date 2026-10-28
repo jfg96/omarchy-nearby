@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Norint skaityti iškarpinę, reikalinga wl-paste",
   "clipboard.empty": "Iškarpinė tuščia",
+  "clipboard.imageFailed": "Nepavyko nuskaityti paveikslėlio iškarpinėje",
   "clipboard.copyMissing": "Norint kopijuoti, reikalinga wl-copy",
   "clipboard.copyTextMissing": "Norint kopijuoti gautą tekstą, reikalinga wl-copy",
   "clipboard.copied": "Nukopijuota į iškarpinę",

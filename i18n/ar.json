@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "يلزم wl-paste لقراءة الحافظة",
   "clipboard.empty": "الحافظة فارغة",
+  "clipboard.imageFailed": "تعذّرت قراءة الصورة في الحافظة",
   "clipboard.copyMissing": "يلزم wl-copy للنسخ",
   "clipboard.copyTextMissing": "يلزم wl-copy لنسخ النص المستلَم",
   "clipboard.copied": "نُسخ إلى الحافظة",

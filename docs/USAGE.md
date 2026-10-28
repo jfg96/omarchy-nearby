@@ -10,8 +10,13 @@ Open Nearby, turn the receiver on, and select the destination.
 - **Send files** opens Omarchy's file chooser and supports multiple files.
 - **Send folder** opens the directory chooser. Files are sent with the selected
   folder name and their relative hierarchy, in alphabetical path order.
-- **Send clipboard** sends the current clipboard as text, not an image or file.
-  Outgoing text is limited to 1 MiB of UTF-8 data.
+- **Send clipboard** sends the current clipboard. Text is sent as text, limited
+  to 1 MiB of UTF-8 data. A picture with no text alongside it, such as a
+  screenshot or an image copied from a browser, is sent as a file named
+  `clipboard-<date>-<time>` with its type's extension, up to 100 MiB. When the
+  clipboard offers both, as copied spreadsheet cells do, the text is sent. The
+  picture is saved in a private folder under `$XDG_RUNTIME_DIR`, which keeps
+  only the latest one and is emptied when the session ends.
 - If the destination requires a PIN, enter that destination's PIN when asked.
   It is independent of your own Incoming PIN setting.
 
@@ -52,13 +57,16 @@ again at final publication. Received text appears in the panel; choose
 **Copy** to put it on the clipboard, or **Done** to dismiss it.
 
 When a transfer delivers exactly one file, the result offers **Copy** for it,
-so it can be pasted without opening a file manager. A PNG, JPEG, WebP or GIF
-picture is also previewed, and is copied as a PNG image, which is the image
+so it can be pasted without opening a file manager. A PNG, JPEG, WebP, GIF,
+BMP, TIFF, HEIC/HEIF, AVIF or JPEG XL picture is also previewed, and is copied
+as a PNG image, which is the image
 type every paste target accepts; the copy carries no metadata such as the
 location a photo was taken at or a comment stored in a PNG. Copying a large
 picture can take a few seconds. Any other file, and a picture that cannot be
 converted, is copied as a file reference, the way a file manager copies it.
-The file in Downloads is never changed. A transfer of several files shows the
+HEIC, AVIF and JPEG XL, the formats phones often save photos in, are previewed
+from a small PNG that ImageMagick converts under `$XDG_RUNTIME_DIR`, because a
+stock shell cannot decode them itself. The file in Downloads is never changed. A transfer of several files shows the
 plain result.
 
 Incoming notifications use Omarchy's notification system and respect Do Not

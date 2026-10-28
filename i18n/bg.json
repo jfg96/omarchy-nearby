@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "За четене на клипборда е необходим wl-paste",
   "clipboard.empty": "Клипбордът е празен",
+  "clipboard.imageFailed": "Изображението в клипборда не можа да бъде прочетено",
   "clipboard.copyMissing": "За копиране е необходим wl-copy",
   "clipboard.copyTextMissing": "За копиране на получения текст е необходим wl-copy",
   "clipboard.copied": "Копирано в клипборда",

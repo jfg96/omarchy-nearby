@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "クリップボードの読み取りにはwl-pasteが必要です",
   "clipboard.empty": "クリップボードは空です",
+  "clipboard.imageFailed": "クリップボードの画像を読み取れませんでした",
   "clipboard.copyMissing": "コピーにはwl-copyが必要です",
   "clipboard.copyTextMissing": "受信したテキストのコピーにはwl-copyが必要です",
   "clipboard.copied": "クリップボードにコピーしました",

@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "wl-paste est nécessaire pour lire le presse-papiers",
   "clipboard.empty": "Le presse-papiers est vide",
+  "clipboard.imageFailed": "Impossible de lire l'image du presse-papiers",
   "clipboard.copyMissing": "wl-copy est nécessaire pour copier",
   "clipboard.copyTextMissing": "wl-copy est nécessaire pour copier le texte reçu",
   "clipboard.copied": "Copié dans le presse-papiers",

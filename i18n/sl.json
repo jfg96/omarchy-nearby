@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Za branje odložišča je potreben wl-paste",
   "clipboard.empty": "Odložišče je prazno",
+  "clipboard.imageFailed": "Slike v odložišču ni bilo mogoče prebrati",
   "clipboard.copyMissing": "Za kopiranje je potreben wl-copy",
   "clipboard.copyTextMissing": "Za kopiranje prejetega besedila je potreben wl-copy",
   "clipboard.copied": "Kopirano v odložišče",

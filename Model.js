@@ -65,8 +65,20 @@ function notificationText(value) {
 
 // The preview decodes a received picture inside the shell, so it is limited to
 // the common raster types, as identified from the file's bytes by `file`.
+// Pictures a stock shell decodes itself, and phone formats it cannot, which
+// bin/nearby-preview-image converts to a PNG in a separate process.
+var DIRECT_PREVIEW_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp", "image/x-ms-bmp", "image/tiff"]
+var CONVERTED_PREVIEW_TYPES = ["image/heic", "image/heif", "image/avif", "image/jxl"]
+
+function imagePreviewMode(mimeType) {
+  var type = String(mimeType || "")
+  if (DIRECT_PREVIEW_TYPES.indexOf(type) >= 0) return "direct"
+  if (CONVERTED_PREVIEW_TYPES.indexOf(type) >= 0) return "convert"
+  return ""
+}
+
 function previewableImage(mimeType) {
-  return ["image/png", "image/jpeg", "image/webp", "image/gif"].indexOf(String(mimeType || "")) >= 0
+  return imagePreviewMode(mimeType) !== ""
 }
 
 // A local path as a file URL. Every segment is escaped so a name containing
@@ -339,4 +351,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, notificationText, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, notificationText, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }

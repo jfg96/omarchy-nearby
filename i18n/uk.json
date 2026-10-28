@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Для читання буфера обміну потрібен wl-paste",
   "clipboard.empty": "Буфер обміну порожній",
+  "clipboard.imageFailed": "Не вдалося прочитати зображення з буфера обміну",
   "clipboard.copyMissing": "Для копіювання потрібен wl-copy",
   "clipboard.copyTextMissing": "Для копіювання отриманого тексту потрібен wl-copy",
   "clipboard.copied": "Скопійовано в буфер обміну",

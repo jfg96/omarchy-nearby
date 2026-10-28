@@ -153,7 +153,7 @@ const functionNames = [
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
   "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "showIncomingRequest",
-  "finishIncoming", "finishOutgoing", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "finishText", "finishTerminal",
+  "finishIncoming", "finishOutgoing", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "previewReceivedFile", "previewMade", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
 ]
@@ -221,7 +221,9 @@ function engine(initial = {}) {
     receivedFileCount: 0,
     receivedFile: "",
     receivedFileType: "",
+    receivedPreview: "",
     fileTypeProbe: {running: false, path: ""},
+    previewMaker: {running: false, path: ""},
     progress: 0,
     transferName: "",
     transferPeer: "",
@@ -1026,6 +1028,76 @@ function probeExits(state, code, type) {
   assert.equal(state.receivedFileType, "")
   assert.equal(state.fileTypeProbe.running, false)
 }
+// The preview shows what the probe identified. A type the shell draws is shown
+// from the received file itself; a phone format it cannot decode is first
+// converted to a PNG by a separate process, whose answer must belong to the
+// file still on screen.
+function previewExits(state, code, path) {
+  state.previewMaker.running = false
+  state.previewMade(code, path)
+}
+{
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  assert.equal(state.receivedPreview, "", "nothing is shown before the probe answers")
+  probeExits(state, 0, "image/jpeg")
+  assert.equal(state.receivedPreview, "/home/someone/Downloads/photo.jpg")
+  assert.equal(state.previewMaker.running, false, "a type the shell draws needs no conversion")
+}
+{
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/IMG_0001.HEIC"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  probeExits(state, 0, "image/heic")
+  assert.equal(state.receivedPreview, "", "a HEIC photo is never handed to the shell's decoder")
+  assert.equal(state.previewMaker.path, "/home/someone/Downloads/IMG_0001.HEIC")
+  assert.equal(state.previewMaker.running, true)
+  previewExits(state, 0, "/run/user/1000/omarchy-nearby/previews/preview-abc.png")
+  assert.equal(state.receivedPreview, "/run/user/1000/omarchy-nearby/previews/preview-abc.png")
+  assert.equal(state.receivedFileType, "image/heic", "Copy still treats it as a picture")
+}
+{
+  // A conversion that fails only withholds the preview.
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/broken.avif"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  probeExits(state, 0, "image/avif")
+  previewExits(state, 1, "")
+  assert.equal(state.receivedPreview, "")
+  assert.equal(state.previewMaker.running, false)
+}
+{
+  // A conversion still running for an earlier file must not show it under
+  // the next one, and the next one gets its own conversion afterwards.
+  const state = engine({viewState: "receiving"})
+  state.handleEvent(received("a", "/home/someone/Downloads/first.heic"))
+  state.handleEvent({event: "incoming_done", sessionId: "a"})
+  probeExits(state, 0, "image/heic")
+  assert.equal(state.previewMaker.path, "/home/someone/Downloads/first.heic")
+  state.viewState = "receiving"
+  state.handleEvent(received("b", "/home/someone/Downloads/second.heic"))
+  state.handleEvent({event: "incoming_done", sessionId: "b"})
+  probeExits(state, 0, "image/heic")
+  assert.equal(state.previewMaker.path, "/home/someone/Downloads/first.heic", "a busy converter is not restarted")
+  previewExits(state, 0, "/run/user/1000/omarchy-nearby/previews/preview-first.png")
+  assert.equal(state.receivedPreview, "", "the first file's preview must not appear under the second")
+  assert.equal(state.previewMaker.path, "/home/someone/Downloads/second.heic")
+  assert.equal(state.previewMaker.running, true)
+  previewExits(state, 0, "/run/user/1000/omarchy-nearby/previews/preview-second.png")
+  assert.equal(state.receivedPreview, "/run/user/1000/omarchy-nearby/previews/preview-second.png")
+
+  // A late answer after the result was dismissed has nothing to attach to.
+  state.receivedFile = ""
+  state.receivedPreview = ""
+  state.previewMaker.path = "/home/someone/Downloads/second.heic"
+  previewExits(state, 0, "/run/user/1000/omarchy-nearby/previews/preview-late.png")
+  assert.equal(state.receivedPreview, "")
+  assert.equal(state.previewMaker.running, false)
+}
+assert.match(source, /command: \[root\.pluginDir \+ "\/bin\/nearby-preview-image", previewMaker\.path\]/,
+  "the received path must reach the preview converter as one argument, never through a shell")
+
 {
   // A receive that finishes behind a queued request never shows its result,
   // so there is nothing on screen to attach a preview to.
@@ -1046,8 +1118,8 @@ function probeExits(state, code, type) {
   assert.equal(state.viewState, "success")
   assert.equal(state.receivedFile, "")
 }
-assert.match(source, /onViewStateChanged: if \(viewState !== "success"\) \{ receivedFile = ""; receivedFileType = "" \}/,
-  "leaving the result must withdraw the file, so a later result cannot show it")
+assert.match(source, /onViewStateChanged: if \(viewState !== "success"\) \{ receivedFile = ""; receivedFileType = ""; receivedPreview = "" \}/,
+  "leaving the result must withdraw the file and its preview, so a later result cannot show them")
 assert.match(source, /command: \["file", "--brief", "--mime-type", "--", fileTypeProbe\.path\]/,
   "the type must come from the bytes, with the path kept from being read as an option")
 assert.match(source, /onExited: function\(code\) \{ root\.fileTypeProbed\(code, String\(fileTypeOutput\.text \|\| ""\)\.trim\(\)\) \}/,

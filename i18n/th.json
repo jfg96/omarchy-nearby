@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "ต้องมี wl-paste เพื่ออ่านคลิปบอร์ด",
   "clipboard.empty": "คลิปบอร์ดว่างเปล่า",
+  "clipboard.imageFailed": "ไม่สามารถอ่านรูปภาพในคลิปบอร์ดได้",
   "clipboard.copyMissing": "ต้องมี wl-copy เพื่อคัดลอก",
   "clipboard.copyTextMissing": "ต้องมี wl-copy เพื่อคัดลอกข้อความที่ได้รับ",
   "clipboard.copied": "คัดลอกไปยังคลิปบอร์ดแล้ว",

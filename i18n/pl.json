@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Do odczytu schowka wymagane jest wl-paste",
   "clipboard.empty": "Schowek jest pusty",
+  "clipboard.imageFailed": "Nie udało się odczytać obrazu ze schowka",
   "clipboard.copyMissing": "Do kopiowania wymagane jest wl-copy",
   "clipboard.copyTextMissing": "Do skopiowania odebranego tekstu wymagane jest wl-copy",
   "clipboard.copied": "Skopiowano do schowka",

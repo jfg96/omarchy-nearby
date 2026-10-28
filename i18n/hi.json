@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "क्लिपबोर्ड पढ़ने के लिए wl-paste ज़रूरी है",
   "clipboard.empty": "क्लिपबोर्ड खाली है",
+  "clipboard.imageFailed": "क्लिपबोर्ड की तस्वीर पढ़ी नहीं जा सकी",
   "clipboard.copyMissing": "कॉपी करने के लिए wl-copy ज़रूरी है",
   "clipboard.copyTextMissing": "प्राप्त पाठ कॉपी करने के लिए wl-copy ज़रूरी है",
   "clipboard.copied": "क्लिपबोर्ड पर कॉपी किया गया",

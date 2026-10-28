@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Panoyu okumak için wl-paste gerekli",
   "clipboard.empty": "Pano boş",
+  "clipboard.imageFailed": "Panodaki resim okunamadı",
   "clipboard.copyMissing": "Kopyalamak için wl-copy gerekli",
   "clipboard.copyTextMissing": "Alınan metni kopyalamak için wl-copy gerekli",
   "clipboard.copied": "Panoya kopyalandı",

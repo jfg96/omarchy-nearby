@@ -763,6 +763,15 @@ complete until those versions and results are written down.
     the second one's notification must open the panel on the first. Received
     text must still notify without a click action.
 
+28. Receive a HEIC photo from an iPhone, and an AVIF or JPEG XL picture if a
+    peer can send one: each must show an upright preview and Copy must paste
+    a PNG into a Chromium-based application. Receive a BMP and a TIFF: both
+    must preview and copy as a picture. Take a screenshot to the clipboard and
+    use **Send clipboard**: the peer must receive `clipboard-<date>-<time>.png`
+    with the same picture. Copy an image in a browser and send it the same way.
+    Copy text, and spreadsheet cells in LibreOffice: both must arrive as text.
+    With an empty clipboard, Send clipboard must report that it is empty.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -920,6 +929,28 @@ stored its click command as
 `omarchy-shell -q oma.nearby showRequest <id>`. The installed plugin was not
 replaced, so clicking a real notification into this code, scenario 27 and a
 real-peer transfer remain **Not run**.
+
+## Clipboard picture and phone formats development check — 2026-10-28
+
+Plugin `1.2.9-dev` sends a clipboard picture with no text alongside it as a
+file, and previews and copies BMP, TIFF, HEIC/HEIF, AVIF and JPEG XL besides
+PNG, JPEG, WebP and GIF. HEIC, AVIF and JPEG XL are converted to a PNG preview
+by the new `bin/nearby-preview-image`, because Qt on a stock Omarchy has no
+decoder for them; this machine has one only through an unrelated package's
+`kimageformats` dependency. The helper is unchanged.
+
+The new copy, service, panel and model cases failed against the previous code;
+the new preview and clipboard Bash suites cover decoder selection, runtime
+folder permissions, symlink refusal, size limits, replacement of earlier files
+and text-wins selection with stubbed `file`, `magick` and `wl-paste`. All four
+Node suites and five Bash suites passed. With the real ImageMagick 7 and
+libheif on Omarchy 4.5.0rc2, `nearby-preview-image` turned generated HEIC,
+AVIF and JPEG XL files into PNG previews, and `nearby-clipboard-image` exited
+3 on the real clipboard holding text, leaving it untouched.
+
+The maintainer then loaded this branch as the installed plugin on that
+Omarchy machine, ran scenario 28 with a phone and reported every step working.
+Exact phone model, OS and LocalSend versions were not recorded.
 
 ## Release check — v1.2.8, 2026-10-15
 

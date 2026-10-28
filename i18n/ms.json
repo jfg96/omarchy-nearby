@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "wl-paste diperlukan untuk membaca papan klip",
   "clipboard.empty": "Papan klip kosong",
+  "clipboard.imageFailed": "Tidak dapat membaca gambar dalam papan klip",
   "clipboard.copyMissing": "wl-copy diperlukan untuk menyalin",
   "clipboard.copyTextMissing": "wl-copy diperlukan untuk menyalin teks yang diterima",
   "clipboard.copied": "Disalin ke papan klip",

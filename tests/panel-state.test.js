@@ -116,7 +116,7 @@ assert.equal((source.match(/onHovered/g) || []).length,
 assert.doesNotMatch(source, /onHovered[^\n]*if\s*\(v\)\s*\{\s*root\.cursorActive=true/,
   "taking the cursor on enter without releasing it on leave is the bug this replaced")
 
-for (const launcher of ["picker", "folderPicker", "downloadDirPicker", "clipboard", "clipboardWriter", "textCopier", "fileCopier"]) {
+for (const launcher of ["picker", "folderPicker", "downloadDirPicker", "clipboardImage", "clipboard", "clipboardWriter", "textCopier", "fileCopier"]) {
   assert.match(source, new RegExp(`onRunningChanged:\\s*if\\s*\\(!running && !${launcher}\\.launched`),
     `${launcher} must report a command that never launched, which Quickshell signals by ` +
     "returning running to false without an exit code")
@@ -125,6 +125,7 @@ for (const launcher of ["picker", "folderPicker", "downloadDirPicker", "clipboar
 for (const [failure, description] of [
   ["Clipboard is empty", "clipboard read"],
   ["wl-paste is required to read the clipboard", "missing wl-paste"],
+  ["Could not read the picture on the clipboard", "clipboard picture read"],
   ["wl-copy is required to copy received text", "clipboard write"],
   ["The file chooser could not be started", "missing file chooser"],
   ["The file chooser did not open", "file chooser fault"],
@@ -227,6 +228,7 @@ function panel(initial = {}) {
     folderPicker: {running: false, launched: false},
     downloadDirPicker: {running: false, launched: false},
     downloadDir: "",
+    clipboardImage: {running: false, launched: false},
     clipboard: {running: false, launched: false},
     clipboardWriter: {running: false, launched: false},
     textCopier: {running: false, launched: false, payload: ""},
@@ -517,8 +519,10 @@ assert.match(source, /Button \{ visible:root\.useDownloadsIndex>=0;[^\n]*text:st
 }
 assert.match(source, /command: \[\(root\.engine \? root\.engine\.pluginDir : ""\) \+ "\/bin\/nearby-copy-file", fileCopier\.path\]/,
   "the received path must reach the copy script as one argument, never through a shell")
-assert.match(source, /source:root\.receivedIsImage \? Model\.fileUrl\(root\.receivedFile\) : ""/,
-  "only a file identified as a picture may be handed to the image decoder")
+assert.match(source, /source:root\.receivedPreview!=="" \? Model\.fileUrl\(root\.receivedPreview\) : ""/,
+  "only the preview the engine prepared from a file identified as a picture may reach the image decoder")
+assert.match(source, /readonly property string receivedPreview: engine \? engine\.receivedPreview : ""/,
+  "the preview, direct or converted, is chosen by the engine")
 assert.match(source, /Image \{[\s\S]*?sourceSize\.width:[\s\S]*?asynchronous:true; cache:false/,
   "the preview must be decoded off the UI thread at a bounded size")
 assert.match(source, /readonly property bool receivedIsImage: engine \? Model\.previewableImage\(engine\.receivedFileType\) : false/,
@@ -629,13 +633,52 @@ assert.match(source, /Button \{ visible:root\.receivedFile===""; text:strings\.t
   assert.equal(state.picker.running, false, "no chooser without a target device")
   assert.equal(state.folderPicker.running, false, "no folder chooser without a target device")
   assert.equal(state.clipboard.running, false, "no clipboard read without a target device")
+  assert.equal(state.clipboardImage.running, false, "no clipboard read without a target device")
   const ready = panel()
   ready.selectFiles()
   assert.equal(ready.picker.running, true)
   ready.selectFolder()
   assert.equal(ready.folderPicker.running, true)
   ready.sendClipboard()
-  assert.equal(ready.clipboard.running, true)
+  assert.equal(ready.clipboardImage.running, true, "the clipboard is first checked for a picture")
+  assert.equal(ready.clipboard.running, false, "text is read only when there is no picture to send")
+  ready.clipboardImage.launched = true
+  ready.sendClipboard()
+  assert.equal(ready.clipboardImage.launched, true, "a clipboard read already running must not be restarted")
+}
+
+// Send clipboard sends a picture as a file when the clipboard holds one and no
+// text, and otherwise reads text exactly as before. Evaluate the real exit
+// handler for each answer of the picture script.
+{
+  const reader = source.slice(source.indexOf("id: clipboardImage"), source.indexOf("id: clipboard\n"))
+  assert.match(reader, /command: \[\(root\.engine \? root\.engine\.pluginDir : ""\) \+ "\/bin\/nearby-clipboard-image"\]/)
+  const exitBody = reader.match(/onExited: function\(code\) \{([\s\S]*?)\n    \}/)[1]
+  const run = (code, text, selectedDevice = {fingerprint: "phone"}) => {
+    const calls = []
+    const root = {
+      selectedDevice,
+      beginOutgoing: pending => calls.push(["beginOutgoing", pending]),
+      failWith: message => calls.push(["failWith", message]),
+    }
+    const clipboard = {launched: true, running: false}
+    vm.runInNewContext(`(function(){${exitBody}})()`, {strings, root, clipboard, clipboardImageOutput: {text}, code})
+    return {calls, clipboard}
+  }
+  let result = run(0, "/run/user/1000/omarchy-nearby/clipboard/clipboard-20261028-153012.png\n")
+  assert.deepEqual(JSON.parse(JSON.stringify(result.calls)), [["beginOutgoing", {kind: "files", device: {fingerprint: "phone"},
+    paths: ["/run/user/1000/omarchy-nearby/clipboard/clipboard-20261028-153012.png"]}]],
+    "a saved picture goes out through the ordinary file transfer")
+  result = run(3, "")
+  assert.deepEqual(result.calls, [], "no picture is not an error")
+  assert.equal(result.clipboard.running, true, "no picture falls back to reading text")
+  assert.equal(result.clipboard.launched, false, "the text read is a fresh launch")
+  result = run(1, "")
+  assert.deepEqual(result.calls, [["failWith", "Could not read the picture on the clipboard"]])
+  assert.equal(result.clipboard.running, false)
+  result = run(0, "/run/user/1000/omarchy-nearby/clipboard/clipboard.png\n", null)
+  assert.deepEqual(result.calls, [["failWith", "Could not read the picture on the clipboard"]],
+    "a picture saved after the target was cleared is not sent")
 }
 
 {

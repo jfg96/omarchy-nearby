@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Za čitanje međuspremnika potreban je wl-paste",
   "clipboard.empty": "Međuspremnik je prazan",
+  "clipboard.imageFailed": "Slika u međuspremniku nije se mogla pročitati",
   "clipboard.copyMissing": "Za kopiranje potreban je wl-copy",
   "clipboard.copyTextMissing": "Za kopiranje primljenog teksta potreban je wl-copy",
   "clipboard.copied": "Kopirano u međuspremnik",
