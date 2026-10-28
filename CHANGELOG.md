@@ -12,6 +12,9 @@
   ImageMagick process, like HEIC, instead of decoding it inside the desktop
   shell. Only PNG, JPEG, WebP and GIF are decoded by the shell again.
 
+- Show the speed and time left under the percentage while sending or
+  receiving, averaged over the last few seconds.
+
 ## 1.2.9
 
 - Click an incoming-transfer notification to open Nearby's panel on that

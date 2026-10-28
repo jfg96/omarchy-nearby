@@ -120,6 +120,11 @@
   "transfer.andMore": {"other": "%1 + %2 mục nữa"},
   "transfer.progressTo": "%1% · đến %2",
   "transfer.progressFrom": "%1% · từ %2",
+  "transfer.speed": "%1/giây · còn %2",
+  "transfer.fewSeconds": "vài giây",
+  "transfer.seconds": "%1 giây",
+  "transfer.minutes": "%1 phút",
+  "transfer.hoursMinutes": "%1 giờ %2 phút",
   "transfer.to": "đến %1",
   "transfer.from": "từ %1",
 

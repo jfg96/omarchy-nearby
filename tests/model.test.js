@@ -320,4 +320,45 @@ assert.equal(Model.fileUrl("/home/someone/Downloads/photo.jpg"), "file:///home/s
 assert.equal(Model.fileUrl("/tmp/a b/é#?%.png"), "file:///tmp/a%20b/%C3%A9%23%3F%25.png",
   "a received name must not be read as a URL query or fragment")
 
+// Speed and time left come from the progress events of the last few seconds.
+// A short or empty window shows nothing rather than a wild first guess, and
+// bytes that go backwards, as when the receiver rolls back a failed upload,
+// start the window again.
+{
+  const strings = require("./strings-stub.js")
+  const MiB = 1024 * 1024
+  let samples = []
+  samples = Model.progressSamples(samples, 0, 0)
+  samples = Model.progressSamples(samples, 1000, 10 * MiB)
+  assert.equal(Model.progressRate(samples), 0, "one second of data is too little to show a speed")
+  assert.equal(Model.progressDetail(samples, 100 * MiB, strings), "")
+  samples = Model.progressSamples(samples, 2000, 20 * MiB)
+  assert.equal(Model.progressRate(samples), 10 * MiB)
+  assert.equal(Model.progressDetail(samples, 140 * MiB, strings), "10 MB/s · 15 s left",
+    "120 MiB left at 10 MiB/s is 12 seconds, shown in steps of five")
+
+  // Only the last five seconds count, so the speed follows a change.
+  for (let t = 3000; t <= 8000; t += 1000) samples = Model.progressSamples(samples, t, 20 * MiB + (t - 2000) * 1024)
+  assert.ok(samples[0].time >= 3000, "samples older than the window are dropped")
+  assert.equal(Model.progressRate(samples), 1024 * 1000)
+
+  const reset = Model.progressSamples(samples, 9000, 5 * MiB)
+  assert.deepEqual(reset, [{time: 9000, bytes: 5 * MiB}], "bytes going backwards restart the window")
+  assert.equal(Model.progressDetail(reset, 100 * MiB, strings), "")
+  assert.equal(Model.progressDetail([], 0, strings), "")
+
+  const stalled = [{time: 0, bytes: 5 * MiB}, {time: 3000, bytes: 5 * MiB}]
+  assert.equal(Model.progressDetail(stalled, 100 * MiB, strings), "", "no movement has no speed to show")
+
+  // Durations are rounded so the line does not flicker: seconds in steps of
+  // five, whole minutes, then hours and minutes.
+  assert.equal(Model.formatDuration(3, strings), "a few seconds")
+  assert.equal(Model.formatDuration(12, strings), "15 s")
+  assert.equal(Model.formatDuration(59, strings), "1 min")
+  assert.equal(Model.formatDuration(61, strings), "2 min")
+  assert.equal(Model.formatDuration(3599, strings), "60 min")
+  assert.equal(Model.formatDuration(3600, strings), "1 h 0 min")
+  assert.equal(Model.formatDuration(5 * 3600 + 30 * 60, strings), "5 h 30 min")
+}
+
 console.log("Model tests passed")

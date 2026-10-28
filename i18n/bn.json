@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + আরও %2টি", "other": "%1 + আরও %2টি"},
   "transfer.progressTo": "%1% · %2-কে",
   "transfer.progressFrom": "%1% · %2 থেকে",
+  "transfer.speed": "%1/সে · বাকি %2",
+  "transfer.fewSeconds": "কয়েক সেকেন্ড",
+  "transfer.seconds": "%1 সে",
+  "transfer.minutes": "%1 মিনিট",
+  "transfer.hoursMinutes": "%1 ঘ %2 মিনিট",
   "transfer.to": "%1-কে",
   "transfer.from": "%1 থেকে",
 

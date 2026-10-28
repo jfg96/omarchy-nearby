@@ -120,6 +120,11 @@
   "transfer.andMore": {"zero": "%1 + vēl %2", "one": "%1 + vēl %2", "other": "%1 + vēl %2"},
   "transfer.progressTo": "%1% · saņēmējs %2",
   "transfer.progressFrom": "%1% · sūtītājs %2",
+  "transfer.speed": "%1/s · vēl %2",
+  "transfer.fewSeconds": "dažas sekundes",
+  "transfer.seconds": "%1 s",
+  "transfer.minutes": "%1 min",
+  "transfer.hoursMinutes": "%1 h %2 min",
   "transfer.to": "saņēmējs %1",
   "transfer.from": "sūtītājs %1",
 

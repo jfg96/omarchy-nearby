@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + dar %2", "few": "%1 + dar %2", "other": "%1 + dar %2"},
   "transfer.progressTo": "%1% · gavėjas %2",
   "transfer.progressFrom": "%1% · siuntėjas %2",
+  "transfer.speed": "%1/s · liko %2",
+  "transfer.fewSeconds": "kelios sekundės",
+  "transfer.seconds": "%1 s",
+  "transfer.minutes": "%1 min",
+  "transfer.hoursMinutes": "%1 val. %2 min",
   "transfer.to": "gavėjas %1",
   "transfer.from": "siuntėjas %1",
 

@@ -772,6 +772,12 @@ complete until those versions and results are written down.
     Copy text, and spreadsheet cells in LibreOffice: both must arrive as text.
     With an empty clipboard, Send clipboard must report that it is empty.
 
+29. Send a file of a few hundred megabytes to a peer, and receive one from it.
+    After about two seconds a line under the percentage must show a plausible
+    speed and time left that count down without jumping on every update, and
+    it must disappear when the transfer ends. Start a second transfer: the line
+    must not show the first one's figures.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -804,6 +810,7 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 26: aarch64 helper selection and transfers | aarch64 Omarchy + peer | Not run | |
 | 27: incoming notification opens the panel | Omarchy + peer | Not run | |
 | 28: clipboard picture and phone photo formats | Omarchy + peer | Not run | |
+| 29: transfer speed and time left | Omarchy + peer | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.
@@ -983,6 +990,20 @@ On the final plugin release tree, all four Node and three Bash suites, the
 plugin validator, whitespace checks and the helper-source tree comparison
 passed. The launcher prefetched the real published x86_64 helper into an
 isolated XDG cache and reported 1.2.7.
+
+## Transfer speed and time left development check — 2026-10-28
+
+Plugin `1.2.10-dev` shows the speed and time left under the percentage while
+sending or receiving. The service keeps the visible transfer's progress events
+from the last five seconds and shows nothing until they span 1.5 seconds, when
+nothing moves, or right after bytes go backwards. It starts over for each
+transfer and clears when one ends. The helper is unchanged.
+
+The new model, service and panel cases failed against the previous code and
+pass now, covering the window, rollbacks, stalls, duration rounding, late
+events from another transfer and a receive finishing behind a send. All four
+Node suites passed with 150 keys in each of the 50 catalogues. Scenario 29 on
+a real peer remains **Not run**.
 
 ## Out-of-process TIFF and BMP previews — 2026-10-28
 

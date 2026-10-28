@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + veel %2", "other": "%1 + veel %2"},
   "transfer.progressTo": "%1% · saajale %2",
   "transfer.progressFrom": "%1% · saatjalt %2",
+  "transfer.speed": "%1/s · jäänud %2",
+  "transfer.fewSeconds": "mõni sekund",
+  "transfer.seconds": "%1 s",
+  "transfer.minutes": "%1 min",
+  "transfer.hoursMinutes": "%1 h %2 min",
   "transfer.to": "saajale %1",
   "transfer.from": "saatjalt %1",
 

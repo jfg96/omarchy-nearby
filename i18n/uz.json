@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + yana %2 ta", "other": "%1 + yana %2 ta"},
   "transfer.progressTo": "%1% · %2 ga",
   "transfer.progressFrom": "%1% · %2 dan",
+  "transfer.speed": "%1/s · %2 qoldi",
+  "transfer.fewSeconds": "bir necha soniya",
+  "transfer.seconds": "%1 s",
+  "transfer.minutes": "%1 daq",
+  "transfer.hoursMinutes": "%1 soat %2 daq",
   "transfer.to": "%1 ga",
   "transfer.from": "%1 dan",
 

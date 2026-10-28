@@ -152,7 +152,7 @@ const functionNames = [
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
-  "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "showIncomingRequest",
+  "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "showIncomingRequest", "noteProgress", "resetProgressRate",
   "finishIncoming", "finishOutgoing", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "previewReceivedFile", "previewMade", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
@@ -225,6 +225,8 @@ function engine(initial = {}) {
     fileTypeProbe: {running: false, path: ""},
     previewMaker: {running: false, path: ""},
     progress: 0,
+    rateSamples: [],
+    progressDetail: "",
     transferName: "",
     transferPeer: "",
     activeIncomingSession: "",
@@ -1764,6 +1766,53 @@ for (const busy of [
   assert.equal(state.summonView('summon'),'unknown')
   state.shell={summon:() => true}
   assert.equal(state.summonView('summon'),'ok')
+}
+
+// Speed and time left follow the visible transfer's own progress events, and
+// start from nothing for each new transfer.
+{
+  const MiB = 1024 * 1024
+  const clock = {now: 0}
+  const state = engine({viewState: "sending", outgoingTransferId: "tx-1", Date: {now: () => clock.now}})
+  state.handleEvent({event: "outgoing_preparing", transferId: "tx-1", name: "big.iso", target: "Phone"})
+  for (const [time, bytes] of [[0, 0], [1000, 10 * MiB], [2000, 20 * MiB]]) {
+    clock.now = time
+    state.handleEvent({event: "outgoing_progress", transferId: "tx-1", bytes, total: 140 * MiB})
+  }
+  assert.equal(state.progressDetail, "10 MB/s · 15 s left")
+  clock.now = 2500
+  state.handleEvent({event: "outgoing_progress", transferId: "old", bytes: 139 * MiB, total: 140 * MiB})
+  assert.equal(state.progressDetail, "10 MB/s · 15 s left", "a late transfer's progress must not change the speed")
+  state.handleEvent({event: "outgoing_done", transferId: "tx-1"})
+  assert.equal(state.progressDetail, "", "a finished transfer shows no speed")
+  assert.equal(state.rateSamples.length, 0)
+
+  // A receive accepted next starts from nothing, not from the send's samples.
+  state.handleEvent(incoming("next"))
+  state.acceptIncoming()
+  assert.equal(state.progressDetail, "")
+  for (const [time, bytes] of [[10000, 0], [12000, 4 * MiB]]) {
+    clock.now = time
+    state.handleEvent({event: "incoming_progress", sessionId: "rx", name: "a.bin", sender: "Phone", bytes, total: 8 * MiB})
+  }
+  assert.equal(state.progressDetail, "2.0 MB/s · a few seconds left")
+  state.handleEvent({event: "incoming_done", sessionId: "rx"})
+  assert.equal(state.progressDetail, "")
+}
+{
+  // A receive finishing in the background while a send is on screen must not
+  // clear the send's speed.
+  const MiB = 1024 * 1024
+  const clock = {now: 0}
+  const state = engine({viewState: "sending", outgoingTransferId: "tx-1", Date: {now: () => clock.now},
+    pendingOutgoing: {kind: "files", device: {fingerprint: "phone"}, paths: ["/a"]}, activeIncomingSession: "rx"})
+  for (const [time, bytes] of [[0, 0], [2000, 20 * MiB]]) {
+    clock.now = time
+    state.handleEvent({event: "outgoing_progress", transferId: "tx-1", bytes, total: 140 * MiB})
+  }
+  state.handleEvent({event: "incoming_progress", sessionId: "rx", name: "a", sender: "Phone", bytes: 1, total: 2})
+  state.handleEvent({event: "incoming_done", sessionId: "rx"})
+  assert.equal(state.progressDetail, "10 MB/s · 15 s left")
 }
 
 console.log("service state tests passed")

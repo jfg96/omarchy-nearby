@@ -47,6 +47,49 @@ function formatBytes(bytes, strings) {
   return number(value, value >= 10 ? 0 : 1) + " " + units[i]
 }
 
+// Speed and time left come from the progress events of the last few seconds,
+// which are frequent enough to smooth over. Bytes that go backwards, as when the
+// receiver rolls back a failed upload, start the window again.
+var PROGRESS_WINDOW_MS = 5000
+var PROGRESS_MIN_SPAN_MS = 1500
+
+function progressSamples(samples, now, bytes) {
+  var value = Number(bytes || 0)
+  var previous = samples && samples.length ? samples[samples.length - 1] : null
+  if (previous && value < previous.bytes) return [{time: now, bytes: value}]
+  return (samples || []).filter(function(sample) {
+    return now - sample.time <= PROGRESS_WINDOW_MS
+  }).concat([{time: now, bytes: value}])
+}
+
+function progressRate(samples) {
+  if (!samples || samples.length < 2) return 0
+  var first = samples[0], last = samples[samples.length - 1]
+  var span = last.time - first.time
+  if (span < PROGRESS_MIN_SPAN_MS) return 0
+  return Math.max(0, (last.bytes - first.bytes) * 1000 / span)
+}
+
+// Rounded so the line does not change on every event: seconds in steps of
+// five, whole minutes, then hours and minutes.
+function formatDuration(seconds, strings) {
+  var value = Math.max(0, Number(seconds) || 0)
+  if (value < 10) return strings.t("transfer.fewSeconds")
+  var rounded = Math.ceil(value / 5) * 5
+  if (rounded < 60) return strings.t("transfer.seconds", [strings.number(rounded)])
+  if (value < 3600) return strings.t("transfer.minutes", [strings.number(Math.ceil(value / 60))])
+  var hours = Math.floor(value / 3600), minutes = Math.round((value % 3600) / 60)
+  if (minutes === 60) { hours++; minutes = 0 }
+  return strings.t("transfer.hoursMinutes", [strings.number(hours), strings.number(minutes)])
+}
+
+function progressDetail(samples, total, strings) {
+  var rate = progressRate(samples)
+  if (rate <= 0) return ""
+  var left = Math.max(0, Number(total || 0) - samples[samples.length - 1].bytes)
+  return strings.t("transfer.speed", [formatBytes(rate, strings), formatDuration(left / rate, strings)])
+}
+
 function incomingSummary(files, strings) {
   var untitled = strings ? strings.t("transfer.untitled") : "Transfer"
   if (!files || files.length === 0) return untitled
@@ -353,4 +396,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, notificationText, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, incomingSummary, notificationText, progressSamples, progressRate, formatDuration, progressDetail, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }

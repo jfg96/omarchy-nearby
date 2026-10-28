@@ -47,6 +47,7 @@ Panel {
   readonly property var incoming: engine ? engine.incoming : null
   readonly property string incomingText: engine ? engine.incomingText : ""
   readonly property real progress: engine ? engine.progress : 0
+  readonly property string progressDetail: engine ? engine.progressDetail : ""
   readonly property string saveDirectory: engine ? engine.saveDirectory : ""
   readonly property string downloadDir: engine ? engine.downloadDir : ""
   readonly property string receivedFile: engine ? engine.receivedFile : ""
@@ -602,6 +603,7 @@ Panel {
           Text { width:parent.width; textFormat:Text.PlainText; text:root.transferName; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true; elide:Text.ElideMiddle }
           Rectangle { width:parent.width; height:Style.space(4); radius:height/2; color:Qt.darker(root.foreground,2.2); Rectangle { width:parent.width*Math.max(0,Math.min(1,root.progress)); height:parent.height; radius:height/2; color:root.foreground; Behavior on width { NumberAnimation { duration:120 } } } }
           Text { textFormat:Text.PlainText; text:strings.t(root.viewState==="sending"?"transfer.progressTo":"transfer.progressFrom", [strings.number(Math.round(root.progress*100)), root.transferPeer]); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Text { visible:root.progressDetail!==""; textFormat:Text.PlainText; text:root.progressDetail; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Button { visible:root.viewState==="sending"; text:strings.t("action.cancel"); bordered:true; foreground:root.urgent; hasCursor:root.cursorActive; onClicked:root.cancelOutgoing() }
         }
 

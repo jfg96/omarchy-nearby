@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + %2 weitere", "other": "%1 + %2 weitere"},
   "transfer.progressTo": "%1% · an %2",
   "transfer.progressFrom": "%1% · von %2",
+  "transfer.speed": "%1/s · noch %2",
+  "transfer.fewSeconds": "wenige Sekunden",
+  "transfer.seconds": "%1 s",
+  "transfer.minutes": "%1 Min.",
+  "transfer.hoursMinutes": "%1 Std. %2 Min.",
   "transfer.to": "an %1",
   "transfer.from": "von %1",
 

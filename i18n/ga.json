@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + %2 eile", "two": "%1 + %2 eile", "few": "%1 + %2 eile", "many": "%1 + %2 eile", "other": "%1 + %2 eile"},
   "transfer.progressTo": "%1% · chuig %2",
   "transfer.progressFrom": "%1% · ó %2",
+  "transfer.speed": "%1/s · %2 fágtha",
+  "transfer.fewSeconds": "cúpla soicind",
+  "transfer.seconds": "%1 s",
+  "transfer.minutes": "%1 nóim",
+  "transfer.hoursMinutes": "%1 u %2 nóim",
   "transfer.to": "chuig %1",
   "transfer.from": "ó %1",
 
