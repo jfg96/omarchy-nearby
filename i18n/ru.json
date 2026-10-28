@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + ещё %2", "few": "%1 + ещё %2", "many": "%1 + ещё %2", "other": "%1 + ещё %2"},
   "transfer.progressTo": "%1% · кому: %2",
   "transfer.progressFrom": "%1% · от: %2",
+  "transfer.speed": "%1/с · осталось %2",
+  "transfer.fewSeconds": "несколько секунд",
+  "transfer.seconds": "%1 с",
+  "transfer.minutes": "%1 мин",
+  "transfer.hoursMinutes": "%1 ч %2 мин",
   "transfer.to": "кому: %1",
   "transfer.from": "от: %1",
 

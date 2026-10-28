@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + még %2", "other": "%1 + még %2"},
   "transfer.progressTo": "%1% · címzett: %2",
   "transfer.progressFrom": "%1% · küldő: %2",
+  "transfer.speed": "%1/s · még %2",
+  "transfer.fewSeconds": "néhány másodperc",
+  "transfer.seconds": "%1 mp",
+  "transfer.minutes": "%1 perc",
+  "transfer.hoursMinutes": "%1 ó %2 perc",
   "transfer.to": "címzett: %1",
   "transfer.from": "küldő: %1",
 

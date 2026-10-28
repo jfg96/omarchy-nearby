@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + %2 muu", "other": "%1 + %2 muuta"},
   "transfer.progressTo": "%1% · vastaanottaja %2",
   "transfer.progressFrom": "%1% · lähettäjä %2",
+  "transfer.speed": "%1/s · %2 jäljellä",
+  "transfer.fewSeconds": "muutama sekunti",
+  "transfer.seconds": "%1 s",
+  "transfer.minutes": "%1 min",
+  "transfer.hoursMinutes": "%1 h %2 min",
   "transfer.to": "vastaanottaja %1",
   "transfer.from": "lähettäjä %1",
 

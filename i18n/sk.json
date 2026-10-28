@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + %2 ďalší", "few": "%1 + %2 ďalšie", "other": "%1 + %2 ďalších"},
   "transfer.progressTo": "%1% · pre %2",
   "transfer.progressFrom": "%1% · od %2",
+  "transfer.speed": "%1/s · zostáva %2",
+  "transfer.fewSeconds": "niekoľko sekúnd",
+  "transfer.seconds": "%1 s",
+  "transfer.minutes": "%1 min",
+  "transfer.hoursMinutes": "%1 h %2 min",
   "transfer.to": "pre %1",
   "transfer.from": "od %1",
 

@@ -34,7 +34,9 @@ name. Symlinks inside a selected folder are skipped. Empty directories are not
 represented by the protocol; a selection with no transferable files fails.
 
 Approve the transfer on the destination. Nearby displays progress and offers
-**Cancel** for outgoing transfers. Wait for completion before disconnecting.
+**Cancel** for outgoing transfers. After a couple of seconds, a line under the
+percentage shows the speed and the time left, averaged over the last few
+seconds; it does the same while receiving. Wait for completion before disconnecting.
 
 If the peer is missing, use **Rescan**. See
 [discovery troubleshooting](TROUBLESHOOTING.md#devices-do-not-appear).

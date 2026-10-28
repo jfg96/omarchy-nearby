@@ -120,6 +120,11 @@
   "transfer.andMore": {"zero": "%1 + %2 ملفات إضافية", "one": "%1 + ملف إضافي واحد (%2)", "two": "%1 + ملفان إضافيان (%2)", "few": "%1 + %2 ملفات إضافية", "many": "%1 + %2 ملفًا إضافيًا", "other": "%1 + %2 ملف إضافي"},
   "transfer.progressTo": "%1% · إلى %2",
   "transfer.progressFrom": "%1% · من %2",
+  "transfer.speed": "%1/ث · متبقٍ %2",
+  "transfer.fewSeconds": "بضع ثوانٍ",
+  "transfer.seconds": "%1 ث",
+  "transfer.minutes": "%1 د",
+  "transfer.hoursMinutes": "%1 س %2 د",
   "transfer.to": "إلى %1",
   "transfer.from": "من %1",
 

@@ -120,6 +120,11 @@
   "transfer.andMore": {"other": "%1 + %2 lagi"},
   "transfer.progressTo": "%1% · ke %2",
   "transfer.progressFrom": "%1% · dari %2",
+  "transfer.speed": "%1/d · sisa %2",
+  "transfer.fewSeconds": "beberapa detik",
+  "transfer.seconds": "%1 d",
+  "transfer.minutes": "%1 mnt",
+  "transfer.hoursMinutes": "%1 j %2 mnt",
   "transfer.to": "ke %1",
   "transfer.from": "dari %1",
 

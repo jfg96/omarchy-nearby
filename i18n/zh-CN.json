@@ -120,6 +120,11 @@
   "transfer.andMore": {"other": "%1 + 另外 %2 项"},
   "transfer.progressTo": "%1% · 发往 %2",
   "transfer.progressFrom": "%1% · 来自 %2",
+  "transfer.speed": "%1/秒 · 剩余 %2",
+  "transfer.fewSeconds": "几秒",
+  "transfer.seconds": "%1 秒",
+  "transfer.minutes": "%1 分钟",
+  "transfer.hoursMinutes": "%1 小时 %2 分钟",
   "transfer.to": "发往 %1",
   "transfer.from": "来自 %1",
 

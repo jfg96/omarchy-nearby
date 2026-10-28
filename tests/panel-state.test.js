@@ -868,4 +868,11 @@ assert.match(source, /iconText:Model\.iconFor\(modelData\.deviceType\); text:mod
   assert.equal(state.selectedIndex,1)
 }
 
+// Speed and time left sit under the percentage while a transfer runs, as plain
+// text, and only once the engine has something to say.
+assert.match(source, /readonly property string progressDetail: engine \? engine\.progressDetail : ""/,
+  "the speed line is computed once by the engine, not per monitor")
+assert.match(source, /Text \{ visible:root\.progressDetail!==""; textFormat:Text\.PlainText; text:root\.progressDetail;/,
+  "the speed line must be plain text and hidden while there is no estimate")
+
 console.log("panel state tests passed")

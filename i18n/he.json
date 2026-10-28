@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + עוד קובץ אחד (%2)", "two": "%1 + עוד שני קבצים (%2)", "other": "%1 + עוד %2 קבצים"},
   "transfer.progressTo": "%1% · אל %2",
   "transfer.progressFrom": "%1% · מאת %2",
+  "transfer.speed": "%1/ש׳ · נותרו %2",
+  "transfer.fewSeconds": "כמה שניות",
+  "transfer.seconds": "%1 ש׳",
+  "transfer.minutes": "%1 דק׳",
+  "transfer.hoursMinutes": "%1 שע׳ %2 דק׳",
   "transfer.to": "אל %1",
   "transfer.from": "מאת %1",
 

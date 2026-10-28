@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + %2 zaidi", "other": "%1 + %2 zaidi"},
   "transfer.progressTo": "%1% · kwenda %2",
   "transfer.progressFrom": "%1% · kutoka %2",
+  "transfer.speed": "%1/s · zimebaki %2",
+  "transfer.fewSeconds": "sekunde chache",
+  "transfer.seconds": "%1 s",
+  "transfer.minutes": "%1 dak",
+  "transfer.hoursMinutes": "%1 saa %2 dak",
   "transfer.to": "kwenda %1",
   "transfer.from": "kutoka %1",
 

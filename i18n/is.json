@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + %2 í viðbót", "other": "%1 + %2 í viðbót"},
   "transfer.progressTo": "%1% · til %2",
   "transfer.progressFrom": "%1% · frá %2",
+  "transfer.speed": "%1/s · %2 eftir",
+  "transfer.fewSeconds": "nokkrar sekúndur",
+  "transfer.seconds": "%1 s",
+  "transfer.minutes": "%1 mín",
+  "transfer.hoursMinutes": "%1 klst %2 mín",
   "transfer.to": "til %1",
   "transfer.from": "frá %1",
 

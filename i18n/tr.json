@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + %2 daha", "other": "%1 + %2 daha"},
   "transfer.progressTo": "%1% · alıcı: %2",
   "transfer.progressFrom": "%1% · gönderen: %2",
+  "transfer.speed": "%1/sn · %2 kaldı",
+  "transfer.fewSeconds": "birkaç saniye",
+  "transfer.seconds": "%1 sn",
+  "transfer.minutes": "%1 dk",
+  "transfer.hoursMinutes": "%1 sa %2 dk",
   "transfer.to": "alıcı: %1",
   "transfer.from": "gönderen: %1",
 

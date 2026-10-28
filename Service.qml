@@ -98,6 +98,9 @@ Item {
   property string receivedPreview: ""
   onViewStateChanged: if (viewState !== "success") { receivedFile = ""; receivedFileType = ""; receivedPreview = "" }
   property real progress: 0
+  // Speed and time left of the transfer on screen, from its recent progress.
+  property var rateSamples: []
+  property string progressDetail: ""
   property string transferName: ""
   property string transferPeer: ""
   property string activeIncomingSession: ""
@@ -476,7 +479,9 @@ Item {
     pinFocusRequested()
   }
   function cancelPin() { if(outgoingTransferId!=="")send({command:"cancel_outgoing",transfer_id:outgoingTransferId}); clearPendingOutgoing(); if(incoming){viewState="incoming";cursorRequested(1)}else if(incomingTextPending){incomingTextPending=false;viewState="text";statusText=strings.t("status.textReceived");cursorRequested(0)}else{viewState=selectedDevice?"target":"nearby";cursorRequested(0)} focusRestoreRequested() }
-  function acceptIncoming() { if (!incoming) return; send({command:"accept",request_id:incoming.requestId}); viewState="receiving"; transferPeer=incoming.sender; transferName=Model.incomingSummary(incoming.files, strings); progress=0 }
+  function acceptIncoming() { if (!incoming) return; send({command:"accept",request_id:incoming.requestId}); viewState="receiving"; transferPeer=incoming.sender; transferName=Model.incomingSummary(incoming.files, strings); progress=0; resetProgressRate() }
+  function noteProgress(bytes, total) { rateSamples=Model.progressSamples(rateSamples, Date.now(), bytes); progressDetail=Model.progressDetail(rateSamples, total, strings) }
+  function resetProgressRate() { rateSamples=[]; progressDetail="" }
   function declineIncoming() {
     if (!incoming) return
     var requestId = incoming.requestId
@@ -489,6 +494,7 @@ Item {
   function finishIncoming(terminalState, message, completed) {
     activeIncomingSession = ""
     if (pendingOutgoing) return
+    resetProgressRate()
     if (incoming) {
       viewState = "incoming"
       cursorRequested(1)
@@ -506,6 +512,7 @@ Item {
   }
   function finishOutgoing(terminalState, message, completed) {
     clearPendingOutgoing()
+    resetProgressRate()
     if (incoming) {
       viewState = Model.viewAfterOutgoing(true, terminalState)
       cursorRequested(1)
@@ -644,14 +651,14 @@ Item {
         else { viewState="error"; errorText=strings.t("status.requestExpired"); statusText=errorText }
       }
     }
-    else if (event.event === "incoming_progress") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(pendingOutgoing)return; viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0 }
+    else if (event.event === "incoming_progress") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(pendingOutgoing)return; viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0; noteProgress(event.bytes, event.total) }
     else if (event.event === "file_received") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(receivedSession!==activeIncomingSession){receivedSession=activeIncomingSession;receivedFileCount=0} receivedFileCount++; lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
     else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success",strings.t("status.received"),true); offerReceivedFile(String(event.sessionId)) }
     else if (event.event === "incoming_cancelled") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",strings.t("status.transferCancelled"),false) }
     else if (event.event === "incoming_failed") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",String(event.message||strings.t("status.transferFailed")),false) }
     else if (event.event === "incoming_declined") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
-    else if (event.event === "outgoing_preparing") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; transferName=String(event.name); transferPeer=String(event.target); progress=0; stopDiscovery() }
-    else if (event.event === "outgoing_progress") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; if(event.name) transferName=String(event.name); progress=event.total>0 ? event.bytes/event.total : 0 }
+    else if (event.event === "outgoing_preparing") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; transferName=String(event.name); transferPeer=String(event.target); progress=0; resetProgressRate(); stopDiscovery() }
+    else if (event.event === "outgoing_progress") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; if(event.name) transferName=String(event.name); progress=event.total>0 ? event.bytes/event.total : 0; noteProgress(event.bytes, event.total) }
     else if (event.event === "outgoing_done") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("success", strings.t("status.sent"), true) }
     else if (event.event === "outgoing_cancelled") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", strings.t("status.transferCancelled"), false) }
     else if (event.event === "outgoing_pin_required") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt("") }

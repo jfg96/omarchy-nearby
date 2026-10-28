@@ -120,6 +120,11 @@
   "transfer.andMore": {"other": "%1 + อีก %2 รายการ"},
   "transfer.progressTo": "%1% · ไปยัง %2",
   "transfer.progressFrom": "%1% · จาก %2",
+  "transfer.speed": "%1/วิ · เหลือ %2",
+  "transfer.fewSeconds": "ไม่กี่วินาที",
+  "transfer.seconds": "%1 วิ",
+  "transfer.minutes": "%1 นาที",
+  "transfer.hoursMinutes": "%1 ชม. %2 นาที",
   "transfer.to": "ไปยัง %1",
   "transfer.from": "จาก %1",
 

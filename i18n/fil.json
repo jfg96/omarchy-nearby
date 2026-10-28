@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + %2 pa", "other": "%1 + %2 pa"},
   "transfer.progressTo": "%1% · papunta kay %2",
   "transfer.progressFrom": "%1% · mula kay %2",
+  "transfer.speed": "%1/s · %2 ang natitira",
+  "transfer.fewSeconds": "ilang segundo",
+  "transfer.seconds": "%1 s",
+  "transfer.minutes": "%1 min",
+  "transfer.hoursMinutes": "%1 h %2 min",
   "transfer.to": "papunta kay %1",
   "transfer.from": "mula kay %1",
 

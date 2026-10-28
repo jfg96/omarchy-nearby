@@ -120,6 +120,11 @@
   "transfer.andMore": {"other": "%1 외 %2개"},
   "transfer.progressTo": "%1% · %2에게",
   "transfer.progressFrom": "%1% · %2에서",
+  "transfer.speed": "%1/초 · %2 남음",
+  "transfer.fewSeconds": "몇 초",
+  "transfer.seconds": "%1초",
+  "transfer.minutes": "%1분",
+  "transfer.hoursMinutes": "%1시간 %2분",
   "transfer.to": "%1에게",
   "transfer.from": "%1에서",
 

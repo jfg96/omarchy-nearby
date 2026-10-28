@@ -120,6 +120,11 @@
   "transfer.andMore": {"one": "%1 + மேலும் %2", "other": "%1 + மேலும் %2"},
   "transfer.progressTo": "%1% · %2-க்கு",
   "transfer.progressFrom": "%1% · %2-இலிருந்து",
+  "transfer.speed": "%1/வி · %2 மீதம்",
+  "transfer.fewSeconds": "சில விநாடிகள்",
+  "transfer.seconds": "%1 வி",
+  "transfer.minutes": "%1 நி",
+  "transfer.hoursMinutes": "%1 ம %2 நி",
   "transfer.to": "%1-க்கு",
   "transfer.from": "%1-இலிருந்து",
 
