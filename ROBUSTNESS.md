@@ -984,6 +984,26 @@ plugin validator, whitespace checks and the helper-source tree comparison
 passed. The launcher prefetched the real published x86_64 helper into an
 isolated XDG cache and reported 1.2.7.
 
+## rustls 0.23.46 security update — 2026-10-28
+
+Dependabot reported GHSA-c8m5-c952-6cm4, GHSA-h2v8-394m-p7vv,
+GHSA-vp88-798v-h67f and GHSA-w44r-93j7-qv28 against rustls 0.23.45 and opened
+#47 against `stable`, covering only the helper lockfile. This change instead
+requires and locks rustls 0.23.46 in both the helper and the standalone vendor
+graph on `main`; no other dependency changes. The helper package and
+`minHelperVersion` advance to 1.2.8 and the plugin to `1.2.10-dev`.
+`helper-release.env` still selects the published helper-v1.2.7, so a checkout
+of this commit reports its helper as out of date until helper-v1.2.8 is
+published, verified and selected.
+
+The complete supported suite passed locally: four Node suites, five Bash
+suites, `cargo fmt --check`, `cargo check`, `cargo clippy -D warnings`, the
+helper tests (93) and the vendored `localsend-rs` HTTPS suite (151 passed, one
+upstream test ignored), which covers fingerprint pinning, unknown and empty
+fingerprint rejection, HTTPS discovery and client certificates. The plugin
+validator passed. Real-peer HTTPS transfers with a rebuilt helper remain
+**Not run**.
+
 ## Release check — v1.2.9, 2026-10-28
 
 Plugin `1.2.9` from `main` at `be5cb24` (#44, #45), reusing the published

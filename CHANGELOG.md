@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.10-dev
+
+- Require rustls 0.23.46 in the helper (GHSA-c8m5-c952-6cm4,
+  GHSA-h2v8-394m-p7vv, GHSA-vp88-798v-h67f, GHSA-w44r-93j7-qv28). Nearby does
+  not use the affected Debug output, Brotli decompression or ECH, and
+  certificate and fingerprint verification are unaffected. Requires helper
+  1.2.8.
+
 ## 1.2.9
 
 - Click an incoming-transfer notification to open Nearby's panel on that

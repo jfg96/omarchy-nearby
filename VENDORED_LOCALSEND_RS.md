@@ -534,6 +534,30 @@ transfers, client authentication and fingerprint rejection. Upstream status:
 fixed in rustls 0.23.45; this entry records the local dependency floor and
 lockfile update, not a locally implemented TLS patch.
 
+### 18. Require rustls 0.23.46
+
+- Files: `Cargo.toml` and `Cargo.lock`.
+- Advisories: [GHSA-c8m5-c952-6cm4](https://github.com/advisories/GHSA-c8m5-c952-6cm4),
+  [GHSA-h2v8-394m-p7vv](https://github.com/advisories/GHSA-h2v8-394m-p7vv),
+  [GHSA-vp88-798v-h67f](https://github.com/advisories/GHSA-vp88-798v-h67f) and
+  [GHSA-w44r-93j7-qv28](https://github.com/advisories/GHSA-w44r-93j7-qv28).
+
+The vendor and helper lockfiles used rustls 0.23.45, which the four advisories
+cover. Their exposure in Nearby is limited: neither the helper nor the vendor
+formats TLS sessions with `Debug`, rustls is built without Brotli certificate
+decompression, and ECH is never configured. A forged ServerHello could at most
+make later client connections offer only a classical X25519 key share. None
+affects certificate or fingerprint verification.
+
+The vendor and helper now require and lock rustls 0.23.46, which fixes all
+four. No other dependency changes in either graph, and there is no
+localsend-rs source refresh or change to Nearby's TLS trust policies.
+
+Validation uses the locked helper and vendor suites, including HTTPS
+transfers, client authentication and fingerprint rejection. Upstream status:
+fixed in rustls 0.23.46; this entry records the local dependency floor and
+lockfile update, not a locally implemented TLS patch.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the
