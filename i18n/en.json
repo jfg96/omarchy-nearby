@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "wl-paste is required to read the clipboard",
   "clipboard.empty": "Clipboard is empty",
+  "clipboard.imageFailed": "Could not read the picture on the clipboard",
   "clipboard.copyMissing": "wl-copy is required to copy",
   "clipboard.copyTextMissing": "wl-copy is required to copy received text",
   "clipboard.copied": "Copied to clipboard",

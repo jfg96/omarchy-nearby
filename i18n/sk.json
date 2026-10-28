@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Na čítanie schránky sa vyžaduje wl-paste",
   "clipboard.empty": "Schránka je prázdna",
+  "clipboard.imageFailed": "Obrázok v schránke sa nepodarilo prečítať",
   "clipboard.copyMissing": "Na kopírovanie sa vyžaduje wl-copy",
   "clipboard.copyTextMissing": "Na kopírovanie prijatého textu sa vyžaduje wl-copy",
   "clipboard.copied": "Skopírované do schránky",

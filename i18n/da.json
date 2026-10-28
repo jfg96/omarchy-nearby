@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "wl-paste kræves for at læse udklipsholderen",
   "clipboard.empty": "Udklipsholderen er tom",
+  "clipboard.imageFailed": "Billedet i udklipsholderen kunne ikke læses",
   "clipboard.copyMissing": "wl-copy kræves for at kopiere",
   "clipboard.copyTextMissing": "wl-copy kræves for at kopiere modtaget tekst",
   "clipboard.copied": "Kopieret til udklipsholderen",

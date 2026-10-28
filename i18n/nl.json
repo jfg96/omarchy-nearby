@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "wl-paste is nodig om het klembord te lezen",
   "clipboard.empty": "Het klembord is leeg",
+  "clipboard.imageFailed": "De afbeelding op het klembord kon niet worden gelezen",
   "clipboard.copyMissing": "wl-copy is nodig om te kopiëren",
   "clipboard.copyTextMissing": "wl-copy is nodig om ontvangen tekst te kopiëren",
   "clipboard.copied": "Gekopieerd naar klembord",

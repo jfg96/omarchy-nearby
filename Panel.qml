@@ -51,6 +51,7 @@ Panel {
   readonly property string downloadDir: engine ? engine.downloadDir : ""
   readonly property string receivedFile: engine ? engine.receivedFile : ""
   readonly property bool receivedIsImage: engine ? Model.previewableImage(engine.receivedFileType) : false
+  readonly property string receivedPreview: engine ? engine.receivedPreview : ""
   readonly property string transferName: engine ? engine.transferName : ""
   readonly property string transferPeer: engine ? engine.transferPeer : ""
   readonly property string pinError: engine ? engine.pinError : ""
@@ -180,7 +181,7 @@ Panel {
   function selectFolder() { if (!selectedDevice || folderPicker.running) return; folderPicker.launched=false; folderPicker.running = true }
   function chooseDownloadDir() { if (downloadDirPicker.running) return; downloadDirPicker.launched=false; downloadDirPicker.running = true }
   function useDownloads() { if (engine) engine.useDownloads() }
-  function sendClipboard() { if (!selectedDevice || clipboard.running) return; clipboard.launched=false; clipboard.running = true }
+  function sendClipboard() { if (!selectedDevice || clipboard.running || clipboardImage.running) return; clipboardImage.launched=false; clipboardImage.running = true }
   function copyReceivedText() { clipboardWriter.launched=false; clipboardWriter.running=true }
   function copyReceivedFile() { if (receivedFile === "" || fileCopier.running) return; copyNote=strings.t("clipboard.copying"); fileCopier.path=receivedFile; fileCopier.launched=false; fileCopier.running=true }
   onReceivedFileChanged: copyNote=""
@@ -358,6 +359,25 @@ Panel {
       if (code > 1) { root.failWith(strings.t("chooser.notOpened")); return }
       var path=String(downloadDirPickerOutput.text || "").split("\n")[0]
       if (code === 0 && path !== "" && root.engine) root.engine.setDownloadDir(path)
+    }
+  }
+  // A picture on the clipboard, such as a screenshot, is saved as a file and
+  // sent like one. The script exits 3 when the clipboard holds text or no
+  // picture, and the text is then read as before: text wins, so copying
+  // spreadsheet cells, which also offers a rendering of them, still sends text.
+  Process {
+    id: clipboardImage
+    property bool launched: false
+    command: [(root.engine ? root.engine.pluginDir : "") + "/bin/nearby-clipboard-image"]
+    running: false
+    stdout: StdioCollector { id: clipboardImageOutput; waitForEnd: true }
+    onStarted: clipboardImage.launched=true
+    onRunningChanged: if (!running && !clipboardImage.launched) root.failWith(strings.t("clipboard.imageFailed"))
+    onExited: function(code) {
+      var path=String(clipboardImageOutput.text || "").split("\n")[0]
+      if (code===3) { clipboard.launched=false; clipboard.running=true; return }
+      if (code===0 && path!=="" && root.selectedDevice) root.beginOutgoing({kind:"files",device:root.selectedDevice,paths:[path]})
+      else root.failWith(strings.t("clipboard.imageFailed"))
     }
   }
   Process {
@@ -591,11 +611,12 @@ Panel {
           Text { visible:root.viewState==="success"; width:parent.width; textFormat:Text.PlainText; text:root.transferPeer!=="" ? strings.t(root.engine && root.engine.transferWasOutgoing ? "transfer.to" : "transfer.from", [root.transferPeer]) : ""; wrapMode:Text.Wrap; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           // One received file can be looked at and copied without leaving the
           // panel. The preview is decoded off the UI thread, at the size it is
-          // drawn, and only for the picture types the engine identified.
+          // drawn, and only for the picture types the engine identified. A
+          // phone format the shell cannot decode arrives converted to a PNG.
           Image {
-            visible:root.receivedIsImage && status===Image.Ready
+            visible:root.receivedPreview!=="" && status===Image.Ready
             width:parent.width; height:Math.min(Style.space(200), width*implicitHeight/Math.max(1,implicitWidth))
-            source:root.receivedIsImage ? Model.fileUrl(root.receivedFile) : ""
+            source:root.receivedPreview!=="" ? Model.fileUrl(root.receivedPreview) : ""
             sourceSize.width:2*width; sourceSize.height:2*Style.space(200)
             fillMode:Image.PreserveAspectFit; asynchronous:true; cache:false; autoTransform:true
           }

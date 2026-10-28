@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "wl-paste wird zum Lesen der Zwischenablage benötigt",
   "clipboard.empty": "Die Zwischenablage ist leer",
+  "clipboard.imageFailed": "Das Bild in der Zwischenablage konnte nicht gelesen werden",
   "clipboard.copyMissing": "wl-copy wird zum Kopieren benötigt",
   "clipboard.copyTextMissing": "wl-copy wird zum Kopieren empfangener Texte benötigt",
   "clipboard.copied": "In die Zwischenablage kopiert",

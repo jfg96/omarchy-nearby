@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "A vágólap olvasásához wl-paste szükséges",
   "clipboard.empty": "A vágólap üres",
+  "clipboard.imageFailed": "A vágólapon lévő kép nem olvasható be",
   "clipboard.copyMissing": "A másoláshoz wl-copy szükséges",
   "clipboard.copyTextMissing": "A fogadott szöveg másolásához wl-copy szükséges",
   "clipboard.copied": "Vágólapra másolva",

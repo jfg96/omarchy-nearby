@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "பிடிப்புப்பலகையைப் படிக்க wl-paste தேவை",
   "clipboard.empty": "பிடிப்புப்பலகை காலியாக உள்ளது",
+  "clipboard.imageFailed": "பிடிப்புப்பலகையில் உள்ள படத்தைப் படிக்க முடியவில்லை",
   "clipboard.copyMissing": "நகலெடுக்க wl-copy தேவை",
   "clipboard.copyTextMissing": "பெற்ற உரையை நகலெடுக்க wl-copy தேவை",
   "clipboard.copied": "பிடிப்புப்பலகைக்கு நகலெடுக்கப்பட்டது",

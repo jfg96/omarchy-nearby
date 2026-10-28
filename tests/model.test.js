@@ -281,13 +281,38 @@ assert.equal(Model.folderName("/"), "/")
 assert.equal(Model.folderName(""), "/")
 assert.equal(Model.folderName("/data/" + "x".repeat(40)), "x".repeat(23) + "…",
   "a long folder name must be cut: the kit's buttons do not elide")
-// The preview decodes a peer's file inside the shell, so only the common
-// raster types are let through, and only by the type read from the bytes.
-for (const type of ["image/png", "image/jpeg", "image/webp", "image/gif"]) {
+// The preview decodes a peer's file, so only common raster types are let
+// through, and only by the type read from the bytes. Types a stock shell can
+// decode are drawn directly; phone formats it cannot are converted to a PNG by
+// ImageMagick in a separate process first.
+for (const type of ["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp", "image/x-ms-bmp", "image/tiff"]) {
   assert.equal(Model.previewableImage(type), true, `${type} must be previewable`)
+  assert.equal(Model.imagePreviewMode(type), "direct", `${type} is decoded by a stock shell`)
 }
-for (const type of ["image/svg+xml", "image/x-xcf", "application/pdf", "text/plain", "IMAGE/PNG", "", null, undefined]) {
+for (const type of ["image/heic", "image/heif", "image/avif", "image/jxl"]) {
+  assert.equal(Model.previewableImage(type), true, `${type} must be previewable`)
+  assert.equal(Model.imagePreviewMode(type), "convert", `${type} needs a decoder a stock shell lacks`)
+}
+for (const type of ["image/svg+xml", "image/x-xcf", "image/heic-sequence", "application/pdf", "text/plain", "IMAGE/PNG", "", null, undefined]) {
   assert.equal(Model.previewableImage(type), false, `${type} must not reach an image decoder`)
+  assert.equal(Model.imagePreviewMode(type), "")
+}
+
+// The scripts that decode a received picture name their decoder by type. Each
+// must cover exactly the types the panel treats as pictures, so a picture is
+// never previewed but copied as a file, or converted without a preview.
+{
+  const scriptTypes = name => {
+    const text = fs.readFileSync(require.resolve(`../bin/${name}`), "utf8")
+    const block = text.slice(text.indexOf('case "$(file --brief --mime-type'), text.indexOf("esac"))
+    return [...block.matchAll(/^\s*([a-z0-9/.+|-]+)\)/gm)].flatMap(match => match[1].split("|")).sort()
+  }
+  const all = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp", "image/x-ms-bmp", "image/tiff",
+    "image/heic", "image/heif", "image/avif", "image/jxl"]
+  assert.deepEqual(scriptTypes("nearby-copy-file"), [...all].sort(),
+    "every previewable picture must also be copied as a picture")
+  assert.deepEqual(scriptTypes("nearby-preview-image"), all.filter(type => Model.imagePreviewMode(type) === "convert").sort(),
+    "the preview converter must decode exactly the types the shell cannot")
 }
 assert.equal(Model.fileUrl("/home/someone/Downloads/photo.jpg"), "file:///home/someone/Downloads/photo.jpg")
 assert.equal(Model.fileUrl("/tmp/a b/é#?%.png"), "file:///tmp/a%20b/%C3%A9%23%3F%25.png",

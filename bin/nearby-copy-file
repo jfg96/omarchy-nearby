@@ -32,6 +32,11 @@ case "$(file --brief --mime-type -- "$path")" in
   image/jpeg) coder=jpeg ;;
   image/webp) coder=webp ;;
   image/gif) coder=gif ;;
+  image/bmp|image/x-ms-bmp) coder=bmp ;;
+  image/tiff) coder=tiff ;;
+  image/heic|image/heif) coder=heic ;;
+  image/avif) coder=avif ;;
+  image/jxl) coder=jxl ;;
 esac
 
 if [[ -n $coder ]] && command -v magick >/dev/null 2>&1; then

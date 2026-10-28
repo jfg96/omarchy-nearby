@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Απαιτείται wl-paste για ανάγνωση του προχείρου",
   "clipboard.empty": "Το πρόχειρο είναι κενό",
+  "clipboard.imageFailed": "Δεν ήταν δυνατή η ανάγνωση της εικόνας στο πρόχειρο",
   "clipboard.copyMissing": "Απαιτείται wl-copy για αντιγραφή",
   "clipboard.copyTextMissing": "Απαιτείται wl-copy για αντιγραφή του ληφθέντος κειμένου",
   "clipboard.copied": "Αντιγράφηκε στο πρόχειρο",

@@ -97,6 +97,21 @@ arguments=$(<"$CLIPBOARD.magick")
 [[ $arguments != *"odd"* ]] || report "the file name reached ImageMagick: $arguments"
 teardown
 
+announce "phone and desktop picture formats are converted and copied as PNG"
+for case in image/heic:heic image/heif:heic image/avif:avif image/jxl:jxl image/tiff:tiff image/bmp:bmp image/x-ms-bmp:bmp; do
+  setup
+  printf 'picture-bytes' >"$sandbox/files/photo"
+  FAKE_MIME=${case%%:*} run_copy "$sandbox/files/photo"; status=$?
+  assert_eq "$status" "0"
+  assert_eq "$(<"$CLIPBOARD.type")" "image/png"
+  assert_eq "$(<"$CLIPBOARD.data")" "png:picture-bytes"
+  arguments=$(<"$CLIPBOARD.magick")
+  [[ $arguments == *" ${case#*:}:-[0] -auto-orient -strip "* ]] \
+    || report "expected the ${case#*:} decoder for ${case%%:*} in: $arguments"
+  assert_eq "$(leftovers)" "0"
+  teardown
+done
+
 announce "a picture that cannot be decoded is copied as a file, not as an empty image"
 setup
 printf 'broken' >"$sandbox/files/broken.jpg"
@@ -125,7 +140,7 @@ printf '<svg/>' >"$sandbox/files/drawing.svg"
 FAKE_MIME=image/svg+xml run_copy "$sandbox/files/drawing.svg"; status=$?
 assert_eq "$status" "0"
 assert_eq "$(<"$CLIPBOARD.type")" "text/uri-list"
-[[ ! -e $CLIPBOARD.magick ]] || report "only PNG, JPEG, WebP and GIF may be decoded"
+[[ ! -e $CLIPBOARD.magick ]] || report "only the previewable raster types may be decoded"
 teardown
 
 announce "missing, relative and extra arguments are refused before the clipboard changes"

@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Este necesar wl-paste pentru a citi clipboardul",
   "clipboard.empty": "Clipboardul este gol",
+  "clipboard.imageFailed": "Imaginea din clipboard nu a putut fi citită",
   "clipboard.copyMissing": "Este necesar wl-copy pentru copiere",
   "clipboard.copyTextMissing": "Este necesar wl-copy pentru a copia textul primit",
   "clipboard.copied": "Copiat în clipboard",

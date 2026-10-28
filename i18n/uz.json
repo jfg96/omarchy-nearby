@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Almashish buferini oʻqish uchun wl-paste kerak",
   "clipboard.empty": "Almashish buferi boʻsh",
+  "clipboard.imageFailed": "Almashish buferidagi rasmni oʻqib boʻlmadi",
   "clipboard.copyMissing": "Nusxalash uchun wl-copy kerak",
   "clipboard.copyTextMissing": "Qabul qilingan matnni nusxalash uchun wl-copy kerak",
   "clipboard.copied": "Almashish buferiga nusxalandi",

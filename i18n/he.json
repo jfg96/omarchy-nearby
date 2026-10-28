@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "נדרש wl-paste לקריאת לוח ההעתקה",
   "clipboard.empty": "לוח ההעתקה ריק",
+  "clipboard.imageFailed": "לא ניתן לקרוא את התמונה בלוח ההעתקה",
   "clipboard.copyMissing": "נדרש wl-copy להעתקה",
   "clipboard.copyTextMissing": "נדרש wl-copy להעתקת טקסט שהתקבל",
   "clipboard.copied": "הועתק ללוח ההעתקה",

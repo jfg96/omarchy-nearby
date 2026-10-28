@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "wl-paste kreves for å lese utklippstavlen",
   "clipboard.empty": "Utklippstavlen er tom",
+  "clipboard.imageFailed": "Kunne ikke lese bildet på utklippstavlen",
   "clipboard.copyMissing": "wl-copy kreves for å kopiere",
   "clipboard.copyTextMissing": "wl-copy kreves for å kopiere mottatt tekst",
   "clipboard.copied": "Kopiert til utklippstavlen",

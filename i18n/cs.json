@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Ke čtení schránky je potřeba wl-paste",
   "clipboard.empty": "Schránka je prázdná",
+  "clipboard.imageFailed": "Obrázek ve schránce nelze přečíst",
   "clipboard.copyMissing": "Ke kopírování je potřeba wl-copy",
   "clipboard.copyTextMissing": "Ke kopírování přijatého textu je potřeba wl-copy",
   "clipboard.copied": "Zkopírováno do schránky",

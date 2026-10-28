@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "За читање оставе потребан је wl-paste",
   "clipboard.empty": "Остава је празна",
+  "clipboard.imageFailed": "Слика у остави није могла да се прочита",
   "clipboard.copyMissing": "За копирање је потребан wl-copy",
   "clipboard.copyTextMissing": "За копирање примљеног текста потребан је wl-copy",
   "clipboard.copied": "Копирано у оставу",

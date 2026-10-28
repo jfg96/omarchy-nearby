@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+# Draw one received picture that the shell cannot decode itself as a small PNG.
+#
+# A stock Omarchy shell has no Qt decoder for the formats phones save photos
+# in, such as HEIC, but ImageMagick reads them. Decoding here also keeps a
+# peer's file out of the shell's own process. The preview is upright and
+# carries no metadata. Its path is printed on success; the previous preview is
+# removed, so only the one on screen remains.
+
+set -uo pipefail
+
+fail() {
+  printf 'nearby-preview-image: %s\n' "$*" >&2
+  exit 1
+}
+
+(( $# == 1 )) || fail "usage: nearby-preview-image <path>"
+path=$1
+[[ $path == /* && -f $path && -r $path ]] || fail "not a readable file"
+for command_name in file magick; do
+  command -v "$command_name" >/dev/null 2>&1 \
+    || fail "required command not found: $command_name"
+done
+
+# As in nearby-copy-file, the type is read from the bytes and names the only
+# decoder allowed to read them, and the file reaches it on stdin.
+coder=""
+case "$(file --brief --mime-type -- "$path")" in
+  image/heic|image/heif) coder=heic ;;
+  image/avif) coder=avif ;;
+  image/jxl) coder=jxl ;;
+esac
+[[ -n $coder ]] || fail "not a picture that needs converting"
+
+runtime=${XDG_RUNTIME_DIR:-}
+[[ $runtime == /* && -d $runtime ]] || fail "XDG_RUNTIME_DIR is not available"
+directory=$runtime/omarchy-nearby
+for folder in "$directory" "$directory/previews"; do
+  mkdir -p -m 0700 -- "$folder" 2>/dev/null
+  [[ -d $folder && ! -L $folder && -O $folder ]] || fail "unsafe preview folder: $folder"
+done
+directory+=/previews
+
+preview=$(mktemp "$directory/preview-XXXXXX.png") || fail "could not create the preview"
+if ! timeout 30 magick -limit width 16KP -limit height 16KP -limit area 128MP \
+  -limit memory 2GiB -limit disk 0 \
+  "$coder:-[0]" -auto-orient -thumbnail '1024x1024>' -strip "png:$preview" \
+  <"$path" 2>/dev/null; then
+  rm -f -- "$preview"
+  fail "could not decode the picture"
+fi
+
+for old in "$directory"/preview-*.png; do
+  [[ $old == "$preview" ]] || rm -f -- "$old"
+done
+printf '%s\n' "$preview"

@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Leikepöydän lukemiseen tarvitaan wl-paste",
   "clipboard.empty": "Leikepöytä on tyhjä",
+  "clipboard.imageFailed": "Leikepöydän kuvaa ei voitu lukea",
   "clipboard.copyMissing": "Kopiointiin tarvitaan wl-copy",
   "clipboard.copyTextMissing": "Vastaanotetun tekstin kopiointiin tarvitaan wl-copy",
   "clipboard.copied": "Kopioitu leikepöydälle",

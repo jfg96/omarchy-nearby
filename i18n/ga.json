@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Tá wl-paste ag teastáil chun an ghearrthaisce a léamh",
   "clipboard.empty": "Tá an ghearrthaisce folamh",
+  "clipboard.imageFailed": "Níorbh fhéidir an pictiúr sa ghearrthaisce a léamh",
   "clipboard.copyMissing": "Tá wl-copy ag teastáil chun cóipeáil",
   "clipboard.copyTextMissing": "Tá wl-copy ag teastáil chun an téacs faighte a chóipeáil",
   "clipboard.copied": "Cóipeáilte chuig an ngearrthaisce",

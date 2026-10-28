@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "O wl-paste é necessário para ler a área de transferência",
   "clipboard.empty": "A área de transferência está vazia",
+  "clipboard.imageFailed": "Não foi possível ler a imagem da área de transferência",
   "clipboard.copyMissing": "O wl-copy é necessário para copiar",
   "clipboard.copyTextMissing": "O wl-copy é necessário para copiar o texto recebido",
   "clipboard.copied": "Copiado para a área de transferência",

@@ -93,7 +93,10 @@ Item {
   property int receivedFileCount: 0
   property string receivedFile: ""
   property string receivedFileType: ""
-  onViewStateChanged: if (viewState !== "success") { receivedFile = ""; receivedFileType = "" }
+  // What the result shows of a received picture: the file itself, or a PNG
+  // converted from a format the shell cannot decode.
+  property string receivedPreview: ""
+  onViewStateChanged: if (viewState !== "success") { receivedFile = ""; receivedFileType = ""; receivedPreview = "" }
   property real progress: 0
   property string transferName: ""
   property string transferPeer: ""
@@ -522,6 +525,7 @@ Item {
   // behind another transfer or request never reached the screen.
   function offerReceivedFile(session) {
     receivedFileType = ""
+    receivedPreview = ""
     receivedFile = viewState === "success" && receivedSession === session && receivedFileCount === 1 ? lastReceivedPath : ""
     if (receivedFile === "") return
     cursorRequested(0)
@@ -532,8 +536,20 @@ Item {
   // a different file. The file that replaced it could not be probed while this
   // probe ran, so it is probed now.
   function fileTypeProbed(code, type) {
-    if (fileTypeProbe.path === receivedFile) { if (code === 0) receivedFileType = type }
+    if (fileTypeProbe.path === receivedFile) { if (code === 0) { receivedFileType = type; previewReceivedFile() } }
     else if (receivedFile !== "") probeReceivedFile()
+  }
+  function previewReceivedFile() {
+    var mode = Model.imagePreviewMode(receivedFileType)
+    if (mode === "direct") receivedPreview = receivedFile
+    else if (mode === "convert" && !previewMaker.running) { previewMaker.path = receivedFile; previewMaker.running = true }
+  }
+  // Like the probe, a conversion answers for the file it was started on. One
+  // that finished for a file no longer shown starts the conversion of the file
+  // that replaced it.
+  function previewMade(code, path) {
+    if (previewMaker.path === receivedFile) { if (code === 0 && path !== "") receivedPreview = path }
+    else if (receivedFile !== "" && Model.imagePreviewMode(receivedFileType) === "convert") previewReceivedFile()
   }
   function finishText() { incomingText=""; incomingTextPending=false; viewState="nearby"; cursorRequested(0); startDiscovery() }
   function finishTerminal() { viewState="nearby"; cursorRequested(0); startDiscovery() }
@@ -710,6 +726,15 @@ Item {
     running: false
     stdout: StdioCollector { id: fileTypeOutput; waitForEnd: true }
     onExited: function(code) { root.fileTypeProbed(code, String(fileTypeOutput.text || "").trim()) }
+  }
+  // A converter that cannot run leaves the preview empty, as a failed probe does.
+  Process {
+    id: previewMaker
+    property string path: ""
+    command: [root.pluginDir + "/bin/nearby-preview-image", previewMaker.path]
+    running: false
+    stdout: StdioCollector { id: previewOutput; waitForEnd: true }
+    onExited: function(code) { root.previewMade(code, String(previewOutput.text || "").split("\n")[0]) }
   }
   Timer { id: backendRestart; property int attempts: 0; interval: 1000; repeat: false; onTriggered: if (root.receiverEnabled && !backend.running) root.bindBackendRunning() }
   Timer { id: receiverShutdownFallback; interval: 250; repeat: false; onTriggered: root.finishReceiverShutdown() }

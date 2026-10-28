@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "Per leggere gli appunti è necessario wl-paste",
   "clipboard.empty": "Gli appunti sono vuoti",
+  "clipboard.imageFailed": "Impossibile leggere l'immagine negli appunti",
   "clipboard.copyMissing": "Per copiare è necessario wl-copy",
   "clipboard.copyTextMissing": "Per copiare il testo ricevuto è necessario wl-copy",
   "clipboard.copied": "Copiato negli appunti",

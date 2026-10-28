@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "ক্লিপবোর্ড পড়তে wl-paste প্রয়োজন",
   "clipboard.empty": "ক্লিপবোর্ড খালি",
+  "clipboard.imageFailed": "ক্লিপবোর্ডের ছবিটি পড়া যায়নি",
   "clipboard.copyMissing": "কপি করতে wl-copy প্রয়োজন",
   "clipboard.copyTextMissing": "প্রাপ্ত লেখা কপি করতে wl-copy প্রয়োজন",
   "clipboard.copied": "ক্লিপবোর্ডে কপি হয়েছে",

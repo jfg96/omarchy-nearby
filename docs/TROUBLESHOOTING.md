@@ -103,9 +103,11 @@ Check that the session provides the required commands:
 command -v omarchy-file-select wl-copy wl-paste omarchy-notification-send
 ```
 
-Use **Send files** for file content. **Send clipboard** expects text and has a
-1 MiB UTF-8 limit. Confirm that copying text works in the current Wayland session;
-do not paste private clipboard contents into a bug report.
+Use **Send files** for file content. **Send clipboard** sends text up to 1 MiB
+of UTF-8, or a picture up to 100 MiB when the clipboard holds no text; a
+picture alongside text is not sent. `wl-paste --list-types` shows what the
+clipboard offers. Confirm that copying works in the current Wayland session; do
+not paste private clipboard contents into a bug report.
 
 ## Receiver security state or download destination is unavailable
 

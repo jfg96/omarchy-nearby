@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "wl-paste krävs för att läsa urklipp",
   "clipboard.empty": "Urklipp är tomt",
+  "clipboard.imageFailed": "Det gick inte att läsa bilden i urklipp",
   "clipboard.copyMissing": "wl-copy krävs för att kopiera",
   "clipboard.copyTextMissing": "wl-copy krävs för att kopiera mottagen text",
   "clipboard.copied": "Kopierat till urklipp",

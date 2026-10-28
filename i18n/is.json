@@ -73,6 +73,7 @@
 
   "clipboard.pasteMissing": "wl-paste þarf til að lesa klippispjaldið",
   "clipboard.empty": "Klippispjaldið er tómt",
+  "clipboard.imageFailed": "Ekki tókst að lesa myndina á klippispjaldinu",
   "clipboard.copyMissing": "wl-copy þarf til að afrita",
   "clipboard.copyTextMissing": "wl-copy þarf til að afrita móttekinn texta",
   "clipboard.copied": "Afritað á klippispjald",

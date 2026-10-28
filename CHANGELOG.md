@@ -9,6 +9,14 @@
   actions keep the plain notification. Received-text notifications are
   unchanged.
 
+- **Send clipboard** also sends a picture, such as a screenshot, as a file
+  when the clipboard holds no text. Text still wins when both are offered.
+
+- Preview a received BMP, TIFF, HEIC/HEIF, AVIF or JPEG XL picture and copy
+  it as an image, like PNG, JPEG, WebP and GIF. HEIC, AVIF and JPEG XL, which
+  phones often save photos in and a stock shell cannot decode, are converted
+  to a PNG preview by ImageMagick in a separate process.
+
 ## 1.2.8
 
 - Publish and select helper 1.2.7 for Linux aarch64 as well as x86_64, so
