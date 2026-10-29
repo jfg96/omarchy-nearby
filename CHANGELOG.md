@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.10-dev
+## 1.2.10
 
 - Require rustls 0.23.46 in the helper (GHSA-c8m5-c952-6cm4,
   GHSA-h2v8-394m-p7vv, GHSA-vp88-798v-h67f, GHSA-w44r-93j7-qv28). Nearby does

@@ -1119,3 +1119,32 @@ Both features were run by the maintainer on Omarchy 4.5.0rc2 with each branch
 installed and a phone (scenarios 27 and 28), as recorded in their development
 checks above; device and app versions were not recorded. Android, aarch64 and
 an older Omarchy release remain **Not run**.
+
+## Helper 1.2.8 and release check — v1.2.10, 2026-10-29
+
+Helper-v1.2.8 was tagged on `main` at `b037b53` after CI passed there. Helper
+release run 40843556860 built, tested and attested both executables and
+published them with their checksums and the license page as a prerelease.
+Both published executables were downloaded independently: each matched its
+checksum file and the 32 MiB bound, had the expected ELF architecture and
+passed `gh attestation verify` against the repository, the helper release
+workflow, source digest `b037b53` and `refs/tags/helper-v1.2.8`, with
+self-hosted runners denied. The x86_64 executable reports
+`omarchy-nearby-helper 1.2.8`; the aarch64 version was checked natively by the
+release workflow and is checked again by Verify release.
+
+Plugin `1.2.10` selects those exact values. `backend/` is identical to the
+helper source commit, and the Cargo package, `minHelperVersion` and selected
+helper are all 1.2.8. With the new metadata the launcher downloaded the
+published x86_64 helper into an isolated XDG data directory, verified it and
+ran it. The complete supported suite passed on the release tree: four Node
+suites (50/50 catalogues, 173 keys), five Bash suites, `cargo fmt --check`,
+`cargo check`, `cargo clippy -D warnings`, 94 helper tests and the vendored
+`localsend-rs` HTTPS suite (151 passed, one upstream test ignored), plus the
+plugin validator and `git diff --check`.
+
+During the README screenshot session, a 400 MiB receive with a helper built
+from this source arrived intact (matching SHA256) with the speed and time-left
+line shown (scenario 29), and an incoming text request showed its message
+before acceptance (part of scenario 30). Scenarios 31 and 32, and transfers
+with a real phone on this exact helper, remain **Not run**.
