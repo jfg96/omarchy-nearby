@@ -2,8 +2,9 @@
 
 ## 1.2.11-dev
 
-- Cancel a transfer while receiving it. The file in progress is discarded and
-  files that had already arrived are kept. Requires helper 1.2.9.
+- Cancel a transfer while receiving it. Everything that transfer saved is
+  deleted, including files that had already arrived and the folders it
+  created; anything already there stays. Requires helper 1.2.9.
 
 ## 1.2.10
 

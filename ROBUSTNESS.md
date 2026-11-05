@@ -796,9 +796,12 @@ complete until those versions and results are written down.
 
 33. Accept a large file from a peer and press **Cancel** partway: the panel must
     report the transfer cancelled, the peer must report a failure, and neither
-    the file nor a `.part` may remain. Repeat with several files: those already
-    received must stay and the rest must not arrive. Send again straight away:
-    the new request must be offered normally.
+    the file nor a `.part` may remain. Repeat with several files and with a
+    folder, cancelling after some have arrived: everything from that transfer
+    must go, including its folders, while a file already in the save folder and
+    a folder that already held something stay. Have the peer cancel instead:
+    finished files must stay. Send again straight away: the new request must be
+    offered normally.
 
 ## Result record
 
@@ -1167,5 +1170,13 @@ The helper advances to 1.2.9 with `minHelperVersion`, because an older helper
 rejects the command; `helper-release.env` still selects helper-v1.2.8, so this
 commit reports its helper as out of date until 1.2.9 is published and selected.
 
+Cancelling from the panel leaves the folder as it was: `backend/src/received.rs`
+records each session's saved files and folders and removes them on
+`SessionCancelled`, only for a session this command cancelled. It touches only
+regular files the receiver created inside the save folder, and removes folders
+only once empty. A cancel from the sender keeps finished files.
+
 The new vendor, helper, service and panel cases failed against the previous
-code and pass now. Scenario 33 with a real peer remains **Not run**.
+code and pass now. The cleanup is unit-tested on real folders; its wiring to the
+event loop has no automated test, so scenario 33 with a real peer must cover it
+and remains **Not run**.

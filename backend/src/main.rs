@@ -25,6 +25,7 @@ use tokio::sync::{mpsc, oneshot};
 
 mod downloads;
 mod identity;
+mod received;
 mod secure_state;
 mod settings;
 
@@ -1290,6 +1291,13 @@ async fn main() -> Result<()> {
     let pending = Arc::new(Mutex::new(HashMap::<String, PendingRequest>::new()));
     let pending_events = pending.clone();
     let peer_events = peer_tx.clone();
+    // A receive cancelled here leaves nothing behind. The receiver publishes a
+    // file and reports it under the lock a cancel needs, so every saved file
+    // is reported before SessionCancelled.
+    let discard_requests = Arc::new(Mutex::new(HashSet::<String>::new()));
+    let discard_events = discard_requests.clone();
+    let save_dir = canonical_download.clone();
+    let mut received = received::ReceivedFiles::new(save_dir.clone());
     tokio::spawn(async move {
         while let Some(event) = events.recv().await {
             match event {
@@ -1326,9 +1334,12 @@ async fn main() -> Result<()> {
                     total_bytes,
                     file_count,
                     ..
-                } => emit(
-                    json!({"event":"incoming_progress","sessionId":session_id,"name":valid_remote_text(&file_name,255),"sender":valid_remote_text(&sender_alias,128),"bytes":bytes_received,"total":total_bytes,"count":file_count}),
-                ),
+                } => {
+                    received.note_upload(session_id.as_str(), &file_name);
+                    emit(
+                        json!({"event":"incoming_progress","sessionId":session_id,"name":valid_remote_text(&file_name,255),"sender":valid_remote_text(&sender_alias,128),"bytes":bytes_received,"total":total_bytes,"count":file_count}),
+                    );
+                }
                 ServerEvent::FileReceived {
                     session_id,
                     path,
@@ -1336,21 +1347,38 @@ async fn main() -> Result<()> {
                     sender_alias,
                     size,
                     ..
-                } => emit(
-                    json!({"event":"file_received","sessionId":session_id,"path":path,"name":valid_remote_text(&file_name,255),"sender":valid_remote_text(&sender_alias,128),"size":size}),
-                ),
+                } => {
+                    received.note_saved(session_id.as_str(), path.clone());
+                    emit(
+                        json!({"event":"file_received","sessionId":session_id,"path":path,"name":valid_remote_text(&file_name,255),"sender":valid_remote_text(&sender_alias,128),"size":size}),
+                    );
+                }
                 ServerEvent::SessionCompleted { session_id } => {
+                    received.finish(session_id.as_str());
                     emit(json!({"event":"incoming_done","sessionId":session_id}))
                 }
                 ServerEvent::SessionCancelled { session_id } => {
+                    let files = received.finish(session_id.as_str());
+                    if discard_events.lock().unwrap().remove(session_id.as_str()) {
+                        let save_dir = save_dir.clone();
+                        let cleanup = tokio::task::spawn_blocking(move || {
+                            received::discard(&save_dir, files)
+                        });
+                        if let Err(error) = cleanup.await {
+                            eprintln!("could not clean up a cancelled receive: {error}");
+                        }
+                    }
                     emit(json!({"event":"incoming_cancelled","sessionId":session_id}))
                 }
                 ServerEvent::SessionFailed {
                     session_id,
                     message,
-                } => emit(
-                    json!({"event":"incoming_failed","sessionId":session_id,"code":receive_failure_code(&message),"message":message}),
-                ),
+                } => {
+                    received.finish(session_id.as_str());
+                    emit(
+                        json!({"event":"incoming_failed","sessionId":session_id,"code":receive_failure_code(&message),"message":message}),
+                    );
+                }
                 _ => {}
             }
         }
@@ -1426,7 +1454,7 @@ async fn main() -> Result<()> {
                         });
                     }
                     Command::CancelOutgoing { transfer_id } => if outgoing.as_ref().is_some_and(|o|o.id==transfer_id) && let Some(control)=outgoing.take(){let _=control.cancel.send(());},
-                    Command::CancelIncoming { session_id } => { server.cancel_session(&session_id).await; },
+                    Command::CancelIncoming { session_id } => { discard_requests.lock().unwrap().insert(session_id.clone()); if !server.cancel_session(&session_id).await { discard_requests.lock().unwrap().remove(&session_id); } },
                     Command::SetIncomingPin { pin } => {
                         match update_incoming_pin(&mut server,&settings_path,&mut receiver_settings,Some(pin)).await {
                             Ok(())=>emit(json!({"event":"incoming_pin_state","enabled":true})),

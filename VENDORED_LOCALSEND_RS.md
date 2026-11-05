@@ -571,9 +571,12 @@ that accepted a transfer by mistake could stop it only by shutting down. The
 method: it removes the session only if it is the one named and reports
 `SessionCancelled`, so a stale id cannot end a newer transfer. Removing the
 session stops the upload writer at its next chunk through the marker from
-entry 10, which discards the partial file. Files already published stay, and
-the sender's upload ends with a non-success response, as after a sender cancel.
-An upload that is silent when cancelled keeps its partial file until the next
+entry 10, which discards the partial file. Files already published stay at this
+level, and the sender's upload ends with a non-success response, as after a
+sender cancel; the helper removes a cancelled session's files itself, in
+`backend/src/received.rs`. A file is published and reported under the lock this
+method needs, so every saved file is reported before `SessionCancelled`. An
+upload that is silent when cancelled keeps its partial file until the next
 chunk or the 120-second upload pause limit.
 
 Regression coverage cancels a 1 MiB upload from the receiver, requires one

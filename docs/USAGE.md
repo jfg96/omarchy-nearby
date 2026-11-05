@@ -45,11 +45,15 @@ If the peer is missing, use **Rescan**. See
 
 Leave Nearby on, choose its device entry on the sender and send files or text.
 Use **Accept** or **Decline** for the incoming request. **Cancel** stops an
-accepted transfer while it runs: the file in progress is discarded, and files
-that had already arrived are kept. A text message goes
-through the same approval: its request shows up to four lines of the message,
-so you can see what you are accepting, while its notification only says that
-a message is waiting. Approval requests expire; ask the sender to retry if
+accepted transfer while it runs and leaves the folder as it was: everything
+that transfer saved is deleted, including files that had already arrived and
+folders it created, while anything that was already there stays. The sender
+still has the originals, so nothing is lost; ask them to send again if needed.
+If the sender cancels or the connection drops, finished files stay.
+
+A text message goes through the same approval: its request shows up to four
+lines of the message, so you can see what you are accepting, while its
+notification only says that a message is waiting. Approval requests expire; ask the sender to retry if
 the request has expired.
 
 Files go to your configured Downloads directory unless you
