@@ -154,6 +154,21 @@ function notificationText(value) {
   return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 }
 
+// A name read from a path on disk, cleaned as the helper cleans remote names:
+// on one line and without direction marks that change how it reads.
+function plainName(value) {
+  return String(value || "").replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/g, "")
+}
+
+// Peers can open and withdraw requests as fast as they like, and each
+// notification stays in the history, so they are spaced out. The requests
+// themselves still reach the panel.
+var NOTIFICATION_INTERVAL_MS = 5000
+
+function notificationDue(last, now) {
+  return last === null || now - last >= NOTIFICATION_INTERVAL_MS
+}
+
 // The preview decodes a received picture inside the shell, so it is limited to
 // the common raster types, as identified from the file's bytes by `file`.
 // Only these pictures are decoded inside the shell. The rest are converted to
@@ -444,4 +459,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, failureText, incomingMessage, incomingSummary, notificationText, progressSamples, progressRate, formatDuration, progressDetail, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, failureText, incomingMessage, incomingSummary, notificationText, plainName, notificationDue, progressSamples, progressRate, formatDuration, progressDetail, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }

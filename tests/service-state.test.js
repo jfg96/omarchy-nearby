@@ -226,6 +226,8 @@ function engine(initial = {}) {
     previewMaker: {running: false, path: ""},
     progress: 0,
     rateSamples: [],
+    lastEndedIncomingSession: "",
+    lastIncomingNotification: null,
     progressDetail: "",
     transferName: "",
     transferPeer: "",
@@ -239,6 +241,7 @@ function engine(initial = {}) {
     incomingPinError: "",
     transferSequence: 0,
     maxOutgoingTextBytes: 1024 * 1024,
+    maxOutgoingCommandBytes: 2 * 1024 * 1024 - 1024,
     ...initial,
   }
   Object.defineProperty(context, "incoming", {get() { return Model.currentIncoming(context.incomingQueue) }})
@@ -1875,6 +1878,68 @@ for (const busy of [
   const state = engine({viewState: "receiving", activeIncomingSession: ""})
   state.cancelIncoming()
   assert.equal(state.sent.length, 0)
+}
+
+// A command too large for the helper is refused here. It used to reach the
+// helper, which rejected it, leaving pendingOutgoing set: every later send
+// then did nothing until the helper restarted.
+{
+  const state = engine({viewState: "target"})
+  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: '"'.repeat(1024 * 1024)})
+  assert.equal(state.sent.length, 0, "text that grows past the limit when encoded must not be sent")
+  assert.equal(state.pendingOutgoing, null)
+  assert.equal(state.viewState, "error")
+  assert.match(state.errorText, /maximum 1 MiB/)
+  state.finishTerminal()
+  state.beginOutgoing({kind: "text", device: state.selectedDevice, text: "next"})
+  assert.equal(state.sent.at(-1).command, "send_text", "the next send must still work")
+}
+{
+  const state = engine({viewState: "target"})
+  const paths = Array.from({length: 40000}, (_, i) => `/home/someone/photos/2026/holiday/picture-${i}.jpg`)
+  state.beginOutgoing({kind: "files", device: state.selectedDevice, paths})
+  assert.equal(state.sent.length, 0, "a selection too long for one command must not be sent")
+  assert.equal(state.pendingOutgoing, null)
+  assert.equal(state.errorText, "Too many files or long names: the offer exceeds 2 MiB")
+}
+{
+  // Should the helper refuse one anyway, the send does not stay pending.
+  const state = engine({viewState: "sending", outgoingTransferId: "tx",
+    pendingOutgoing: {kind: "text", device: {fingerprint: "phone"}, text: "x"}})
+  state.handleEvent({event: "error", code: "command_too_long", message: "Backend command exceeds 2 MiB limit"})
+  assert.equal(state.pendingOutgoing, null)
+}
+
+// A session that ended must not be adopted by the next receive: a late event
+// would leave the panel ignoring the real session and stuck on receiving.
+{
+  const state = engine({viewState: "receiving", activeIncomingSession: "A"})
+  state.handleEvent({event: "incoming_cancelled", sessionId: "A"})
+  state.handleEvent(incoming("B"))
+  state.acceptIncoming()
+  state.handleEvent({event: "incoming_accepted", requestId: "B"})
+  state.handleEvent({event: "incoming_progress", sessionId: "A", name: "old", sender: "x", bytes: 0, total: 10})
+  assert.equal(state.activeIncomingSession, "")
+  state.handleEvent({event: "incoming_progress", sessionId: "B", name: "new", sender: "y", bytes: 5, total: 10})
+  state.handleEvent({event: "incoming_done", sessionId: "B"})
+  assert.equal(state.viewState, "success")
+}
+
+// Opening and withdrawing requests in a burst raises one notification. The
+// requests still reach the panel, and the next one after the pause notifies.
+{
+  const clock = {now: 1000}
+  const state = engine({viewState: "nearby", anyViewOpen: false, openViewCount: 0, Date: {now: () => clock.now}})
+  for (let i = 0; i < 200; i++) {
+    state.handleEvent(incoming("burst-" + i, "x"))
+    state.handleEvent({event: "incoming_expired", requestId: "burst-" + i})
+    clock.now += 10
+  }
+  assert.equal(state.notified.length, 1)
+  clock.now += 5000
+  state.handleEvent(incoming("later", "x"))
+  assert.equal(state.notified.length, 2)
+  assert.equal(state.incoming.requestId, "later")
 }
 
 console.log("service state tests passed")

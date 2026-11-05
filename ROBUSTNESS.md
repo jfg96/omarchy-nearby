@@ -803,6 +803,12 @@ complete until those versions and results are written down.
     finished files must stay. Send again straight away: the new request must be
     offered normally.
 
+34. Turn Nearby off during a receive: no `.nearby-*.part` may remain in the
+    save folder. Cancel a transfer from a peer and accept the next one straight
+    away: it must finish normally. Have a peer with an alias containing a line
+    break or direction mark appear: the list must show it on one line and in
+    logical order.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -840,6 +846,7 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 31: translated transfer errors | Omarchy + peer | Not run | |
 | 32: keyboard activation needs a visible cursor | Omarchy + peer | Not run | |
 | 33: cancel while receiving | Omarchy + peer | Not run | |
+| 34: review fixes for receiving | Omarchy + peer | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.
@@ -1180,3 +1187,34 @@ The new vendor, helper, service and panel cases failed against the previous
 code and pass now. The cleanup is unit-tested on real folders; its wiring to the
 event loop has no automated test, so scenario 33 with a real peer must cover it
 and remains **Not run**.
+
+## Review of the plugin after 1.2.10 — 2026-11-05
+
+A review of what peers can send, the state machine and the scripts found no
+serious hole, and left web share (refused unless started), PIN checks, upload
+tokens, path validation, TLS pinning and script argument handling unchanged. It
+found six defects, all fixed here. The wrapped total, the stuck receive, the
+stuck send and the notification burst were reproduced against the previous code;
+the unfiltered names and the partial file were found by reading it.
+
+- The total in a request summed peer-declared sizes without saturating, so
+  sizes that wrapped around showed thousands of petabytes as 1 KB. The vendor's
+  own total already saturated.
+- Device aliases reached the shell unfiltered and unbounded, and other remote
+  names kept line breaks and direction marks. `remote_name` removes them; the
+  name read from a received path is cleaned the same way for display. Message
+  text and the bytes on disk are unchanged.
+- A progress event from an ended session could be adopted by the next receive,
+  which then ignored its own events and stayed on screen. The vendor no longer
+  reports on an ended session (entry 20), and the service ignores the last
+  ended session.
+- A command over the helper's 2 MiB limit left `pendingOutgoing` set, so every
+  later send did nothing. The service now measures the encoded command first
+  and clears the send if the helper refuses one anyway.
+- 200 requests opened and withdrawn raised 200 notifications; incoming-request
+  notifications are now at least five seconds apart.
+- Turning Nearby off during a receive left its partial file for at least a day.
+
+The new cases failed against the previous code where a test could reach it. The
+partial-file removal at shutdown reuses a tested function, but the call itself
+has no automated test. Scenario 34 remains **Not run**.

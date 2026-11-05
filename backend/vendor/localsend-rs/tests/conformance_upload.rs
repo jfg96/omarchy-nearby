@@ -547,6 +547,15 @@ async fn receiver_cancel_stops_an_upload_in_progress() {
         saved_names(save.path()).is_empty(),
         "neither the final file nor a .part may remain"
     );
+
+    // The writer has finished rolling back by now. Nothing may report on a
+    // session that already ended: a consumer could take it for the next one.
+    while let Ok(event) = events.try_recv() {
+        assert!(
+            !matches!(event, ServerEvent::FileReceiveProgress { .. }),
+            "no progress after the session ended: {event:?}"
+        );
+    }
 }
 
 #[tokio::test]

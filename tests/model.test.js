@@ -409,11 +409,22 @@ assert.equal(Model.fileUrl("/tmp/a b/é#?%.png"), "file:///tmp/a%20b/%C3%A9%23%3
   assert.equal(Model.failureText("toString", "kept", strings), "kept", "only the table's own codes are looked up")
 
   // Every code the helper can send has an entry, read from its source.
-  const helper = fs.readFileSync(require.resolve("../backend/src/main.rs"), "utf8")
+  const helper = fs.readFileSync(require.resolve("../backend/src/main.rs"), "utf8").split("#[cfg(test)]\nmod tests")[0]
   const sent = new Set([...helper.matchAll(/"code":"([a-z_]+)"/g), ...helper.matchAll(/\("([a-z_]+)", "/g),
     ...helper.matchAll(/^\s+"([a-z_]+)"$/gm)].map(match => match[1]))
   for (const code of ["receiver_port_in_use", "receiver_security_settings_invalid"]) sent.delete(code)
   for (const code of sent) assert.ok(codes.includes(code), `helper code ${code} has no translation`)
 }
+
+// Names shown from a path on disk get the helper's treatment of remote names.
+assert.equal(Model.plainName("factura\u202Efdp.exe"), "facturafdp.exe")
+assert.equal(Model.plainName("a\u2066b\u2069\nc\u200F\u061C"), "abc")
+assert.equal(Model.plainName("Müller 東京.jpg"), "Müller 東京.jpg")
+
+// One notification at most every few seconds: a peer can open and withdraw
+// requests as fast as it likes, and each would otherwise stay in the history.
+assert.equal(Model.notificationDue(null, 1000), true)
+assert.equal(Model.notificationDue(1000, 5999), false)
+assert.equal(Model.notificationDue(1000, 6000), true)
 
 console.log("Model tests passed")

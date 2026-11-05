@@ -82,7 +82,8 @@ shell's process. The file in Downloads is never changed. A transfer of several
 files shows the plain result.
 
 Incoming notifications use Omarchy's notification system and respect Do Not
-Disturb. Clicking an incoming-transfer notification opens the panel on the
+Disturb. A burst of requests raises one notification every few seconds; all of
+them still appear in the panel. Clicking an incoming-transfer notification opens the panel on the
 focused monitor with the request shown; it never accepts or declines it. Once
 the request has expired or been answered, the click does nothing, including
 from the notification history. On a shell whose notification helper predates
@@ -158,8 +159,9 @@ receiver restarts. Missing PINs do not consume an attempt. See
 | Persistent TLS identity | `identity.json` alongside the PIN settings |
 | Received files | The [chosen folder](#folder-for-received-files) if there is one; otherwise `XDG_DOWNLOAD_DIR`, then the setting in `$XDG_CONFIG_HOME/user-dirs.dirs` (default `~/.config/user-dirs.dirs`), then `~/Downloads`. Relative locations are ignored, as are `user-dirs.dirs` files that are not regular, are owned by another user or exceed 16 KiB |
 
-Interrupted receives use `.nearby-*.part` files. At startup, Nearby removes only
-its own partial files older than 24 hours. Treat settings and identity files as
+Interrupted receives use `.nearby-*.part` files. Turning Nearby off removes
+them, and at startup Nearby removes only its own partial files older than 24
+hours, which covers a helper that did not exit normally. Treat settings and identity files as
 private; do not include their contents in bug reports.
 
 ## Shell commands

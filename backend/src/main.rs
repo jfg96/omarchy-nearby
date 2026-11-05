@@ -298,7 +298,8 @@ fn receive_failure_code(message: &str) -> &'static str {
 }
 
 fn event_device(device: &DeviceInfo) -> Value {
-    json!({"alias":device.alias,"version":device.version,"deviceModel":device.device_model,
+    json!({"alias":remote_name(&device.alias, 128),"version":device.version,
+        "deviceModel":device.device_model.as_deref().map(|model| remote_name(model, 128)),
         "deviceType":device.device_type,"fingerprint":device.fingerprint,"port":device.port,
         "protocol":device.protocol,"download":device.download,"ip":device.ip})
 }
@@ -308,6 +309,32 @@ fn valid_remote_text(text: &str, max: usize) -> String {
         .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
         .take(max)
         .collect()
+}
+
+/// An alias or file name from a peer, on one line and reading as it is stored:
+/// direction marks could make `invoice\u{202E}fdp.exe` display as a PDF, and
+/// line breaks could imitate the text around it.
+fn remote_name(text: &str, max: usize) -> String {
+    text.chars()
+        .filter(|c| {
+            !c.is_control()
+                && !matches!(
+                    c,
+                    '\u{061C}'
+                        | '\u{200E}'
+                        | '\u{200F}'
+                        | '\u{2028}'..='\u{202E}'
+                        | '\u{2066}'..='\u{2069}'
+                )
+        })
+        .take(max)
+        .collect()
+}
+
+/// What a request offers in total. Sizes are the sender's to declare, and a sum
+/// that wrapped around would show a huge transfer as a small one.
+fn offered_bytes(sizes: impl Iterator<Item = u64>) -> u64 {
+    sizes.fold(0, u64::saturating_add)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -433,7 +460,7 @@ fn record_peer(
         return PeerUpdate::Deferred;
     }
     drop(gate);
-    eprintln!("peer registered: {}", valid_remote_text(&device.alias, 128));
+    eprintln!("peer registered: {}", remote_name(&device.alias, 128));
     emit(json!({"event":"device","device":event_device(&device)}));
     PeerUpdate::Published
 }
@@ -683,7 +710,7 @@ async fn start_active_discovery(
                             eprintln!(
                                 "cached peer confirmed: {} alias={} +{} ms",
                                 ip,
-                                valid_remote_text(&device.alias, 128),
+                                remote_name(&device.alias, 128),
                                 started.elapsed().as_millis()
                             );
                             if record_peer(&registry, &gate, device) == PeerUpdate::Published {
@@ -727,7 +754,7 @@ async fn start_active_discovery(
                         eprintln!(
                             "HTTP peer found: {} alias={} +{} ms",
                             device.ip.as_deref().unwrap_or("unknown"),
-                            valid_remote_text(&device.alias, 128),
+                            remote_name(&device.alias, 128),
                             started.elapsed().as_millis(),
                         );
                         if record_peer(&registry, &gate, device) == PeerUpdate::Published {
@@ -1030,7 +1057,7 @@ async fn send_payload(
         .map(|(id, f)| (id.clone(), f.file_name.clone()))
         .collect();
     emit(
-        json!({"event":"outgoing_preparing","transferId":transfer_id,"name":summary,"count":metadata.len(),"total":total,"target":valid_remote_text(&target.alias,128)}),
+        json!({"event":"outgoing_preparing","transferId":transfer_id,"name":summary,"count":metadata.len(),"total":total,"target":remote_name(&target.alias, 128)}),
     );
     let prepared_result = tokio::select! {
         result = client.prepare_upload(&target, metadata, pin.as_deref()) => result,
@@ -1306,10 +1333,10 @@ async fn main() -> Result<()> {
                 }
                 ServerEvent::TransferRequest(request) => {
                     let id = request.request_id().to_string();
-                    let sender = valid_remote_text(&request.sender().alias, 128);
-                    let mut files: Vec<Value> = request.files().values().map(|f| json!({"id":f.id,"name":valid_remote_text(&f.file_name,255),"size":f.size,"type":valid_remote_text(&f.file_type,128),"preview":f.preview.as_deref().map(|v|valid_remote_text(v,4096))})).collect();
+                    let sender = remote_name(&request.sender().alias, 128);
+                    let mut files: Vec<Value> = request.files().values().map(|f| json!({"id":f.id,"name":remote_name(&f.file_name, 255),"size":f.size,"type":valid_remote_text(&f.file_type,128),"preview":f.preview.as_deref().map(|v|valid_remote_text(v,4096))})).collect();
                     files.sort_by_key(|f| f["name"].as_str().unwrap_or("").to_owned());
-                    let total = request.files().values().map(|f| f.size).sum::<u64>();
+                    let total = offered_bytes(request.files().values().map(|f| f.size));
                     pending_events.lock().unwrap().insert(id.clone(), request);
                     emit(
                         json!({"event":"incoming_request","requestId":id,"sender":sender,"files":files,"total":total}),
@@ -1324,7 +1351,7 @@ async fn main() -> Result<()> {
                     text,
                     sender_alias,
                 } => emit(
-                    json!({"event":"incoming_text","sessionId":session_id,"sender":valid_remote_text(&sender_alias,128),"text":valid_remote_text(&text,1_048_576)}),
+                    json!({"event":"incoming_text","sessionId":session_id,"sender":remote_name(&sender_alias, 128),"text":valid_remote_text(&text,1_048_576)}),
                 ),
                 ServerEvent::FileReceiveProgress {
                     session_id,
@@ -1337,7 +1364,7 @@ async fn main() -> Result<()> {
                 } => {
                     received.note_upload(session_id.as_str(), &file_name);
                     emit(
-                        json!({"event":"incoming_progress","sessionId":session_id,"name":valid_remote_text(&file_name,255),"sender":valid_remote_text(&sender_alias,128),"bytes":bytes_received,"total":total_bytes,"count":file_count}),
+                        json!({"event":"incoming_progress","sessionId":session_id,"name":remote_name(&file_name, 255),"sender":remote_name(&sender_alias, 128),"bytes":bytes_received,"total":total_bytes,"count":file_count}),
                     );
                 }
                 ServerEvent::FileReceived {
@@ -1350,7 +1377,7 @@ async fn main() -> Result<()> {
                 } => {
                     received.note_saved(session_id.as_str(), path.clone());
                     emit(
-                        json!({"event":"file_received","sessionId":session_id,"path":path,"name":valid_remote_text(&file_name,255),"sender":valid_remote_text(&sender_alias,128),"size":size}),
+                        json!({"event":"file_received","sessionId":session_id,"path":path,"name":remote_name(&file_name, 255),"sender":remote_name(&sender_alias, 128),"size":size}),
                     );
                 }
                 ServerEvent::SessionCompleted { session_id } => {
@@ -1480,6 +1507,11 @@ async fn main() -> Result<()> {
     }
     passive.stop();
     drop(server);
+    // A receive interrupted by turning Nearby off cannot resume, so its partial
+    // file goes now rather than at a start at least a day later.
+    if let Err(error) = cleanup_stale_partial_files(&canonical_download, Duration::ZERO).await {
+        eprintln!("could not remove partial files: {error:#}");
+    }
     Ok(())
 }
 
@@ -2414,6 +2446,45 @@ mod tests {
     fn pin_failure_distinguishes_missing_and_invalid_values() {
         assert_eq!(pin_failure_outcome(false), SendPayloadOutcome::PinRequired);
         assert_eq!(pin_failure_outcome(true), SendPayloadOutcome::InvalidPin);
+    }
+
+    #[test]
+    fn offered_size_cannot_wrap_around_to_look_small() {
+        let half = u64::MAX / 2 + 1;
+        assert_eq!(offered_bytes([half, half, 1024].into_iter()), u64::MAX);
+        assert_eq!(offered_bytes([1, 2, 3].into_iter()), 6);
+    }
+
+    #[test]
+    fn remote_names_cannot_change_how_they_read() {
+        assert_eq!(remote_name("factura\u{202E}fdp.exe", 255), "facturafdp.exe");
+        assert_eq!(
+            remote_name("a\u{2066}b\u{2069}c\u{200F}d\u{061C}e", 255),
+            "abcde"
+        );
+        assert_eq!(
+            remote_name("Bank\nwants\tto\u{2028}send\u{2029}", 255),
+            "Bankwantstosend"
+        );
+        assert_eq!(remote_name("Müller 東京 🎉", 255), "Müller 東京 🎉");
+        assert_eq!(remote_name(&"x".repeat(300), 128).chars().count(), 128);
+    }
+
+    #[test]
+    fn discovered_devices_reach_the_shell_with_safe_bounded_names() {
+        let mut device = DeviceInfo::new(
+            format!("Pho\u{202E}ne\n{}", "x".repeat(500)),
+            53317,
+            Protocol::Https,
+        );
+        device.device_model = Some("Mo\u{202E}del\n".into());
+        device.fingerprint = "abc".into();
+        let event = event_device(&device);
+        let alias = event["alias"].as_str().unwrap();
+        assert!(alias.starts_with("Phonexxx"));
+        assert_eq!(alias.chars().count(), 128);
+        assert_eq!(event["deviceModel"], "Model");
+        assert_eq!(event["fingerprint"], "abc", "the identity must stay exact");
     }
 
     #[test]
