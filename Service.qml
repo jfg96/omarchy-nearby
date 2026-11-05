@@ -104,6 +104,10 @@ Item {
   property string transferName: ""
   property string transferPeer: ""
   property string activeIncomingSession: ""
+  // An event that arrives late from this session must not be taken for the
+  // next receive, whose session is not known until its first progress event.
+  property string lastEndedIncomingSession: ""
+  property var lastIncomingNotification: null
   property string outgoingTransferId: ""
   property var pendingOutgoing: null
   property string pinError: ""
@@ -131,6 +135,9 @@ Item {
   readonly property bool helperUpdateOffered: pluginVersion !== ""
     && (backendVersionMismatch || helperMissing)
   readonly property int maxOutgoingTextBytes: 1024 * 1024
+  // The helper refuses longer command lines; the margin covers the transfer id
+  // and a PIN, which are added to the command later.
+  readonly property int maxOutgoingCommandBytes: 2 * 1024 * 1024 - 1024
   // One line, and the only place the versions are stated. The hero shows the
   // short status and the panel shows this; saying it in both is what made the
   // popup repeat itself three times over four lines.
@@ -463,6 +470,10 @@ Item {
       failWith(strings.t("status.textTooLarge"))
       return
     }
+    if(utf8ByteLength(JSON.stringify(Model.outgoingCommand(pending, "", null)))>maxOutgoingCommandBytes) {
+      failWith(pending.kind==="text" ? strings.t("status.textTooLarge") : Model.failureText("offer_too_large", "", strings))
+      return
+    }
     pendingOutgoing=pending
     dispatchPendingOutgoing(null)
   }
@@ -493,6 +504,7 @@ Item {
     cursorRequested(incoming ? 1 : 0)
   }
   function finishIncoming(terminalState, message, completed) {
+    lastEndedIncomingSession = activeIncomingSession
     activeIncomingSession = ""
     if (pendingOutgoing) return
     resetProgressRate()
@@ -633,8 +645,10 @@ Item {
       incomingQueue=Model.enqueueIncoming(incomingQueue,event); if(!incomingTextPending)incomingText=""
       var incomingTakesView = viewState!=="sending" && viewState!=="receiving" && viewState!=="pin"
       if (incomingTakesView) { viewState="incoming"; cursorRequested(1) }
-      if (notificationNeeded(incomingTakesView && incoming && incoming.requestId===event.requestId))
+      if (notificationNeeded(incomingTakesView && incoming && incoming.requestId===event.requestId) && Model.notificationDue(lastIncomingNotification, Date.now())) {
+        lastIncomingNotification=Date.now()
         Quickshell.execDetached(Model.incomingNotificationCommand(event.requestId, ["--app-name","Nearby","--urgency","normal",strings.t("status.incomingTransfer"),strings.t("notify.incomingBody", [Model.notificationText(event.sender), Model.notificationText(Model.incomingSummary(event.files, strings))])]))
+      }
     }
     else if (event.event === "incoming_text") {
       if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
@@ -652,7 +666,7 @@ Item {
         else { viewState="error"; errorText=strings.t("status.requestExpired"); statusText=errorText }
       }
     }
-    else if (event.event === "incoming_progress") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(pendingOutgoing)return; viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0; noteProgress(event.bytes, event.total) }
+    else if (event.event === "incoming_progress") { if(String(event.sessionId)===lastEndedIncomingSession)return; if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(pendingOutgoing)return; viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0; noteProgress(event.bytes, event.total) }
     else if (event.event === "file_received") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(receivedSession!==activeIncomingSession){receivedSession=activeIncomingSession;receivedFileCount=0} receivedFileCount++; lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
     else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success",strings.t("status.received"),true); offerReceivedFile(String(event.sessionId)) }
     else if (event.event === "incoming_cancelled") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",strings.t("status.transferCancelled"),false) }
@@ -665,7 +679,7 @@ Item {
     else if (event.event === "outgoing_pin_required") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt("") }
     else if (event.event === "outgoing_invalid_pin") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt(strings.t("pin.incorrect")) }
     else if (event.event === "outgoing_failed") { if(event.transferId && String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", Model.failureText(event.code, event.message, strings), false) }
-    else if (event.event === "error") { viewState="error"; errorText=Model.failureText(event.code, event.message, strings); statusText=errorText }
+    else if (event.event === "error") { if(event.code==="command_too_long")clearPendingOutgoing(); viewState="error"; errorText=Model.failureText(event.code, event.message, strings); statusText=errorText }
   }
 
   Process {

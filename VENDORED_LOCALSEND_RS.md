@@ -583,6 +583,22 @@ Regression coverage cancels a 1 MiB upload from the receiver, requires one
 `SessionCancelled`, a prompt non-success response and no file left, and rejects
 a stale id and a second cancel. Upstream status: not submitted.
 
+### 20. Report no progress on a session that ended
+
+- Nearby change: `fix: harden receiving after the 1.2.10 review`.
+- Files: `src/server/handlers.rs` and `tests/conformance_upload.rs`.
+
+A writer learns that its session ended at its next chunk, up to the 120-second
+pause limit later, and then rolled back with a `FileReceiveProgress` event. That
+reached consumers after the terminal event, where Nearby could take it for the
+next transfer, which is unnamed until its first progress event. The progress
+context now holds the session marker from entry 10 and reports nothing once the
+session is gone.
+
+The receiver-cancel regression from entry 19 now also requires that no progress
+follows `SessionCancelled`; it failed before this change. Upstream status: not
+submitted.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the

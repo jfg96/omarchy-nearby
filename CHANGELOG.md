@@ -2,6 +2,24 @@
 
 ## 1.2.11-dev
 
+- Show the real total in an incoming request. A sender could declare sizes
+  whose sum wrapped around, so a huge transfer appeared as a small one.
+
+- Remove line breaks and direction marks from aliases and file names, and bound
+  aliases in the device list, so a name reads as what it is:
+  `invoice\u202Efdp.exe` could display as a PDF.
+
+- Fix a receive staying on screen forever when a late event from a cancelled
+  transfer arrived after the next one was accepted.
+
+- Refuse a send too large for one helper command, instead of leaving every
+  later send silently doing nothing until Nearby restarted.
+
+- Raise at most one incoming-request notification every few seconds, since a
+  device on the network could otherwise fill the notification history.
+
+- Remove partial files when Nearby is turned off during a receive.
+
 - Cancel a transfer while receiving it. Everything that transfer saved is
   deleted, including files that had already arrived and the folders it
   created; anything already there stays. Requires helper 1.2.9.

@@ -307,6 +307,7 @@ struct ReceiveProgressContext {
     events_tx: tokio::sync::mpsc::UnboundedSender<crate::server::events::ServerEvent>,
     received_bytes: Arc<AtomicU64>,
     last_emitted: Arc<std::sync::Mutex<Instant>>,
+    session_alive: std::sync::Weak<()>,
 }
 
 impl ReceiveProgressContext {
@@ -320,6 +321,13 @@ impl ReceiveProgressContext {
         self.emit(previous.saturating_add(amount).min(self.total_bytes));
     }
 
+    /// Whether the session can still be reported on. A writer learns that its
+    /// session ended only at its next chunk, long after the terminal event: a
+    /// consumer must not take such late progress for a newer transfer.
+    fn session_ended(&self) -> bool {
+        self.session_alive.strong_count() == 0
+    }
+
     fn rollback(&self, amount: u64) {
         let previous = self
             .received_bytes
@@ -327,6 +335,9 @@ impl ReceiveProgressContext {
                 Some(current.saturating_sub(amount))
             })
             .unwrap_or_else(|current| current);
+        if self.session_ended() {
+            return;
+        }
         let _ = self
             .events_tx
             .send(crate::server::events::ServerEvent::FileReceiveProgress {
@@ -341,6 +352,9 @@ impl ReceiveProgressContext {
     }
 
     fn emit(&self, bytes_received: u64) {
+        if self.session_ended() {
+            return;
+        }
         let mut last = self.last_emitted.lock().expect("progress clock poisoned");
         if bytes_received < self.total_bytes && last.elapsed() < Duration::from_millis(75) {
             return;
@@ -515,6 +529,7 @@ pub(crate) async fn handle_upload(
         last_emitted: Arc::new(std::sync::Mutex::new(
             Instant::now() - Duration::from_secs(1),
         )),
+        session_alive: session_alive.clone(),
     };
     let callback_progress = progress.clone();
     let file_reported = Arc::new(AtomicU64::new(0));

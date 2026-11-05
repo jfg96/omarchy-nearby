@@ -633,7 +633,7 @@ Panel {
             sourceSize.width:2*width; sourceSize.height:2*Style.space(200)
             fillMode:Image.PreserveAspectFit; asynchronous:true; cache:false; autoTransform:true
           }
-          Text { visible:root.receivedFile!==""; width:parent.width; textFormat:Text.PlainText; text:root.receivedFile.slice(root.receivedFile.lastIndexOf("/")+1); elide:Text.ElideMiddle; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Text { visible:root.receivedFile!==""; width:parent.width; textFormat:Text.PlainText; text:Model.plainName(root.receivedFile.slice(root.receivedFile.lastIndexOf("/")+1)); elide:Text.ElideMiddle; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Row { visible:root.receivedFile!==""; width:parent.width; spacing:Style.space(8)
             Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.copy"); iconText:"󰆏"; tooltipText:root.receivedIsImage?strings.t("clipboard.copyPicture"):strings.t("clipboard.copyFile"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.copyReceivedFile() }
             Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.done"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.finishTerminal() }

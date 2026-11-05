@@ -909,4 +909,7 @@ assert.match(source, /Button \{ visible:root\.viewState==="receiving"&&root\.inc
   "Cancel appears only while there is a session to cancel")
 assert.match(source, /readonly property bool incomingCancellable: engine \? engine\.activeIncomingSession !== "" : false/)
 
+assert.match(source, /text:Model\.plainName\(root\.receivedFile\.slice\(root\.receivedFile\.lastIndexOf\("\/"\)\+1\)\)/,
+  "a received name read from its path must not be able to reorder itself on screen")
+
 console.log("panel state tests passed")

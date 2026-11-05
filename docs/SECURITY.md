@@ -54,8 +54,19 @@ clipboard receives newly encoded pixels and never the file's own bytes or the
 metadata in them.
 
 Aliases, file names and other text from peers are shown as plain text in the
-panel. Desktop notifications start with fixed text and carry peer text escaped,
-so it is neither parsed as a notification option nor rendered as markup.
+panel. Aliases and file names also lose line breaks and direction marks, which
+could otherwise make a name read differently from what it is, and aliases are
+bounded. Desktop notifications start with fixed text and carry peer text
+escaped, so it is neither parsed as a notification option nor rendered as
+markup. Incoming-request notifications are spaced at least five seconds apart,
+because a peer can open and withdraw requests freely unless a PIN is set; the
+requests still appear in the panel. The total shown in a request cannot wrap
+around, so a sender cannot make a huge transfer look small.
+
+**Cancel** while receiving deletes what that transfer saved. Only regular files
+the receiver created for that session inside the save folder are removed, and
+folders only once empty; the receiver never replaces an existing file, so
+nothing else can be among them.
 
 ## Folder paths
 
