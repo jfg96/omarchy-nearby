@@ -444,6 +444,7 @@ Item {
   function reportFailure(summary, detail) { statusText=summary; errorText=detail }
   function failWith(message) { viewState="error"; errorText=message; statusText=errorText }
   function cancelOutgoing() { send({command:"cancel_outgoing",transfer_id:outgoingTransferId}) }
+  function cancelIncoming() { if(activeIncomingSession!=="")send({command:"cancel_incoming",session_id:activeIncomingSession}) }
   function noteTextCopied() { if (viewState !== "text") return; viewState="success"; transferWasOutgoing=false; statusText=strings.t("status.received") }
   function clearPendingOutgoing() { pendingOutgoing=null; outgoingTransferId=""; pinError=""; pinCleared() }
   function dispatchPendingOutgoing(pin) {

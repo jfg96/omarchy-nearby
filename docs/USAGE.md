@@ -34,9 +34,9 @@ name. Symlinks inside a selected folder are skipped. Empty directories are not
 represented by the protocol; a selection with no transferable files fails.
 
 Approve the transfer on the destination. Nearby displays progress and offers
-**Cancel** for outgoing transfers. After a couple of seconds, a line under the
-percentage shows the speed and the time left, averaged over the last few
-seconds; it does the same while receiving. Wait for completion before disconnecting.
+**Cancel**. After a couple of seconds, a line under the percentage shows the
+speed and the time left, averaged over the last few seconds; it does the same
+while receiving. Wait for completion before disconnecting.
 
 If the peer is missing, use **Rescan**. See
 [discovery troubleshooting](TROUBLESHOOTING.md#devices-do-not-appear).
@@ -44,10 +44,16 @@ If the peer is missing, use **Rescan**. See
 ## Receive
 
 Leave Nearby on, choose its device entry on the sender and send files or text.
-Use **Accept** or **Decline** for the incoming request. A text message goes
-through the same approval: its request shows up to four lines of the message,
-so you can see what you are accepting, while its notification only says that
-a message is waiting. Approval requests expire; ask the sender to retry if
+Use **Accept** or **Decline** for the incoming request. **Cancel** stops an
+accepted transfer while it runs and leaves the folder as it was: everything
+that transfer saved is deleted, including files that had already arrived and
+folders it created, while anything that was already there stays. The sender
+still has the originals, so nothing is lost; ask them to send again if needed.
+If the sender cancels or the connection drops, finished files stay.
+
+A text message goes through the same approval: its request shows up to four
+lines of the message, so you can see what you are accepting, while its
+notification only says that a message is waiting. Approval requests expire; ask the sender to retry if
 the request has expired.
 
 Files go to your configured Downloads directory unless you

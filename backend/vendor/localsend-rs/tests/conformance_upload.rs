@@ -485,6 +485,70 @@ async fn cancel_stops_an_upload_in_progress() {
     );
 }
 
+/// The receiving side can end a session it accepted: the upload stops at its
+/// next chunk, exactly as when the sender cancels, and only that session is
+/// affected.
+#[tokio::test]
+async fn receiver_cancel_stops_an_upload_in_progress() {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::time::{Duration, timeout};
+
+    let save = tempfile::tempdir().unwrap();
+    let (server, mut events, port) = auto_accept_server(save.path()).await;
+    let (session_id, tokens) = prepare_files(port, &[("f1", "a.bin", 1_048_576)]).await;
+    let token = &tokens["f1"];
+
+    let mut socket = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .unwrap();
+    let headers = format!(
+        "POST /api/localsend/v2/upload?sessionId={session_id}&fileId=f1&token={token} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: 1048576\r\nConnection: close\r\n\r\n"
+    );
+    socket.write_all(headers.as_bytes()).await.unwrap();
+    socket.write_all(b"abc").await.unwrap();
+    timeout(Duration::from_secs(5), events.recv())
+        .await
+        .expect("upload must start writing")
+        .unwrap();
+
+    assert!(
+        !server.cancel_session("another-session").await,
+        "a stale id must not end the current session"
+    );
+    assert!(server.cancel_session(&session_id).await);
+    assert!(
+        !server.cancel_session(&session_id).await,
+        "a session ends only once"
+    );
+
+    let cancelled = timeout(Duration::from_secs(5), async {
+        loop {
+            match events.recv().await {
+                Some(ServerEvent::SessionCancelled { session_id }) => break Some(session_id),
+                Some(_) => {}
+                None => break None,
+            }
+        }
+    })
+    .await
+    .expect("cancelling must be reported")
+    .unwrap();
+    assert_eq!(cancelled.as_str(), session_id);
+
+    socket.write_all(b"d").await.unwrap();
+    let mut response = BufReader::new(socket);
+    let mut status_line = String::new();
+    timeout(Duration::from_secs(5), response.read_line(&mut status_line))
+        .await
+        .expect("a cancelled upload must stop before EOF")
+        .unwrap();
+    assert!(!status_line.starts_with("HTTP/1.1 200"), "{status_line:?}");
+    assert!(
+        saved_names(save.path()).is_empty(),
+        "neither the final file nor a .part may remain"
+    );
+}
+
 #[tokio::test]
 async fn nested_uploads_cannot_follow_existing_or_late_parent_symlinks() {
     let save = tempfile::tempdir().unwrap();

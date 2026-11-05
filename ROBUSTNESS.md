@@ -794,6 +794,15 @@ complete until those versions and results are written down.
     from a peer, open the popup on the request and press Enter: nothing must
     happen. Press an arrow key, then Enter on Accept: the transfer must start.
 
+33. Accept a large file from a peer and press **Cancel** partway: the panel must
+    report the transfer cancelled, the peer must report a failure, and neither
+    the file nor a `.part` may remain. Repeat with several files and with a
+    folder, cancelling after some have arrived: everything from that transfer
+    must go, including its folders, while a file already in the save folder and
+    a folder that already held something stay. Have the peer cancel instead:
+    finished files must stay. Send again straight away: the new request must be
+    offered normally.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -830,6 +839,7 @@ Copy this template for each validation session. Leave unexecuted cases marked
 | 30: message preview and off-state hint | Omarchy + peer | Not run | |
 | 31: translated transfer errors | Omarchy + peer | Not run | |
 | 32: keyboard activation needs a visible cursor | Omarchy + peer | Not run | |
+| 33: cancel while receiving | Omarchy + peer | Not run | |
 
 For failures, identify the exact scenario and attach redacted logs or a
 reproduction. Split grouped rows whenever individual outcomes differ.
@@ -1148,3 +1158,25 @@ from this source arrived intact (matching SHA256) with the speed and time-left
 line shown (scenario 29), and an incoming text request showed its message
 before acceptance (part of scenario 30). Scenarios 31 and 32, and transfers
 with a real phone on this exact helper, remain **Not run**.
+
+## Receiver cancel development check — 2026-11-05
+
+Plugin `1.2.11-dev` offers **Cancel** while receiving. The vendor gains
+`LocalSendServer::cancel_session`, shared with the sender's `/cancel`, and the
+helper a `cancel_incoming` command naming the session, so a stale command cannot
+end a newer transfer. The existing `incoming_cancelled` event finishes the
+view. Cancel appears with the first progress event, when the session is known.
+The helper advances to 1.2.9 with `minHelperVersion`, because an older helper
+rejects the command; `helper-release.env` still selects helper-v1.2.8, so this
+commit reports its helper as out of date until 1.2.9 is published and selected.
+
+Cancelling from the panel leaves the folder as it was: `backend/src/received.rs`
+records each session's saved files and folders and removes them on
+`SessionCancelled`, only for a session this command cancelled. It touches only
+regular files the receiver created inside the save folder, and removes folders
+only once empty. A cancel from the sender keeps finished files.
+
+The new vendor, helper, service and panel cases failed against the previous
+code and pass now. The cleanup is unit-tested on real folders; its wiring to the
+event loop has no automated test, so scenario 33 with a real peer must cover it
+and remains **Not run**.

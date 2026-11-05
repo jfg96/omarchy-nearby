@@ -66,6 +66,7 @@ disable a developer override.
 | [backend/src/main.rs](backend/src/main.rs) | Network integration and JSON command/event loop |
 | [backend/src/settings.rs](backend/src/settings.rs) | Persistent receiver security settings |
 | [backend/src/identity.rs](backend/src/identity.rs) | Persistent TLS identity validation |
+| [backend/src/received.rs](backend/src/received.rs) | Undo what a receive cancelled by the user saved |
 | [bin/nearby-helper-launcher](bin/nearby-helper-launcher) | Verify, cache and start the selected helper |
 | [bin/nearby-repair-helper](bin/nearby-repair-helper) | Prefetch-based helper repair |
 | [bin/nearby-copy-file](bin/nearby-copy-file) | Copy one received file to the clipboard |
