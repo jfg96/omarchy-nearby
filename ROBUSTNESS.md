@@ -1218,3 +1218,30 @@ the unfiltered names and the partial file were found by reading it.
 The new cases failed against the previous code where a test could reach it. The
 partial-file removal at shutdown reuses a tested function, but the call itself
 has no automated test. Scenario 34 remains **Not run**.
+
+## Helper 1.2.9 and release check — v1.2.11, 2026-11-05
+
+Helper-v1.2.9 was tagged on `main` at `088d5a9` after CI passed there. Helper
+release run 42014233712 built, tested and attested both executables and
+published them with their checksums and the license page as a prerelease.
+Both published executables were downloaded independently: each matched its
+checksum file and the 32 MiB bound, had the expected ELF architecture and
+passed `gh attestation verify` against the repository, the helper release
+workflow, source digest `088d5a9` and `refs/tags/helper-v1.2.9`, with
+self-hosted runners denied. The x86_64 executable reports
+`omarchy-nearby-helper 1.2.9`; the aarch64 version was checked natively by the
+release workflow and is checked again by Verify release.
+
+Plugin `1.2.11` selects those exact values. `backend/` is identical to the
+helper source commit, and the Cargo package, `minHelperVersion` and selected
+helper are all 1.2.9. With the new metadata the launcher downloaded the
+published x86_64 helper into an isolated XDG data directory, verified it and
+ran it. The complete supported suite passed on the release tree: four Node
+suites (50/50 catalogues, 173 keys), five Bash suites, `cargo fmt --check`,
+`cargo check`, `cargo clippy -D warnings`, 104 helper tests and the vendored
+`localsend-rs` HTTPS suite (152 passed, one upstream test ignored), plus the
+plugin validator and `git diff --check`.
+
+The maintainer tried Cancel from a phone on a local build of #57 and reported
+it working, without recording which cases of scenario 33. Scenarios 31 and 34,
+and transfers with a real phone on this exact helper, remain **Not run**.
