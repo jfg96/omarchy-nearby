@@ -121,6 +121,15 @@ impl LocalSendServer {
         Ok(())
     }
 
+    /// End the current receive session on the receiver's own decision, as a
+    /// sender's `/cancel` does. Returns whether `session_id` was current.
+    pub async fn cancel_session(&self, session_id: &str) -> bool {
+        match &self.state {
+            Some(state) => super::handlers::cancel_session(state, session_id).await,
+            None => false,
+        }
+    }
+
     #[cfg(feature = "https")]
     pub fn set_tls_certificate(&mut self, cert: crate::crypto::TlsCertificate) {
         self.tls_cert = Some(cert);

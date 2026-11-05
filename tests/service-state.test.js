@@ -55,7 +55,7 @@ assert.match(source, /Model\.helperSatisfies\(requiredHelperVersion, helperVersi
   "the helper is checked against the floor the manifest declares, not against an exact version")
 
 function extractFunction(name) {
-  const marker = `function ${name}`
+  const marker = `function ${name}(`
   const start = source.indexOf(marker)
   assert.notEqual(start, -1, `Service.qml must define ${name}`)
   const brace = source.indexOf("{", start)
@@ -152,7 +152,7 @@ const functionNames = [
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
-  "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "showIncomingRequest", "noteProgress", "resetProgressRate",
+  "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "cancelIncoming", "showIncomingRequest", "noteProgress", "resetProgressRate",
   "finishIncoming", "finishOutgoing", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "previewReceivedFile", "previewMade", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
@@ -1855,6 +1855,26 @@ for (const busy of [
   const state = engine({viewState: "incoming_pin_edit", incomingPinUpdating: true, pendingIncomingPinEnabled: true})
   state.handleEvent({event: "incoming_pin_update_failed", code: "pin_update_failed", message: "Unable to update incoming PIN"})
   assert.equal(state.incomingPinError, "Unable to update incoming PIN")
+}
+
+// The receiver can stop a transfer it accepted. The command names the session
+// on screen, and the helper's incoming_cancelled finishes it like a cancel from
+// the sender.
+{
+  const state = engine({viewState: "receiving", activeIncomingSession: "rx"})
+  state.cancelIncoming()
+  assert.deepEqual(JSON.parse(JSON.stringify(state.sent)), [{command: "cancel_incoming", session_id: "rx"}])
+  assert.equal(state.viewState, "receiving", "the view changes when the helper confirms")
+  state.handleEvent({event: "incoming_cancelled", sessionId: "rx"})
+  assert.equal(state.viewState, "error")
+  assert.equal(state.errorText, "Transfer cancelled")
+  assert.equal(state.activeIncomingSession, "")
+}
+{
+  // Before its first progress event a receive has no session to name.
+  const state = engine({viewState: "receiving", activeIncomingSession: ""})
+  state.cancelIncoming()
+  assert.equal(state.sent.length, 0)
 }
 
 console.log("service state tests passed")

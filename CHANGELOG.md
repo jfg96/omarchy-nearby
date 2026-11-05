@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.11-dev
+
+- Cancel a transfer while receiving it. The file in progress is discarded and
+  files that had already arrived are kept. Requires helper 1.2.9.
+
 ## 1.2.10
 
 - Require rustls 0.23.46 in the helper (GHSA-c8m5-c952-6cm4,

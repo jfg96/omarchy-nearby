@@ -162,7 +162,7 @@ function extractFunction(name) {
 const functionNames = [
   "syncOpenState", "toggleReceiver", "startDiscovery", "forceFullDiscovery",
   "chooseDevice", "acceptIncoming", "declineIncoming", "finishText", "finishTerminal",
-  "cancelOutgoing", "cancelPin", "retryWithPin", "failWith", "noteTextCopied", "beginOutgoing",
+  "cancelOutgoing", "cancelIncoming", "cancelPin", "retryWithPin", "failWith", "noteTextCopied", "beginOutgoing",
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "clearSecretInputs",
@@ -187,6 +187,7 @@ function stubEngine() {
     finishText: record("finishText"),
     finishTerminal: record("finishTerminal"),
     cancelOutgoing: record("cancelOutgoing"),
+    cancelIncoming: record("cancelIncoming"),
     cancelPin: record("cancelPin"),
     retryWithPin: record("retryWithPin"),
     openIncomingPinSettings: record("openIncomingPinSettings"),
@@ -896,5 +897,16 @@ assert.match(source, /readonly property string incomingMessage: root\.incoming \
       cursorActive ? "a visible cursor is activated by Enter or Space" : "a hidden cursor must not be activated")
   }
 }
+
+// A receive offers Cancel once its session is known, and the keyboard reaches
+// it the way it reaches Cancel while sending.
+{
+  const state = panel({viewState: "receiving", cursorActive: true})
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "cancelIncoming")
+}
+assert.match(source, /Button \{ visible:root\.viewState==="receiving"&&root\.incomingCancellable; text:strings\.t\("action\.cancel"\)[^\n]*onClicked:root\.cancelIncoming\(\) \}/,
+  "Cancel appears only while there is a session to cancel")
+assert.match(source, /readonly property bool incomingCancellable: engine \? engine\.activeIncomingSession !== "" : false/)
 
 console.log("panel state tests passed")

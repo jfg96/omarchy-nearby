@@ -48,6 +48,8 @@ Panel {
   readonly property string incomingMessage: root.incoming ? Model.incomingMessage(root.incoming.files) : ""
   readonly property string incomingText: engine ? engine.incomingText : ""
   readonly property real progress: engine ? engine.progress : 0
+  // A receive has no session to name until its first progress event.
+  readonly property bool incomingCancellable: engine ? engine.activeIncomingSession !== "" : false
   readonly property string progressDetail: engine ? engine.progressDetail : ""
   readonly property string saveDirectory: engine ? engine.saveDirectory : ""
   readonly property string downloadDir: engine ? engine.downloadDir : ""
@@ -159,6 +161,7 @@ Panel {
   function finishText() { if (engine) engine.finishText() }
   function finishTerminal() { if (engine) engine.finishTerminal() }
   function cancelOutgoing() { if (engine) engine.cancelOutgoing() }
+  function cancelIncoming() { if (engine) engine.cancelIncoming() }
   function cancelPin() { if (engine) engine.cancelPin() }
   function retryWithPin() { if (engine) engine.retryWithPin(String(pinInput.text || "")) }
   function openIncomingPinSettings() { if (engine) engine.openIncomingPinSettings() }
@@ -268,6 +271,7 @@ Panel {
     else if (viewState === "incoming_pin_settings") incomingPinEnabled ? (selectedIndex===0?beginIncomingPinEdit():(selectedIndex===1?requestDisableIncomingPin():goBack())) : (selectedIndex===0?beginIncomingPinEdit():goBack())
     else if (viewState === "incoming_pin_disable") selectedIndex===0 ? cancelIncomingPinSettings() : confirmDisableIncomingPin()
     else if (viewState === "sending") cancelOutgoing()
+    else if (viewState === "receiving") cancelIncoming()
     else if (viewState === "success" && receivedFile !== "" && selectedIndex === 0) copyReceivedFile()
     else if (viewState === "success" || viewState === "error") finishTerminal()
   }
@@ -611,6 +615,7 @@ Panel {
           Text { textFormat:Text.PlainText; text:strings.t(root.viewState==="sending"?"transfer.progressTo":"transfer.progressFrom", [strings.number(Math.round(root.progress*100)), root.transferPeer]); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Text { visible:root.progressDetail!==""; textFormat:Text.PlainText; text:root.progressDetail; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Button { visible:root.viewState==="sending"; text:strings.t("action.cancel"); bordered:true; foreground:root.urgent; hasCursor:root.cursorActive; onClicked:root.cancelOutgoing() }
+          Button { visible:root.viewState==="receiving"&&root.incomingCancellable; text:strings.t("action.cancel"); bordered:true; foreground:root.urgent; hasCursor:root.cursorActive; onClicked:root.cancelIncoming() }
         }
 
         Column {

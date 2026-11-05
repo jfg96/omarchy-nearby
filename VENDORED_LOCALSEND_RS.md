@@ -558,6 +558,28 @@ transfers, client authentication and fingerprint rejection. Upstream status:
 fixed in rustls 0.23.46; this entry records the local dependency floor and
 lockfile update, not a locally implemented TLS patch.
 
+### 19. Let the receiver cancel its current session
+
+- Nearby change: `feat: cancel an incoming transfer`.
+- Files: `src/server/server.rs`, `src/server/handlers.rs` and
+  `tests/conformance_upload.rs`.
+- Public API: `LocalSendServer::cancel_session(&self, session_id) -> bool`.
+
+Only the sender could end an accepted session, through `/cancel`. A receiver
+that accepted a transfer by mistake could stop it only by shutting down. The
+`/cancel` handler's body is now `cancel_session`, shared with the new public
+method: it removes the session only if it is the one named and reports
+`SessionCancelled`, so a stale id cannot end a newer transfer. Removing the
+session stops the upload writer at its next chunk through the marker from
+entry 10, which discards the partial file. Files already published stay, and
+the sender's upload ends with a non-success response, as after a sender cancel.
+An upload that is silent when cancelled keeps its partial file until the next
+chunk or the 120-second upload pause limit.
+
+Regression coverage cancels a 1 MiB upload from the receiver, requires one
+`SessionCancelled`, a prompt non-success response and no file left, and rejects
+a stale id and a second cancel. Upstream status: not submitted.
+
 ## Nearby behavior outside the vendor
 
 The LocalSend 1.18 client-certificate compatibility hotfix is not one of the

@@ -708,19 +708,26 @@ pub(crate) async fn handle_cancel(
     State(state_ref): State<Arc<RwLock<ServerState>>>,
     Query(params): Query<CancelParams>,
 ) -> Response {
-    let mut state = state_ref.write().await;
-
-    if let Some(session) = &state.current_session
-        && session.id.as_str() == params.session_id.as_str()
-    {
-        let _ = state
-            .events_tx
-            .send(crate::server::events::ServerEvent::SessionCancelled {
-                session_id: params.session_id.clone(),
-            });
-        state.current_session = None;
-        tracing::info!("Session {} cancelled", params.session_id);
-    }
-
+    cancel_session(&state_ref, params.session_id.as_str()).await;
     StatusCode::OK.into_response()
+}
+
+/// End the current session if it is `session_id`, for whichever side asked.
+/// Dropping the session stops any upload writer at its next chunk, which then
+/// discards its partial file.
+pub(crate) async fn cancel_session(state_ref: &Arc<RwLock<ServerState>>, session_id: &str) -> bool {
+    let mut state = state_ref.write().await;
+    let Some(session) = state
+        .current_session
+        .take_if(|session| session.id.as_str() == session_id)
+    else {
+        return false;
+    };
+    let _ = state
+        .events_tx
+        .send(crate::server::events::ServerEvent::SessionCancelled {
+            session_id: session.id.clone(),
+        });
+    tracing::info!("Session {} cancelled", session_id);
+    true
 }

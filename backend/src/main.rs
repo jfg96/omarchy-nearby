@@ -175,6 +175,9 @@ enum Command {
     CancelOutgoing {
         transfer_id: String,
     },
+    CancelIncoming {
+        session_id: String,
+    },
     SetIncomingPin {
         pin: String,
     },
@@ -1423,6 +1426,7 @@ async fn main() -> Result<()> {
                         });
                     }
                     Command::CancelOutgoing { transfer_id } => if outgoing.as_ref().is_some_and(|o|o.id==transfer_id) && let Some(control)=outgoing.take(){let _=control.cancel.send(());},
+                    Command::CancelIncoming { session_id } => { server.cancel_session(&session_id).await; },
                     Command::SetIncomingPin { pin } => {
                         match update_incoming_pin(&mut server,&settings_path,&mut receiver_settings,Some(pin)).await {
                             Ok(())=>emit(json!({"event":"incoming_pin_state","enabled":true})),
@@ -2382,6 +2386,15 @@ mod tests {
     fn pin_failure_distinguishes_missing_and_invalid_values() {
         assert_eq!(pin_failure_outcome(false), SendPayloadOutcome::PinRequired);
         assert_eq!(pin_failure_outcome(true), SendPayloadOutcome::InvalidPin);
+    }
+
+    #[test]
+    fn incoming_cancel_command_names_its_session() {
+        let raw = r#"{"command":"cancel_incoming","session_id":"rx-1"}"#;
+        assert!(matches!(
+            serde_json::from_str::<Command>(raw).unwrap(),
+            Command::CancelIncoming { session_id } if session_id == "rx-1"
+        ));
     }
 
     #[test]

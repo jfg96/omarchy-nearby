@@ -34,9 +34,9 @@ name. Symlinks inside a selected folder are skipped. Empty directories are not
 represented by the protocol; a selection with no transferable files fails.
 
 Approve the transfer on the destination. Nearby displays progress and offers
-**Cancel** for outgoing transfers. After a couple of seconds, a line under the
-percentage shows the speed and the time left, averaged over the last few
-seconds; it does the same while receiving. Wait for completion before disconnecting.
+**Cancel**. After a couple of seconds, a line under the percentage shows the
+speed and the time left, averaged over the last few seconds; it does the same
+while receiving. Wait for completion before disconnecting.
 
 If the peer is missing, use **Rescan**. See
 [discovery troubleshooting](TROUBLESHOOTING.md#devices-do-not-appear).
@@ -44,7 +44,9 @@ If the peer is missing, use **Rescan**. See
 ## Receive
 
 Leave Nearby on, choose its device entry on the sender and send files or text.
-Use **Accept** or **Decline** for the incoming request. A text message goes
+Use **Accept** or **Decline** for the incoming request. **Cancel** stops an
+accepted transfer while it runs: the file in progress is discarded, and files
+that had already arrived are kept. A text message goes
 through the same approval: its request shows up to four lines of the message,
 so you can see what you are accepting, while its notification only says that
 a message is waiting. Approval requests expire; ask the sender to retry if
