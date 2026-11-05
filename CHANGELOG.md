@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.11-dev
+## 1.2.11
 
 - Show the real total in an incoming request. A sender could declare sizes
   whose sum wrapped around, so a huge transfer appeared as a small one.
