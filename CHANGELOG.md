@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.12-dev
+
+- Read Nearby settings from every Omarchy bar section, including `centerBegin`,
+  `centerEnd` and `tray`, so the receiver follows its saved state after an upgrade.
+
 ## 1.2.11
 
 - Show the real total in an incoming request. A sender could declare sizes
