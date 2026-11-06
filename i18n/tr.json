@@ -145,6 +145,7 @@
   "status.received": "Alındı",
   "status.sent": "Gönderildi",
   "status.transferFailed": "Aktarım başarısız",
+  "status.settingNotSaved": "Bu ayar kaydedilemedi. shell.json dosyasında Nearby girdisini %1 olarak değiştirin.",
   "failure.rateLimited": "Çok fazla hatalı PIN denemesi",
   "failure.offerTooLarge": "Çok fazla dosya veya uzun ad: teklif 2 MiB'yi aşıyor",
   "failure.tooManyFiles": "Aktarım 10.000 dosyayı aşıyor",

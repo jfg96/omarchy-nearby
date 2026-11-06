@@ -145,6 +145,7 @@
   "status.received": "Faighte",
   "status.sent": "Seolta",
   "status.transferFailed": "Theip ar an aistriú",
+  "status.settingNotSaved": "Níorbh fhéidir an socrú seo a shábháil. In shell.json, athraigh iontráil Nearby go %1.",
   "failure.rateLimited": "An iomarca iarrachtaí PIN míchearta",
   "failure.offerTooLarge": "An iomarca comhad nó ainmneacha fada: tá an tairiscint os cionn 2 MiB",
   "failure.tooManyFiles": "Tá an t-aistriú os cionn 10,000 comhad",

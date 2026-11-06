@@ -145,6 +145,7 @@
   "status.received": "Imepokewa",
   "status.sent": "Imetumwa",
   "status.transferFailed": "Uhamisho umeshindwa",
+  "status.settingNotSaved": "Imeshindwa kuhifadhi mpangilio huu. Katika shell.json, badilisha ingizo la Nearby kuwa %1.",
   "failure.rateLimited": "Majaribio mengi mno ya PIN yasiyo sahihi",
   "failure.offerTooLarge": "Faili nyingi mno au majina marefu: ofa inazidi 2 MiB",
   "failure.tooManyFiles": "Uhamishaji unazidi faili 10,000",

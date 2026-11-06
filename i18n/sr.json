@@ -145,6 +145,7 @@
   "status.received": "Примљено",
   "status.sent": "Послато",
   "status.transferFailed": "Пренос није успео",
+  "status.settingNotSaved": "Ово подешавање није могло да се сачува. У shell.json промените унос за Nearby у %1.",
   "failure.rateLimited": "Превише нетачних покушаја PIN-а",
   "failure.offerTooLarge": "Превише датотека или дугих назива: понуда премашује 2 MiB",
   "failure.tooManyFiles": "Пренос премашује 10.000 датотека",

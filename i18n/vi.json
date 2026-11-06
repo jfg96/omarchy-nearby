@@ -145,6 +145,7 @@
   "status.received": "Đã nhận",
   "status.sent": "Đã gửi",
   "status.transferFailed": "Truyền thất bại",
+  "status.settingNotSaved": "Không thể lưu cài đặt này. Trong shell.json, hãy đổi mục của Nearby thành %1.",
   "failure.rateLimited": "Nhập sai PIN quá nhiều lần",
   "failure.offerTooLarge": "Quá nhiều tệp hoặc tên quá dài: yêu cầu gửi vượt quá 2 MiB",
   "failure.tooManyFiles": "Lượt truyền vượt quá 10.000 tệp",

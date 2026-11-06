@@ -145,6 +145,7 @@
   "status.received": "பெறப்பட்டது",
   "status.sent": "அனுப்பப்பட்டது",
   "status.transferFailed": "பரிமாற்றம் தோல்வி",
+  "status.settingNotSaved": "இந்த அமைப்பைச் சேமிக்க முடியவில்லை. shell.json இல் Nearby உள்ளீட்டை %1 என மாற்றவும்.",
   "failure.rateLimited": "தவறான PIN முயற்சிகள் அதிகம்",
   "failure.offerTooLarge": "அதிகக் கோப்புகள் அல்லது நீண்ட பெயர்கள்: சலுகை 2 MiB-ஐ மீறுகிறது",
   "failure.tooManyFiles": "பரிமாற்றம் 10,000 கோப்புகளை மீறுகிறது",

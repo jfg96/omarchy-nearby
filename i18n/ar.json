@@ -145,6 +145,7 @@
   "status.received": "استُلم",
   "status.sent": "أُرسل",
   "status.transferFailed": "فشل النقل",
+  "status.settingNotSaved": "تعذّر حفظ هذا الإعداد. في shell.json، غيّر إدخال Nearby إلى %1.",
   "failure.rateLimited": "محاولات PIN خاطئة كثيرة جدًا",
   "failure.offerTooLarge": "ملفات كثيرة جدًا أو أسماء طويلة: يتجاوز العرض 2 MiB",
   "failure.tooManyFiles": "يتجاوز النقل 10,000 ملف",

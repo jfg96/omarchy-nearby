@@ -145,6 +145,7 @@
   "status.received": "Получено",
   "status.sent": "Изпратено",
   "status.transferFailed": "Неуспешно прехвърляне",
+  "status.settingNotSaved": "Настройката не можа да се запази. В shell.json променете записа на Nearby на %1.",
   "failure.rateLimited": "Твърде много грешни опити за PIN",
   "failure.offerTooLarge": "Твърде много файлове или дълги имена: предложението надхвърля 2 MiB",
   "failure.tooManyFiles": "Прехвърлянето надхвърля 10 000 файла",

@@ -145,6 +145,7 @@
   "status.received": "התקבל",
   "status.sent": "נשלח",
   "status.transferFailed": "ההעברה נכשלה",
+  "status.settingNotSaved": "לא ניתן לשמור את ההגדרה. ב-shell.json, שנו את הרשומה של Nearby ל-%1.",
   "failure.rateLimited": "יותר מדי ניסיונות PIN שגויים",
   "failure.offerTooLarge": "יותר מדי קבצים או שמות ארוכים: ההצעה חורגת מ-2 MiB",
   "failure.tooManyFiles": "ההעברה חורגת מ-10,000 קבצים",

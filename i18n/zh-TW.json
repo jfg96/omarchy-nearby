@@ -145,6 +145,7 @@
   "status.received": "已接收",
   "status.sent": "已傳送",
   "status.transferFailed": "傳輸失敗",
+  "status.settingNotSaved": "無法儲存此設定。請在 shell.json 中將 Nearby 的項目改為 %1。",
   "failure.rateLimited": "PIN 錯誤次數過多",
   "failure.offerTooLarge": "檔案過多或名稱過長：傳送請求超過 2 MiB",
   "failure.tooManyFiles": "傳輸超過 10,000 個檔案",

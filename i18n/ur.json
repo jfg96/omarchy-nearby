@@ -145,6 +145,7 @@
   "status.received": "وصول ہو گیا",
   "status.sent": "بھیج دیا گیا",
   "status.transferFailed": "منتقلی ناکام",
+  "status.settingNotSaved": "یہ ترتیب محفوظ نہیں ہو سکی۔ shell.json میں Nearby کا اندراج بدل کر %1 کریں۔",
   "failure.rateLimited": "غلط PIN کی بہت زیادہ کوششیں",
   "failure.offerTooLarge": "بہت زیادہ فائلیں یا لمبے نام: پیشکش 2 MiB سے زیادہ ہے",
   "failure.tooManyFiles": "منتقلی 10,000 فائلوں سے زیادہ ہے",
