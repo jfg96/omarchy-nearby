@@ -145,6 +145,7 @@
   "status.received": "Vastaanotettu",
   "status.sent": "Lähetetty",
   "status.transferFailed": "Siirto epäonnistui",
+  "status.settingNotSaved": "Asetusta ei voitu tallentaa. Muuta Nearbyn merkintä tiedostossa shell.json muotoon %1.",
   "failure.rateLimited": "Liian monta väärää PIN-yritystä",
   "failure.offerTooLarge": "Liian monta tiedostoa tai pitkiä nimiä: tarjous ylittää 2 MiB",
   "failure.tooManyFiles": "Siirto ylittää 10 000 tiedostoa",

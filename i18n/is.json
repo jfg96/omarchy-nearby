@@ -145,6 +145,7 @@
   "status.received": "Móttekið",
   "status.sent": "Sent",
   "status.transferFailed": "Flutningur mistókst",
+  "status.settingNotSaved": "Ekki tókst að vista þessa stillingu. Breyttu færslu Nearby í shell.json í %1.",
   "failure.rateLimited": "Of margar rangar PIN-tilraunir",
   "failure.offerTooLarge": "Of margar skrár eða löng nöfn: boðið er yfir 2 MiB",
   "failure.tooManyFiles": "Flutningurinn er yfir 10.000 skrár",

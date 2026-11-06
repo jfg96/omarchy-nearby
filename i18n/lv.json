@@ -145,6 +145,7 @@
   "status.received": "Saņemts",
   "status.sent": "Nosūtīts",
   "status.transferFailed": "Pārsūtīšana neizdevās",
+  "status.settingNotSaved": "Šo iestatījumu neizdevās saglabāt. Failā shell.json mainiet Nearby ierakstu uz %1.",
   "failure.rateLimited": "Pārāk daudz nepareizu PIN mēģinājumu",
   "failure.offerTooLarge": "Pārāk daudz failu vai garu nosaukumu: piedāvājums pārsniedz 2 MiB",
   "failure.tooManyFiles": "Pārsūtīšana pārsniedz 10 000 failu",

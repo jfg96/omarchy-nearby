@@ -145,6 +145,7 @@
   "status.received": "Primljeno",
   "status.sent": "Poslano",
   "status.transferFailed": "Prijenos nije uspio",
+  "status.settingNotSaved": "Postavku nije moguće spremiti. U shell.json promijenite unos za Nearby u %1.",
   "failure.rateLimited": "Previše netočnih pokušaja PIN-a",
   "failure.offerTooLarge": "Previše datoteka ili dugih naziva: ponuda premašuje 2 MiB",
   "failure.tooManyFiles": "Prijenos premašuje 10.000 datoteka",

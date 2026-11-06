@@ -145,6 +145,7 @@
   "status.received": "Rebut",
   "status.sent": "Enviat",
   "status.transferFailed": "La transferència ha fallat",
+  "status.settingNotSaved": "No s'ha pogut desar aquest ajust. A shell.json, canvia l'entrada de Nearby per %1.",
   "failure.rateLimited": "Massa intents de PIN incorrectes",
   "failure.offerTooLarge": "Massa fitxers o noms llargs: l'oferta supera 2 MiB",
   "failure.tooManyFiles": "La transferència supera els 10.000 fitxers",

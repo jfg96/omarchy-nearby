@@ -145,6 +145,7 @@
   "status.received": "دریافت شد",
   "status.sent": "ارسال شد",
   "status.transferFailed": "انتقال ناموفق بود",
+  "status.settingNotSaved": "این تنظیم ذخیره نشد. در shell.json، ورودی Nearby را به %1 تغییر دهید.",
   "failure.rateLimited": "تلاش‌های نادرست PIN بیش از حد است",
   "failure.offerTooLarge": "فایل‌ها یا نام‌های طولانی بیش از حد: پیشنهاد از 2 MiB بیشتر است",
   "failure.tooManyFiles": "انتقال از 10,000 فایل بیشتر است",

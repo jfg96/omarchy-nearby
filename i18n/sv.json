@@ -145,6 +145,7 @@
   "status.received": "Mottaget",
   "status.sent": "Skickat",
   "status.transferFailed": "Överföringen misslyckades",
+  "status.settingNotSaved": "Inställningen kunde inte sparas. Ändra Nearbys post i shell.json till %1.",
   "failure.rateLimited": "För många felaktiga PIN-försök",
   "failure.offerTooLarge": "För många filer eller långa namn: erbjudandet överstiger 2 MiB",
   "failure.tooManyFiles": "Överföringen överstiger 10 000 filer",

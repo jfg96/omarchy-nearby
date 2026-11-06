@@ -145,6 +145,7 @@
   "status.received": "受信しました",
   "status.sent": "送信しました",
   "status.transferFailed": "転送に失敗しました",
+  "status.settingNotSaved": "この設定を保存できませんでした。shell.json の Nearby の項目を %1 に変更してください。",
   "failure.rateLimited": "PIN の入力ミスが多すぎます",
   "failure.offerTooLarge": "ファイルが多すぎるか名前が長すぎます: 送信内容が 2 MiB を超えています",
   "failure.tooManyFiles": "転送が 10,000 ファイルを超えています",

@@ -144,6 +144,7 @@
   "status.received": "Received",
   "status.sent": "Sent",
   "status.transferFailed": "Transfer failed",
+  "status.settingNotSaved": "Could not save this setting. In shell.json, change Nearby's entry to %1.",
   "failure.rateLimited": "Too many incorrect PIN attempts",
   "failure.offerTooLarge": "Too many files or long names: the offer exceeds 2 MiB",
   "failure.tooManyFiles": "The transfer exceeds 10,000 files",

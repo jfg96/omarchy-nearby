@@ -296,14 +296,14 @@ Panel {
     id: nearbyPhraseSwap
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 0.0; duration: 180; easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(120); easing.type: Easing.OutCubic
     }
     ScriptAction {
       script: root.nearbyPhraseIndex = (root.nearbyPhraseIndex + 1) % root.nearbyPhrases.length
     }
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 1.0; duration: 260; easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(180); easing.type: Easing.OutCubic
     }
   }
 
@@ -425,6 +425,7 @@ Panel {
       // another window must not turn Nearby off or accept a transfer.
       onActivateRequested: if (root.cursorActive) root.activateCursor()
       onCloseRequested: root.goBack()
+      onTabRequested: function(direction) { root.switchPanel(direction) }
       Column {
         id: content; width: parent.width; spacing: Style.space(12)
         PanelHero {
@@ -611,7 +612,7 @@ Panel {
           visible: root.viewState==="sending"||root.viewState==="receiving"; width:parent.width; spacing:Style.space(8)
           PanelSectionHeader { text:root.viewState==="sending" ? strings.t("section.sending") : strings.t("section.receiving"); foreground:root.foreground; fontFamily:root.fontFamily }
           Text { width:parent.width; textFormat:Text.PlainText; text:root.transferName; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.title; font.bold:true; elide:Text.ElideMiddle }
-          Rectangle { width:parent.width; height:Style.space(4); radius:height/2; color:Qt.darker(root.foreground,2.2); Rectangle { width:parent.width*Math.max(0,Math.min(1,root.progress)); height:parent.height; radius:height/2; color:root.foreground; Behavior on width { NumberAnimation { duration:120 } } } }
+          Rectangle { width:parent.width; height:Style.space(4); radius:height/2; color:Qt.darker(root.foreground,2.2); Rectangle { width:parent.width*Math.max(0,Math.min(1,root.progress)); height:parent.height; radius:height/2; color:root.foreground; Behavior on width { NumberAnimation { duration:Style.duration(120) } } } }
           Text { textFormat:Text.PlainText; text:strings.t(root.viewState==="sending"?"transfer.progressTo":"transfer.progressFrom", [strings.number(Math.round(root.progress*100)), root.transferPeer]); color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Text { visible:root.progressDetail!==""; textFormat:Text.PlainText; text:root.progressDetail; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Button { visible:root.viewState==="sending"; text:strings.t("action.cancel"); bordered:true; foreground:root.urgent; hasCursor:root.cursorActive; onClicked:root.cancelOutgoing() }

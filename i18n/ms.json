@@ -145,6 +145,7 @@
   "status.received": "Diterima",
   "status.sent": "Dihantar",
   "status.transferFailed": "Pemindahan gagal",
+  "status.settingNotSaved": "Tetapan ini tidak dapat disimpan. Dalam shell.json, tukar entri Nearby kepada %1.",
   "failure.rateLimited": "Terlalu banyak cubaan PIN yang salah",
   "failure.offerTooLarge": "Terlalu banyak fail atau nama panjang: tawaran melebihi 2 MiB",
   "failure.tooManyFiles": "Pemindahan melebihi 10,000 fail",

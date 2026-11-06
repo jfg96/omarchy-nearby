@@ -23,6 +23,13 @@ assert.match(source, /barIconColor:\s*root\.receiverEnabled\s*\?\s*barForeground
   "the bar icon must dim when receiver is disabled")
 assert.match(source, /BarIconButton[\s\S]*?foreground:\s*root\.barIconColor/,
   "the bar icon button must use barIconColor")
+assert.match(source, /onTabRequested:\s*function\(direction\)\s*\{\s*root\.switchPanel\(direction\)\s*\}/,
+  "Tab must move to the neighbouring bar panel, as it does in Omarchy's own panels")
+for (const match of source.matchAll(/\bduration\s*:\s*([^;}\n]+)/g)) {
+  assert.match(match[1], /^Style\.duration\(\d+\)/,
+    "every animation must follow the user's animation setting through Style.duration")
+}
+assert.doesNotMatch(source, /Easing\.In[A-Z]/, "Omarchy's motion guidance rules out ease-in curves")
 assert.equal(source.includes("Qt.ImhDigitsOnly"), false,
   "the outgoing PIN prompt must accept the same text values as LocalSend")
 assert.equal(source.includes("RegularExpressionValidator { regularExpression: /[0-9]*/ }"), false,

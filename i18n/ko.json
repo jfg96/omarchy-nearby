@@ -145,6 +145,7 @@
   "status.received": "받음",
   "status.sent": "보냄",
   "status.transferFailed": "전송 실패",
+  "status.settingNotSaved": "이 설정을 저장할 수 없습니다. shell.json에서 Nearby 항목을 %1(으)로 변경하세요.",
   "failure.rateLimited": "잘못된 PIN 시도가 너무 많습니다",
   "failure.offerTooLarge": "파일이 너무 많거나 이름이 깁니다: 전송 요청이 2 MiB를 넘습니다",
   "failure.tooManyFiles": "전송이 10,000개 파일을 넘습니다",

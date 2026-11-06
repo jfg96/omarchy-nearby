@@ -4,6 +4,10 @@
 
 - Read Nearby settings from every Omarchy bar section, including `centerBegin`,
   `centerEnd` and `tray`, so the receiver follows its saved state after an upgrade.
+- Switch to the neighbouring bar panel with Tab, like Omarchy's own panels.
+- Follow Omarchy's animation setting and its motion guidance in the panel.
+- Say when a setting cannot be saved because Nearby's `shell.json` entry is a
+  bare id, and keep the receiver running instead of stopping it.
 
 ## 1.2.11
 

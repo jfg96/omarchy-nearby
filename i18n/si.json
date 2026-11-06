@@ -145,6 +145,7 @@
   "status.received": "ලැබුණා",
   "status.sent": "යැවුවා",
   "status.transferFailed": "හුවමාරුව අසාර්ථකයි",
+  "status.settingNotSaved": "මෙම සැකසුම සුරැකීමට නොහැකි විය. shell.json හි Nearby ඇතුළත් කිරීම %1 ලෙස වෙනස් කරන්න.",
   "failure.rateLimited": "වැරදි PIN උත්සාහයන් ඕනෑවට වඩා",
   "failure.offerTooLarge": "ගොනු ඕනෑවට වඩා හෝ දිගු නම්: යෝජනාව 2 MiB ඉක්මවයි",
   "failure.tooManyFiles": "හුවමාරුව ගොනු 10,000 ඉක්මවයි",

@@ -296,9 +296,20 @@ Item {
   // config object, so it stays confined to legacy hosts that still inject
   // shell.shellConfig: on a scoped shell a mutateShellConfig() that exists but
   // is denied must not capture the toggle and drop the write.
+  // Omarchy's inline writer skips a bare id without an error, and only a legacy
+  // host can promote one. Say so instead of letting the setting vanish.
+  function canPersistSettings() {
+    if (!Model.hasStringBarEntry(effectiveShellConfig, moduleEntryId)) return true
+    return hasLegacyShellConfig && typeof shell.mutateShellConfig === "function"
+  }
+  // Said only while the list is shown, so it cannot replace a transfer's view.
+  function reportSettingsNotSaved() {
+    if (viewState === "nearby") failWith(strings.t("status.settingNotSaved", [JSON.stringify({ id: moduleEntryId })]))
+  }
   function persistReceiverEnabled(enabled) { persistSettings({ receiverEnabled: enabled }) }
   function persistSettings(changes) {
     if (!shell) return
+    if (!canPersistSettings()) { reportSettingsNotSaved(); return }
     var settings = Object.assign({}, pluginSettings, changes)
     // A change to undefined removes the setting from the entry.
     for (var key in settings) if (settings[key] === undefined) delete settings[key]
@@ -349,6 +360,9 @@ Item {
   }
   function toggleReceiver() {
     if (shutdownPending) return
+    // Off is written after the helper stops: check first, or it would stop
+    // with the entry still saying on and be started again.
+    if (!canPersistSettings()) { reportSettingsNotSaved(); return }
     var enable = !receiverEnabled
     backendRestart.stop()
     if (enable) {

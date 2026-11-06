@@ -146,7 +146,7 @@ function helperDerived(state) {
 
 const functionNames = [
   "summonView", "viewOpened", "viewClosed", "notificationNeeded",
-  "send", "utf8ByteLength", "bindBackendRunning", "persistReceiverEnabled", "persistSettings", "downloadDirChangeBusy", "setDownloadDir", "useDownloads", "restartBackend", "toggleReceiver", "finishReceiverShutdown",
+  "send", "utf8ByteLength", "bindBackendRunning", "canPersistSettings", "reportSettingsNotSaved", "persistReceiverEnabled", "persistSettings", "downloadDirChangeBusy", "setDownloadDir", "useDownloads", "restartBackend", "toggleReceiver", "finishReceiverShutdown",
   "startDiscovery", "forceFullDiscovery", "stopDiscovery", "chooseDevice", "clearTarget",
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
@@ -1591,6 +1591,40 @@ assert.match(source, /environment: root\.downloadDir !== "" \? \(\{ XDG_DOWNLOAD
   assert.equal(shell.shellConfig.bar.layout.right.filter(entry =>
     entry === "oma.nearby" || (entry && entry.id === "oma.nearby")).length, 1,
     "promoting and toggling a string-form entry must not create a duplicate")
+}
+
+{
+  // A scoped host's updateEntryInline() skips a bare id and returns false, and
+  // the receiver writes "off" only after the helper stops. Refuse before
+  // stopping it, or the helper goes down with the entry still saying on.
+  let writes = 0
+  const shell = {updateEntryInline() { writes++; return false }, mutateShellConfig() { throw new Error("denied") }}
+  const state = engine({
+    shell,
+    fileShellConfig: {version: 1, bar: {layout: {right: ["oma.nearby"]}}, plugins: []},
+    moduleEntryId: "oma.nearby",
+    manifestPluginId: "oma.nearby",
+    pluginSettings: {},
+    receiverEnabled: true,
+    viewState: "nearby",
+  })
+
+  state.toggleReceiver()
+  assert.equal(state.shutdownPending, false, "the helper must keep running when the off state cannot be saved")
+  assert.equal(state.sent.length, 0)
+  assert.equal(writes, 0)
+  assert.equal(state.viewState, "error")
+  assert.match(state.errorText, /\{"id":"oma\.nearby"\}/, "the error must give the exact entry to write")
+
+  state.viewState = "nearby"
+  state.setDownloadDir("/mnt/incoming")
+  assert.equal(state.viewState, "error", "a chosen folder must not vanish without a word")
+  assert.equal(writes, 0)
+
+  state.viewState = "receiving"
+  state.errorText = ""
+  state.toggleReceiver()
+  assert.equal(state.viewState, "receiving", "the notice must not replace a transfer's view")
 }
 
 // Omarchy 4.0.3+ injects a scoped PluginShellApi that no longer carries

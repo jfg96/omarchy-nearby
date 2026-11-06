@@ -145,6 +145,7 @@
   "status.received": "Primit",
   "status.sent": "Trimis",
   "status.transferFailed": "Transfer eșuat",
+  "status.settingNotSaved": "Această setare nu a putut fi salvată. În shell.json, schimbă intrarea Nearby în %1.",
   "failure.rateLimited": "Prea multe încercări greșite de PIN",
   "failure.offerTooLarge": "Prea multe fișiere sau nume lungi: oferta depășește 2 MiB",
   "failure.tooManyFiles": "Transferul depășește 10.000 de fișiere",

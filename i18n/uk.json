@@ -145,6 +145,7 @@
   "status.received": "Отримано",
   "status.sent": "Надіслано",
   "status.transferFailed": "Помилка передавання",
+  "status.settingNotSaved": "Не вдалося зберегти це налаштування. У shell.json змініть запис Nearby на %1.",
   "failure.rateLimited": "Забагато неправильних спроб введення PIN",
   "failure.offerTooLarge": "Забагато файлів або довгих назв: пропозиція перевищує 2 MiB",
   "failure.tooManyFiles": "Передавання перевищує 10 000 файлів",

@@ -145,6 +145,7 @@
   "status.received": "Qabul qilindi",
   "status.sent": "Yuborildi",
   "status.transferFailed": "Uzatish bajarilmadi",
+  "status.settingNotSaved": "Bu sozlamani saqlab bo'lmadi. shell.json faylida Nearby yozuvini %1 ga o'zgartiring.",
   "failure.rateLimited": "Juda koʻp notoʻgʻri PIN urinishlari",
   "failure.offerTooLarge": "Juda koʻp fayl yoki uzun nomlar: taklif 2 MiB dan oshadi",
   "failure.tooManyFiles": "Uzatish 10 000 fayldan oshadi",

@@ -145,6 +145,7 @@
   "status.received": "Odebrano",
   "status.sent": "Wysłano",
   "status.transferFailed": "Przesyłanie nieudane",
+  "status.settingNotSaved": "Nie udało się zapisać tego ustawienia. W shell.json zmień wpis Nearby na %1.",
   "failure.rateLimited": "Zbyt wiele błędnych prób PIN",
   "failure.offerTooLarge": "Zbyt wiele plików lub długich nazw: oferta przekracza 2 MiB",
   "failure.tooManyFiles": "Transfer przekracza 10 000 plików",
