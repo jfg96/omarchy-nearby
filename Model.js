@@ -7,6 +7,8 @@ function parseLine(line) {
 // LAN identity churn cannot grow the frontend list without limit while the
 // discovery view is closed. One limit, one place.
 var MAX_DEVICES = 256
+// Keep aligned with Omarchy's bar section list.
+var BAR_LAYOUT_SECTIONS = ["left", "centerBegin", "center", "centerEnd", "right", "tray"]
 
 function upsertDevice(devices, device) {
   if (!device || !device.fingerprint || !device.alias) return devices || []
@@ -265,7 +267,7 @@ function barEntry(config, pluginId) {
   var id = String(pluginId || "")
   if (!config || typeof config !== "object" || id === "") return null
   var layout = config.bar && typeof config.bar === "object" ? config.bar.layout : null
-  var regions = ["left", "center", "right"]
+  var regions = BAR_LAYOUT_SECTIONS
   for (var r = 0; r < regions.length; r++) {
     var entries = layout && Array.isArray(layout[regions[r]]) ? layout[regions[r]] : []
     for (var e = 0; e < entries.length; e++) {
@@ -312,7 +314,7 @@ function hasStringBarEntry(config, pluginId) {
   var id = String(pluginId || "")
   var layout = config && config.bar && typeof config.bar === "object" ? config.bar.layout : null
   if (!layout || id === "") return false
-  var regions = ["left", "center", "right"]
+  var regions = BAR_LAYOUT_SECTIONS
   for (var r = 0; r < regions.length; r++) {
     var entries = Array.isArray(layout[regions[r]]) ? layout[regions[r]] : []
     for (var e = 0; e < entries.length; e++) if (entries[e] === id) return true
@@ -324,7 +326,7 @@ function promoteStringBarEntry(config, pluginId, settings) {
   var id = String(pluginId || "")
   var layout = config && config.bar && typeof config.bar === "object" ? config.bar.layout : null
   if (!layout || id === "") return false
-  var regions = ["left", "center", "right"]
+  var regions = BAR_LAYOUT_SECTIONS
   for (var r = 0; r < regions.length; r++) {
     var entries = Array.isArray(layout[regions[r]]) ? layout[regions[r]] : []
     for (var e = 0; e < entries.length; e++) {

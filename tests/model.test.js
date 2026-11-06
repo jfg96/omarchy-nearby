@@ -211,6 +211,10 @@ const layoutDefault = {version:1, bar:{layout:{right:[{id:"oma.nearby"}]}}, plug
 assert.deepEqual(Model.barEntry(layoutDefault, "oma.nearby"), {id:"oma.nearby", settings:{}})
 assert.equal(Model.receiverEnabledIn(Model.barEntry(layoutDefault, "oma.nearby")), true,
   "an entry with no receiver setting means on, the way it always has")
+const layoutCenterEnd = {version:1, bar:{layout:{centerEnd:[{id:"oma.nearby", receiverEnabled:true}]}}, plugins:[]}
+assert.deepEqual(Model.barEntry(layoutCenterEnd, "oma.nearby"), {id:"oma.nearby", settings:{receiverEnabled:true}})
+assert.equal(Model.receiverEnabledIn(Model.barEntry(layoutCenterEnd, "oma.nearby")), true,
+  "an enabled widget in centerEnd must be recognized")
 
 // Quattro accepts a widget id directly in a bar layout and normalizes it to an
 // object entry. Reading shell.json directly must preserve those same semantics.
@@ -219,20 +223,20 @@ assert.deepEqual(Model.barEntry(layoutString, "oma.nearby"), {id:"oma.nearby", s
   "a matching string-form bar entry must be recognized as configured")
 assert.equal(Model.receiverEnabledIn(Model.barEntry(layoutString, "oma.nearby")), true,
   "a string-form entry with no receiver setting must use the default-on behavior")
-for (const region of ["left", "center", "right"]) {
-  const config = {version:1, bar:{layout:{left:[], center:[], right:[]}}, plugins:[]}
+for (const region of ["left", "centerBegin", "center", "centerEnd", "right", "tray"]) {
+  const config = {version:1, bar:{layout:{left:[], centerBegin:[], center:[], centerEnd:[], right:[], tray:[]}}, plugins:[]}
   config.bar.layout[region] = ["oma.nearby"]
   assert.deepEqual(Model.barEntry(config, "oma.nearby"), {id:"oma.nearby", settings:{}},
     `a string-form entry in bar.layout.${region} must be recognized`)
 }
 const promotedLayout = {
   version:1,
-  bar:{layout:{left:[], center:[], right:["other.before", "oma.nearby", {id:"other.after", x:1}]}},
+  bar:{layout:{left:[], centerBegin:[], center:[], centerEnd:["other.before", "oma.nearby", {id:"other.after", x:1}], right:[], tray:[]}},
   plugins:[],
 }
 assert.equal(Model.hasStringBarEntry(promotedLayout, "oma.nearby"), true)
 assert.equal(Model.promoteStringBarEntry(promotedLayout, "oma.nearby", {receiverEnabled:false}), true)
-assert.deepEqual(promotedLayout.bar.layout.right,
+assert.deepEqual(promotedLayout.bar.layout.centerEnd,
   ["other.before", {id:"oma.nearby", receiverEnabled:false}, {id:"other.after", x:1}],
   "promoting a string entry must preserve its region, slot, and neighboring entries")
 assert.equal(Model.hasStringBarEntry(promotedLayout, "oma.nearby"), false)
