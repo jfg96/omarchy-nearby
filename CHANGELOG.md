@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.12-dev
+## 1.2.12
 
 - Read Nearby settings from every Omarchy bar section, including `centerBegin`,
   `centerEnd` and `tray`, so the receiver follows its saved state after an upgrade.

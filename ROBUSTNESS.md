@@ -1245,3 +1245,21 @@ plugin validator and `git diff --check`.
 The maintainer tried Cancel from a phone on a local build of #57 and reported
 it working, without recording which cases of scenario 33. Scenarios 31 and 34,
 and transfers with a real phone on this exact helper, remain **Not run**.
+
+## Omarchy 4.5 panel check — v1.2.12, 2026-11-06
+
+Plugin `1.2.12` carries #60 and #61 and keeps helper 1.2.9: `backend/` is
+identical to the helper source commit `088d5a9`, and `helper-release.env` is
+unchanged. The Cargo package, `minHelperVersion` and selected helper remain 1.2.9.
+
+The maintainer ran the build of #61 at `eb2ca8c` on Omarchy 4.5.0-3 and reported
+that these all passed: Tab between panels, the panel with animations off, the
+popup from the tray drawer, and the save error with a bare string entry, with
+the helper still running. No transfer with a real LocalSend peer was run for
+this release, and the vertical bar was not reported separately.
+
+The complete supported suite passed on the release tree: four Node suites
+(50/50 catalogues, 174 keys), five Bash suites, `cargo fmt --check`,
+`cargo check`, `cargo clippy -D warnings`, 105 helper tests and the vendored
+`localsend-rs` HTTPS suite (152 passed, one upstream test ignored), plus the
+plugin validator and `git diff --check`.
