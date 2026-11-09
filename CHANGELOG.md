@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.13-dev
+
+- Show what a receive saved in Files from its result: a row with a folder icon
+  replaces the file name the result already showed, so no button is added.
+  One file, or the folder the sender chose, is selected; several loose files
+  open the save folder. The received item is never opened.
+- Announce a transfer that ends while its result is not on screen: what was
+  received or sent, or why it failed. Clicking a finished-receive notification
+  opens the panel on its result while it is still shown.
+
 ## 1.2.12
 
 - Read Nearby settings from every Omarchy bar section, including `centerBegin`,
