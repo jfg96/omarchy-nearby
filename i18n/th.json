@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "เลิกบันทึกใน %1 และกลับไปใช้โฟลเดอร์ดาวน์โหลด",
   "folder.notUsed": "ไม่ใช้โฟลเดอร์นี้",
   "folder.notUsedDetail": "ไฟล์ที่ได้รับจะคงชื่อที่ผู้ส่งตั้งไว้ จึงไม่บันทึกลงในโฟลเดอร์บ้านหรือโฟลเดอร์ระดับบนโดยตรง โปรดเลือกโฟลเดอร์ย่อยภายในโฟลเดอร์บ้าน",
+  "folder.showInFolder": "แสดงในโฟลเดอร์",
 
   "chooser.sendFiles": "ส่งไปยังอุปกรณ์ใกล้เคียง",
   "chooser.sendFolder": "ส่งโฟลเดอร์ไปยังอุปกรณ์ใกล้เคียง",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "โปรแกรมเบื้องหลัง Nearby หยุดทำงานระหว่างการถ่ายโอน",
 
   "notify.incomingBody": "จาก %1: %2",
-  "notify.textBody": "จาก %1"
+  "notify.textBody": "จาก %1",
+  "notify.sentBody": "ไปยัง %1: %2"
 }

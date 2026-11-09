@@ -72,6 +72,7 @@ disable a developer override.
 | [bin/nearby-copy-file](bin/nearby-copy-file) | Copy one received file to the clipboard |
 | [bin/nearby-preview-image](bin/nearby-preview-image) | Convert a received phone-format picture to a PNG preview |
 | [bin/nearby-clipboard-image](bin/nearby-clipboard-image) | Save the clipboard picture as a file to send |
+| [bin/nearby-show-file](bin/nearby-show-file) | Show what a receive saved in the file manager |
 | [manifest.json](manifest.json) | Plugin metadata and helper compatibility floor |
 | [helper-release.env](helper-release.env) | Immutable published helper reference |
 | [tests](tests) | Frontend and distribution regression suites |
@@ -91,7 +92,7 @@ Run from the repository root. Select checks by the changed behavior:
 | Rust helper | Formatting, build check, Clippy and helper tests |
 | Vendored Rust | Helper checks plus the separate vendor suite |
 | Launcher or repair | Both distribution Bash suites |
-| Received file copy, preview or clipboard picture | Their Bash suites |
+| Received file copy, preview, show in folder or clipboard picture | Their Bash suites |
 | Shell scripts | Relevant suites plus `bash -n` on changed scripts |
 | Documentation only | Referenced paths/commands, links and `git diff --check` |
 
@@ -107,6 +108,7 @@ bash tests/helper-repair.test.sh
 bash tests/copy-file.test.sh
 bash tests/preview-image.test.sh
 bash tests/clipboard-image.test.sh
+bash tests/show-file.test.sh
 cargo fmt --manifest-path backend/Cargo.toml --all -- --check
 cargo check --locked --manifest-path backend/Cargo.toml
 cargo clippy --all-targets --locked --manifest-path backend/Cargo.toml -- -D warnings

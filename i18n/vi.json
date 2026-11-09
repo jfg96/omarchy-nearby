@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Ngừng lưu vào %1 và quay lại thư mục Tải xuống",
   "folder.notUsed": "Không dùng thư mục này",
   "folder.notUsedDetail": "Tệp nhận được giữ nguyên tên do người gửi đặt, nên không được lưu trực tiếp vào thư mục nhà hoặc thư mục cấp trên. Hãy chọn một thư mục bên trong thư mục nhà.",
+  "folder.showInFolder": "Hiện trong thư mục",
 
   "chooser.sendFiles": "Gửi đến thiết bị ở gần",
   "chooser.sendFolder": "Gửi thư mục đến thiết bị ở gần",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Tiến trình nền Nearby đã dừng trong khi truyền",
 
   "notify.incomingBody": "Từ %1: %2",
-  "notify.textBody": "Từ %1"
+  "notify.textBody": "Từ %1",
+  "notify.sentBody": "Đến %1: %2"
 }

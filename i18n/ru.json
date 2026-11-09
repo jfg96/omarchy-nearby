@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Перестать сохранять в %1 и вернуться к папке «Загрузки»",
   "folder.notUsed": "Папка не используется",
   "folder.notUsedDetail": "Полученные файлы сохраняют имена, заданные отправителем, поэтому они не сохраняются прямо в домашнюю папку или выше неё. Выберите вложенную папку.",
+  "folder.showInFolder": "Показать в папке",
 
   "chooser.sendFiles": "Отправить на устройство поблизости",
   "chooser.sendFolder": "Отправить папку на устройство поблизости",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Служба Nearby остановилась во время передачи",
 
   "notify.incomingBody": "От %1: %2",
-  "notify.textBody": "От %1"
+  "notify.textBody": "От %1",
+  "notify.sentBody": "Кому %1: %2"
 }

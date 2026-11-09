@@ -54,6 +54,10 @@ Panel {
   readonly property string saveDirectory: engine ? engine.saveDirectory : ""
   readonly property string downloadDir: engine ? engine.downloadDir : ""
   readonly property string receivedFile: engine ? engine.receivedFile : ""
+  // The row that shows a received item in its folder. It takes the place of
+  // the file name the result already showed, so the result gains no button.
+  readonly property string receivedShowPath: engine ? engine.receivedShowPath : ""
+  readonly property bool receivedShowable: viewState === "success" && receivedShowPath !== ""
   readonly property bool receivedIsImage: engine ? Model.previewableImage(engine.receivedFileType) : false
   readonly property string receivedPreview: engine ? engine.receivedPreview : ""
   readonly property string transferName: engine ? engine.transferName : ""
@@ -160,6 +164,7 @@ Panel {
   function declineIncoming() { if (engine) engine.declineIncoming() }
   function finishText() { if (engine) engine.finishText() }
   function finishTerminal() { if (engine) engine.finishTerminal() }
+  function showReceivedInFolder() { if (engine) engine.showReceivedInFolder() }
   function cancelOutgoing() { if (engine) engine.cancelOutgoing() }
   function cancelIncoming() { if (engine) engine.cancelIncoming() }
   function cancelPin() { if (engine) engine.cancelPin() }
@@ -233,10 +238,14 @@ Panel {
       if (dy !== 0) selectedIndex = Math.max(-1, Math.min(lastNearbyIndex, selectedIndex + dy))
       return
     }
-    // A received file adds Copy beside Done; either arrow axis moves between
-    // the two, since they are the only stops.
-    if (viewState === "success" && receivedFile !== "") {
-      selectedIndex = Math.max(0, Math.min(1, selectedIndex + (dx !== 0 ? dx : dy)))
+    // A received result has the folder row on top of its buttons: Copy and
+    // Done side by side for one file, Done alone otherwise. Up reaches the
+    // row, down the buttons, and left and right move along the buttons.
+    if (receivedShowable) {
+      var lastResultIndex = receivedFile !== "" ? 2 : 1
+      if (dy < 0) selectedIndex = 0
+      else if (dy > 0) selectedIndex = Math.max(1, selectedIndex)
+      else selectedIndex = Math.max(1, Math.min(lastResultIndex, Math.max(0, selectedIndex) + dx))
       return
     }
 
@@ -272,7 +281,8 @@ Panel {
     else if (viewState === "incoming_pin_disable") selectedIndex===0 ? cancelIncomingPinSettings() : confirmDisableIncomingPin()
     else if (viewState === "sending") cancelOutgoing()
     else if (viewState === "receiving") cancelIncoming()
-    else if (viewState === "success" && receivedFile !== "" && selectedIndex === 0) copyReceivedFile()
+    else if (receivedShowable && selectedIndex === 0) showReceivedInFolder()
+    else if (receivedShowable && receivedFile !== "" && selectedIndex === 1) copyReceivedFile()
     else if (viewState === "success" || viewState === "error") finishTerminal()
   }
 
@@ -634,13 +644,13 @@ Panel {
             sourceSize.width:2*width; sourceSize.height:2*Style.space(200)
             fillMode:Image.PreserveAspectFit; asynchronous:true; cache:false; autoTransform:true
           }
-          Text { visible:root.receivedFile!==""; width:parent.width; textFormat:Text.PlainText; text:Model.plainName(root.receivedFile.slice(root.receivedFile.lastIndexOf("/")+1)); elide:Text.ElideMiddle; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Button { visible:root.receivedShowable; width:parent.width; leftAlign:true; bordered:false; iconText:"󰉋"; text:Model.plainName(root.receivedShowPath.slice(root.receivedShowPath.lastIndexOf("/")+1)); tooltipText:strings.t("folder.showInFolder"); foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.showReceivedInFolder() }
           Row { visible:root.receivedFile!==""; width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.copy"); iconText:"󰆏"; tooltipText:root.receivedIsImage?strings.t("clipboard.copyPicture"):strings.t("clipboard.copyFile"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.copyReceivedFile() }
-            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.done"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.finishTerminal() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.copy"); iconText:"󰆏"; tooltipText:root.receivedIsImage?strings.t("clipboard.copyPicture"):strings.t("clipboard.copyFile"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.copyReceivedFile() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.done"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===2; onHovered:function(v){root.noteHover(v,2)}; onClicked:root.finishTerminal() }
           }
           Text { visible:root.receivedFile!==""&&root.copyNote!==""; width:parent.width; textFormat:Text.PlainText; text:root.copyNote; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
-          Button { visible:root.receivedFile===""; text:strings.t("action.done"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive; onClicked:root.finishTerminal() }
+          Button { visible:root.receivedFile===""; text:strings.t("action.done"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&(!root.receivedShowable||root.selectedIndex===1); onHovered:function(v){if(root.receivedShowable)root.noteHover(v,1)}; onClicked:root.finishTerminal() }
         }
 
         Column {

@@ -63,6 +63,12 @@ because a peer can open and withdraw requests freely unless a PIN is set; the
 requests still appear in the panel. The total shown in a request cannot wrap
 around, so a sender cannot make a huge transfer look small.
 
+The row that shows a received item in its folder never opens the item. It
+asks the file manager to select it through `org.freedesktop.FileManager1`,
+with the path percent-encoded so no character of a peer-chosen name can leave
+the D-Bus argument, and otherwise opens the containing folder, which is always
+a directory. Only paths inside the save folder are offered.
+
 **Cancel** while receiving deletes what that transfer saved. Only regular files
 the receiver created for that session inside the save folder are removed, and
 folders only once empty; the receiver never replaces an existing file, so

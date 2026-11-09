@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Acha kuhifadhi katika %1 na urudi kwenye folda ya Vipakuliwa",
   "folder.notUsed": "Folda haijatumika",
   "folder.notUsedDetail": "Faili zilizopokewa zinabaki na majina yaliyotolewa na mtumaji. Kwa hiyo hazihifadhiwi moja kwa moja katika folda yako ya nyumbani au folda iliyo juu yake. Chagua folda ndogo ndani yake.",
+  "folder.showInFolder": "Onyesha kwenye folda",
 
   "chooser.sendFiles": "Tuma kwa kifaa kilicho karibu",
   "chooser.sendFolder": "Tuma folda kwa kifaa kilicho karibu",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Programu saidizi ya Nearby imesimama wakati wa uhamisho",
 
   "notify.incomingBody": "Kutoka %1: %2",
-  "notify.textBody": "Kutoka %1"
+  "notify.textBody": "Kutoka %1",
+  "notify.sentBody": "Kwenda %1: %2"
 }

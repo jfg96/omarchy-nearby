@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Ná sábháil in %1 a thuilleadh agus fill ar an bhfillteán Íoslódálacha",
   "folder.notUsed": "Fillteán nár úsáideadh",
   "folder.notUsedDetail": "Coinníonn comhaid faighte na hainmneacha a thug an seoltóir orthu, mar sin ní shábháiltear iad go díreach i d'fhillteán baile ná i bhfillteán os a chionn. Roghnaigh fofhillteán.",
+  "folder.showInFolder": "Taispeáin san fhillteán",
 
   "chooser.sendFiles": "Seol in aice láimhe",
   "chooser.sendFolder": "Seol fillteán in aice láimhe",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Stop clár cúnta Nearby le linn aistrithe",
 
   "notify.incomingBody": "Ó %1: %2",
-  "notify.textBody": "Ó %1"
+  "notify.textBody": "Ó %1",
+  "notify.sentBody": "Chuig %1: %2"
 }

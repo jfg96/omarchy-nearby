@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Mentés leállítása ide: %1, és visszatérés a Letöltések mappához",
   "folder.notUsed": "A mappa nem használható",
   "folder.notUsedDetail": "A fogadott fájlok megtartják a küldő által megadott nevüket, ezért nem kerülnek közvetlenül a saját mappába vagy annak szülőmappájába. Válasszon egy almappát.",
+  "folder.showInFolder": "Megjelenítés a mappában",
 
   "chooser.sendFiles": "Küldés közeli eszközre",
   "chooser.sendFolder": "Mappa küldése közeli eszközre",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "A Nearby háttérszolgáltatása leállt az átvitel közben",
 
   "notify.incomingBody": "Feladó: %1: %2",
-  "notify.textBody": "Feladó: %1"
+  "notify.textBody": "Feladó: %1",
+  "notify.sentBody": "Címzett: %1: %2"
 }

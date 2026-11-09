@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Престани да чуваш у %1 и врати се у фасциклу Преузимања",
   "folder.notUsed": "Фасцикла се не користи",
   "folder.notUsedDetail": "Примљене датотеке задржавају називе које им је дао пошиљалац, па се не чувају директно у личној фасцикли или надређеној фасцикли. Изаберите потфасциклу.",
+  "folder.showInFolder": "Прикажи у фасцикли",
 
   "chooser.sendFiles": "Пошаљи уређају у близини",
   "chooser.sendFolder": "Пошаљи фасциклу уређају у близини",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Услуга Nearby се зауставила током преноса",
 
   "notify.incomingBody": "Од %1: %2",
-  "notify.textBody": "Од %1"
+  "notify.textBody": "Од %1",
+  "notify.sentBody": "За %1: %2"
 }

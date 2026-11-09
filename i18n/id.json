@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Berhenti menyimpan ke %1 dan kembali ke folder Unduhan",
   "folder.notUsed": "Folder tidak digunakan",
   "folder.notUsedDetail": "Berkas yang diterima tetap memakai nama dari pengirim, sehingga tidak disimpan langsung di folder pribadi atau folder di atasnya. Pilih subfolder.",
+  "folder.showInFolder": "Tampilkan di folder",
 
   "chooser.sendFiles": "Kirim ke perangkat terdekat",
   "chooser.sendFolder": "Kirim folder ke perangkat terdekat",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Program bantu Nearby berhenti selama transfer",
 
   "notify.incomingBody": "Dari %1: %2",
-  "notify.textBody": "Dari %1"
+  "notify.textBody": "Dari %1",
+  "notify.sentBody": "Ke %1: %2"
 }

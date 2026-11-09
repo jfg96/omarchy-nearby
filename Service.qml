@@ -96,7 +96,19 @@ Item {
   // What the result shows of a received picture: the file itself, or a PNG
   // converted from a format the shell cannot decode.
   property string receivedPreview: ""
-  onViewStateChanged: if (viewState !== "success") { receivedFile = ""; receivedFileType = ""; receivedPreview = "" }
+  // What "show in folder" points at for the receive on screen: one item to
+  // select in its folder, or a folder to open. Every received file counts, so
+  // a single top-level folder the sender chose is shown rather than the folder
+  // it landed in.
+  property string receivedTop: ""
+  property bool receivedTopMixed: false
+  property string receivedShowPath: ""
+  property string receivedShowMode: ""
+  // Named in the finished-transfer notifications, which outlive the progress
+  // that keeps overwriting transferName with the current file.
+  property string receivedSummary: ""
+  property string sentSummary: ""
+  onViewStateChanged: if (viewState !== "success") { receivedFile = ""; receivedFileType = ""; receivedPreview = ""; receivedShowPath = ""; receivedShowMode = "" }
   property real progress: 0
   // Speed and time left of the transfer on screen, from its recent progress.
   property var rateSamples: []
@@ -230,6 +242,8 @@ Item {
     function status(): string { return JSON.stringify({enabled:root.receiverEnabled,ready:root.backendReady,running:backend.running,devices:root.devices.length,helper:root.helperVersion,requires:root.requiredHelperVersion,updateOffered:root.helperUpdateOffered}) }
     // The click action of an incoming-transfer notification.
     function showRequest(requestId: string): string { return root.showIncomingRequest(requestId) }
+    // The click action of a finished-receive notification.
+    function showResult(sessionId: string): string { return root.showReceivedResult(sessionId) }
   }
 
   // Opens the panel on a request a notification announced, never answering it.
@@ -238,6 +252,22 @@ Item {
   function showIncomingRequest(requestId) {
     if (!Model.hasIncoming(incomingQueue, requestId)) return "expired"
     return summonView("summon")
+  }
+
+  // Opens the panel on a receive a notification announced, while its result is
+  // still on screen. Once dismissed or replaced, the click opens nothing.
+  function showReceivedResult(sessionId) {
+    if (sessionId === "" || viewState !== "success" || transferWasOutgoing || receivedSession !== sessionId || receivedShowPath === "") return "expired"
+    return summonView("summon")
+  }
+
+  // A finished transfer is announced only when its result is not what the
+  // panel is showing: the popup is closed, or the result was held behind
+  // another request or transfer. A finished receive can reopen its result.
+  function notifyFinished(onScreen, title, body, resultSession) {
+    if (!notificationNeeded(onScreen)) return
+    var args = ["--app-name","Nearby","--urgency","normal",title,body]
+    Quickshell.execDetached(resultSession ? Model.panelNotificationCommand("showResult", resultSession, args) : ["omarchy-notification-send"].concat(args))
   }
 
   function viewOpened() {
@@ -505,7 +535,7 @@ Item {
     pinFocusRequested()
   }
   function cancelPin() { if(outgoingTransferId!=="")send({command:"cancel_outgoing",transfer_id:outgoingTransferId}); clearPendingOutgoing(); if(incoming){viewState="incoming";cursorRequested(1)}else if(incomingTextPending){incomingTextPending=false;viewState="text";statusText=strings.t("status.textReceived");cursorRequested(0)}else{viewState=selectedDevice?"target":"nearby";cursorRequested(0)} focusRestoreRequested() }
-  function acceptIncoming() { if (!incoming) return; send({command:"accept",request_id:incoming.requestId}); viewState="receiving"; transferPeer=incoming.sender; transferName=Model.incomingSummary(incoming.files, strings); progress=0; resetProgressRate() }
+  function acceptIncoming() { if (!incoming) return; send({command:"accept",request_id:incoming.requestId}); viewState="receiving"; transferPeer=incoming.sender; transferName=Model.incomingSummary(incoming.files, strings); receivedSummary=transferName; progress=0; resetProgressRate() }
   function noteProgress(bytes, total) { rateSamples=Model.progressSamples(rateSamples, Date.now(), bytes); progressDetail=Model.progressDetail(rateSamples, total, strings) }
   function resetProgressRate() { rateSamples=[]; progressDetail="" }
   function declineIncoming() {
@@ -560,10 +590,20 @@ Item {
   function offerReceivedFile(session) {
     receivedFileType = ""
     receivedPreview = ""
-    receivedFile = viewState === "success" && receivedSession === session && receivedFileCount === 1 ? lastReceivedPath : ""
+    var shown = viewState === "success" && receivedSession === session
+    var target = shown ? Model.receivedShowTarget(saveDirectory, receivedFileCount, lastReceivedPath, receivedTop, receivedTopMixed) : null
+    receivedShowPath = target ? target.path : ""
+    receivedShowMode = target ? target.mode : ""
+    receivedFile = shown && receivedFileCount === 1 ? lastReceivedPath : ""
+    // The first button, Copy or Done, under the row that shows the folder.
+    if (target) cursorRequested(1)
     if (receivedFile === "") return
-    cursorRequested(0)
     if (!fileTypeProbe.running) probeReceivedFile()
+  }
+  // The received item is only pointed at in the file manager, never opened.
+  function showReceivedInFolder() {
+    if (receivedShowPath === "" || (receivedShowMode !== "item" && receivedShowMode !== "folder")) return
+    Quickshell.execDetached([pluginDir + "/bin/nearby-show-file", receivedShowMode, receivedShowPath])
   }
   function probeReceivedFile() { fileTypeProbe.path = receivedFile; fileTypeProbe.running = true }
   // An answer about a file that is no longer the one on screen must not label
@@ -681,18 +721,18 @@ Item {
       }
     }
     else if (event.event === "incoming_progress") { if(String(event.sessionId)===lastEndedIncomingSession)return; if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(pendingOutgoing)return; viewState="receiving"; transferName=String(event.name); transferPeer=String(event.sender); progress=event.total>0 ? event.bytes/event.total : 0; noteProgress(event.bytes, event.total) }
-    else if (event.event === "file_received") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(receivedSession!==activeIncomingSession){receivedSession=activeIncomingSession;receivedFileCount=0} receivedFileCount++; lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
-    else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("success",strings.t("status.received"),true); offerReceivedFile(String(event.sessionId)) }
-    else if (event.event === "incoming_cancelled") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",strings.t("status.transferCancelled"),false) }
-    else if (event.event === "incoming_failed") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",Model.failureText(event.code, event.message, strings),false) }
+    else if (event.event === "file_received") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; if(receivedSession!==activeIncomingSession){receivedSession=activeIncomingSession;receivedFileCount=0} var top=Model.receivedTopEntry(saveDirectory, event.path); if(receivedFileCount===0){receivedTop=top;receivedTopMixed=top===""}else if(top!==receivedTop)receivedTopMixed=true; receivedFileCount++; lastReceivedPath=String(event.path); if(pendingOutgoing)return; transferName=String(event.name); transferPeer=String(event.sender) }
+    else if (event.event === "incoming_done") { if(activeIncomingSession!==String(event.sessionId))return; var doneSession=String(event.sessionId); finishIncoming("success",strings.t("status.received"),true); offerReceivedFile(doneSession); notifyFinished(viewState==="success"&&!transferWasOutgoing, strings.t("status.received"), strings.t("notify.incomingBody", [Model.notificationText(transferPeer), Model.notificationText(receivedSummary)]), doneSession) }
+    else if (event.event === "incoming_cancelled") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; finishIncoming("error",strings.t("status.transferCancelled"),false); notifyFinished(viewState==="error", strings.t("status.transferCancelled"), strings.t("transfer.from", [Model.notificationText(transferPeer)]), "") }
+    else if (event.event === "incoming_failed") { if(activeIncomingSession===""){if(viewState!=="receiving")return;activeIncomingSession=String(event.sessionId)} if(activeIncomingSession!==String(event.sessionId))return; var receiveFailure=Model.failureText(event.code, event.message, strings); finishIncoming("error",receiveFailure,false); notifyFinished(viewState==="error", strings.t("status.transferFailed"), Model.notificationText(receiveFailure), "") }
     else if (event.event === "incoming_declined") { incomingQueue=Model.removeIncoming(incomingQueue,event.requestId) }
-    else if (event.event === "outgoing_preparing") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; transferName=String(event.name); transferPeer=String(event.target); progress=0; resetProgressRate(); stopDiscovery() }
+    else if (event.event === "outgoing_preparing") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; transferName=String(event.name); sentSummary=transferName; transferPeer=String(event.target); progress=0; resetProgressRate(); stopDiscovery() }
     else if (event.event === "outgoing_progress") { if(String(event.transferId)!==outgoingTransferId)return; viewState="sending"; if(event.name) transferName=String(event.name); progress=event.total>0 ? event.bytes/event.total : 0; noteProgress(event.bytes, event.total) }
-    else if (event.event === "outgoing_done") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("success", strings.t("status.sent"), true) }
-    else if (event.event === "outgoing_cancelled") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", strings.t("status.transferCancelled"), false) }
+    else if (event.event === "outgoing_done") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("success", strings.t("status.sent"), true); notifyFinished(viewState==="success"&&transferWasOutgoing, strings.t("status.sent"), strings.t("notify.sentBody", [Model.notificationText(transferPeer), Model.notificationText(sentSummary)]), "") }
+    else if (event.event === "outgoing_cancelled") { if(String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", strings.t("status.transferCancelled"), false); notifyFinished(viewState==="error", strings.t("status.transferCancelled"), strings.t("transfer.to", [Model.notificationText(transferPeer)]), "") }
     else if (event.event === "outgoing_pin_required") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt("") }
     else if (event.event === "outgoing_invalid_pin") { if(String(event.transferId)!==outgoingTransferId)return; showPinPrompt(strings.t("pin.incorrect")) }
-    else if (event.event === "outgoing_failed") { if(event.transferId && String(event.transferId)!==outgoingTransferId)return; finishOutgoing("error", Model.failureText(event.code, event.message, strings), false) }
+    else if (event.event === "outgoing_failed") { if(event.transferId && String(event.transferId)!==outgoingTransferId)return; var sendFailure=Model.failureText(event.code, event.message, strings); finishOutgoing("error", sendFailure, false); notifyFinished(viewState==="error", strings.t("status.transferFailed"), Model.notificationText(sendFailure), "") }
     else if (event.event === "error") { if(event.code==="command_too_long")clearPendingOutgoing(); viewState="error"; errorText=Model.failureText(event.code, event.message, strings); statusText=errorText }
   }
 

@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Stop saving to %1 and go back to your Downloads folder",
   "folder.notUsed": "Folder not used",
   "folder.notUsedDetail": "Received files keep the names their sender gave them, so they are not saved straight into your home folder or a folder above it. Choose a folder inside it.",
+  "folder.showInFolder": "Show in folder",
 
   "chooser.sendFiles": "Send nearby",
   "chooser.sendFolder": "Send nearby folder",
@@ -189,5 +190,6 @@
   "status.backendStoppedTransfer": "Nearby backend stopped during transfer",
 
   "notify.incomingBody": "From %1: %2",
-  "notify.textBody": "From %1"
+  "notify.textBody": "From %1",
+  "notify.sentBody": "To %1: %2"
 }

@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "%1 jildiga saqlashni toʻxtatib, Yuklamalar jildiga qaytish",
   "folder.notUsed": "Jild ishlatilmadi",
   "folder.notUsedDetail": "Qabul qilingan fayllar yuboruvchi bergan nomlarni saqlab qoladi. Shu sababli ular bevosita uy jildingizga yoki undan yuqoridagi jildga saqlanmaydi. Uning ichidagi jildni tanlang.",
+  "folder.showInFolder": "Jildda ko‘rsatish",
 
   "chooser.sendFiles": "Yaqindagi qurilmaga yuborish",
   "chooser.sendFolder": "Jildni yaqindagi qurilmaga yuborish",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Uzatish paytida Nearby yordamchi dasturi toʻxtadi",
 
   "notify.incomingBody": "%1 dan: %2",
-  "notify.textBody": "%1 dan"
+  "notify.textBody": "%1 dan",
+  "notify.sentBody": "%1 ga: %2"
 }

@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Припинити збереження в %1 і повернутися до теки «Завантаження»",
   "folder.notUsed": "Тека не використовується",
   "folder.notUsedDetail": "Отримані файли зберігають назви, задані відправником, тому вони не зберігаються безпосередньо в домашню теку або вище неї. Виберіть вкладену теку.",
+  "folder.showInFolder": "Показати в теці",
 
   "chooser.sendFiles": "Надіслати на пристрій поблизу",
   "chooser.sendFolder": "Надіслати теку на пристрій поблизу",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Служба Nearby зупинилася під час передавання",
 
   "notify.incomingBody": "Від %1: %2",
-  "notify.textBody": "Від %1"
+  "notify.textBody": "Від %1",
+  "notify.sentBody": "Кому %1: %2"
 }

@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "הפסקת השמירה ב־%1 וחזרה לתיקיית ההורדות",
   "folder.notUsed": "התיקייה לא בשימוש",
   "folder.notUsedDetail": "קבצים שמתקבלים שומרים על השמות שנתן להם השולח, ולכן אינם נשמרים ישירות בתיקיית הבית או בתיקייה שמעליה. יש לבחור תיקייה בתוך תיקיית הבית.",
+  "folder.showInFolder": "הצגה בתיקייה",
 
   "chooser.sendFiles": "שליחה למכשיר קרוב",
   "chooser.sendFolder": "שליחת תיקייה למכשיר קרוב",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "שירות הרקע של Nearby נעצר במהלך ההעברה",
 
   "notify.incomingBody": "מאת %1: %2",
-  "notify.textBody": "מאת %1"
+  "notify.textBody": "מאת %1",
+  "notify.sentBody": "אל %1: %2"
 }

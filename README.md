@@ -81,8 +81,10 @@ While the receiver is off, normal startup does not download the helper.
 
 For incoming transfers, leave Nearby on and use **Accept** or **Decline** when a
 request arrives. Files go to your configured Downloads directory, or to the
-folder chosen with **Save to** in the panel. A single received file can be copied
-from the panel, with a preview when it is a picture, and so can received text.
+folder chosen with **Save to** in the panel. The result shows what arrived in
+its folder; a single received file can also be copied from the panel, with a
+preview when it is a picture, and so can received text. A transfer that ends
+while the popup is closed is announced with a notification.
 
 Closing the popup keeps receiving and passive discovery available. Turning
 Nearby off stops the helper, receiver and discovery. Active discovery runs while

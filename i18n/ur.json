@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "%1 میں محفوظ کرنا بند کر کے ڈاؤن لوڈز فولڈر پر واپس جائیں",
   "folder.notUsed": "فولڈر استعمال نہیں ہوا",
   "folder.notUsedDetail": "وصول شدہ فائلوں کے نام وہی رہتے ہیں جو بھیجنے والے نے رکھے ہیں، اس لیے انہیں براہ راست ہوم فولڈر یا اس سے اوپر کے فولڈر میں محفوظ نہیں کیا جاتا۔ ہوم کے اندر کوئی فولڈر منتخب کریں۔",
+  "folder.showInFolder": "فولڈر میں دکھائیں",
 
   "chooser.sendFiles": "قریبی آلے کو بھیجیں",
   "chooser.sendFolder": "قریبی آلے کو فولڈر بھیجیں",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "منتقلی کے دوران Nearby کا پس منظر کا پروگرام رک گیا",
 
   "notify.incomingBody": "%1 سے: %2",
-  "notify.textBody": "%1 سے"
+  "notify.textBody": "%1 سے",
+  "notify.sentBody": "%1 کو: %2"
 }

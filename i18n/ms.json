@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Berhenti menyimpan ke %1 dan kembali ke folder Muat Turun",
   "folder.notUsed": "Folder tidak digunakan",
   "folder.notUsedDetail": "Fail yang diterima mengekalkan nama yang diberikan oleh pengirim. Oleh itu, fail tidak disimpan terus ke folder peribadi atau folder di atasnya. Pilih subfolder.",
+  "folder.showInFolder": "Tunjukkan dalam folder",
 
   "chooser.sendFiles": "Hantar ke peranti berdekatan",
   "chooser.sendFolder": "Hantar folder ke peranti berdekatan",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Program pembantu Nearby terhenti semasa pemindahan",
 
   "notify.incomingBody": "Daripada %1: %2",
-  "notify.textBody": "Daripada %1"
+  "notify.textBody": "Daripada %1",
+  "notify.sentBody": "Kepada %1: %2"
 }

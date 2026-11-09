@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Prenehaj shranjevati v %1 in se vrni v mapo Prenosi",
   "folder.notUsed": "Mapa ni uporabljena",
   "folder.notUsedDetail": "Prejete datoteke ohranijo imena, ki jih je določil pošiljatelj, zato se ne shranijo neposredno v domačo mapo ali nadrejeno mapo. Izberite podmapo.",
+  "folder.showInFolder": "Pokaži v mapi",
 
   "chooser.sendFiles": "Pošlji napravi v bližini",
   "chooser.sendFolder": "Pošlji mapo napravi v bližini",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Storitev Nearby se je ustavila med prenosom",
 
   "notify.incomingBody": "Od %1: %2",
-  "notify.textBody": "Od %1"
+  "notify.textBody": "Od %1",
+  "notify.sentBody": "Za %1: %2"
 }

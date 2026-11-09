@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Přestat ukládat do %1 a vrátit se do složky Stažené",
   "folder.notUsed": "Složka se nepoužívá",
   "folder.notUsedDetail": "Přijaté soubory si zachovávají názvy od odesílatele, proto se neukládají přímo do domovské složky ani do nadřazené složky. Vyberte podsložku.",
+  "folder.showInFolder": "Zobrazit ve složce",
 
   "chooser.sendFiles": "Odeslat zařízení v okolí",
   "chooser.sendFolder": "Odeslat složku zařízení v okolí",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Služba Nearby se zastavila během přenosu",
 
   "notify.incomingBody": "Od %1: %2",
-  "notify.textBody": "Od %1"
+  "notify.textBody": "Od %1",
+  "notify.sentBody": "Pro %1: %2"
 }

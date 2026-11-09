@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Niet meer opslaan in %1 en teruggaan naar de map Downloads",
   "folder.notUsed": "Map niet gebruikt",
   "folder.notUsedDetail": "Ontvangen bestanden behouden de namen die de afzender heeft opgegeven. Daarom worden ze niet rechtstreeks in je persoonlijke map of een bovenliggende map opgeslagen. Kies een submap.",
+  "folder.showInFolder": "Tonen in map",
 
   "chooser.sendFiles": "Verzenden in de buurt",
   "chooser.sendFolder": "Map verzenden in de buurt",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Het Nearby-hulpprogramma stopte tijdens de overdracht",
 
   "notify.incomingBody": "Van %1: %2",
-  "notify.textBody": "Van %1"
+  "notify.textBody": "Van %1",
+  "notify.sentBody": "Naar %1: %2"
 }

@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Nicht mehr in %1 speichern und zum Downloads-Ordner zurückkehren",
   "folder.notUsed": "Ordner nicht verwendet",
   "folder.notUsedDetail": "Empfangene Dateien behalten die Namen des Absenders. Daher werden sie nicht direkt im persönlichen Ordner oder darüber gespeichert. Wähle einen Unterordner.",
+  "folder.showInFolder": "Im Ordner anzeigen",
 
   "chooser.sendFiles": "An Gerät in der Nähe senden",
   "chooser.sendFolder": "Ordner an Gerät in der Nähe senden",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Das Nearby-Hilfsprogramm wurde während der Übertragung gestoppt",
 
   "notify.incomingBody": "Von %1: %2",
-  "notify.textBody": "Von %1"
+  "notify.textBody": "Von %1",
+  "notify.sentBody": "An %1: %2"
 }

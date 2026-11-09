@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Nu mai salva în %1 și revino la dosarul Descărcări",
   "folder.notUsed": "Dosar nefolosit",
   "folder.notUsedDetail": "Fișierele primite păstrează numele date de expeditor. De aceea nu se salvează direct în dosarul personal sau într-un dosar superior. Alege un subdosar.",
+  "folder.showInFolder": "Arată în dosar",
 
   "chooser.sendFiles": "Trimite în apropiere",
   "chooser.sendFolder": "Trimite un dosar în apropiere",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Programul auxiliar Nearby s-a oprit în timpul transferului",
 
   "notify.incomingBody": "De la %1: %2",
-  "notify.textBody": "De la %1"
+  "notify.textBody": "De la %1",
+  "notify.sentBody": "Către %1: %2"
 }

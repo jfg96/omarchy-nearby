@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Ihinto ang pag-save sa %1 at bumalik sa folder na Downloads",
   "folder.notUsed": "Hindi ginamit ang folder",
   "folder.notUsedDetail": "Pinapanatili ng mga natanggap na file ang mga pangalang ibinigay ng nagpadala, kaya hindi sila direktang sine-save sa iyong home folder o sa folder sa itaas nito. Pumili ng subfolder.",
+  "folder.showInFolder": "Ipakita sa folder",
 
   "chooser.sendFiles": "Ipadala sa kalapit na device",
   "chooser.sendFolder": "Ipadala ang folder sa kalapit na device",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Huminto ang pantulong na programa ng Nearby habang naglilipat",
 
   "notify.incomingBody": "Mula kay %1: %2",
-  "notify.textBody": "Mula kay %1"
+  "notify.textBody": "Mula kay %1",
+  "notify.sentBody": "Papunta kay %1: %2"
 }

@@ -174,7 +174,7 @@ const functionNames = [
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "clearSecretInputs",
   "goBack", "selectFiles", "selectFolder", "chooseDownloadDir", "useDownloads", "sendClipboard", "copyReceivedText", "copyReceivedFile", "moveCursor", "activateCursor",
-  "retryHelper", "copyText", "copyUpdateCommand", "copyRepositoryLink", "noteHover",
+  "retryHelper", "copyText", "copyUpdateCommand", "copyRepositoryLink", "noteHover", "showReceivedInFolder",
 ]
 
 // Every call the view makes has to land on the shared engine, so the stub
@@ -193,6 +193,7 @@ function stubEngine() {
     declineIncoming: record("declineIncoming"),
     finishText: record("finishText"),
     finishTerminal: record("finishTerminal"),
+    showReceivedInFolder: record("showReceivedInFolder"),
     cancelOutgoing: record("cancelOutgoing"),
     cancelIncoming: record("cancelIncoming"),
     cancelPin: record("cancelPin"),
@@ -224,6 +225,12 @@ function intBindingExpression(name) {
   return match[1].trim()
 }
 
+function boolBindingExpression(name) {
+  const match = source.match(new RegExp(`readonly property bool ${name}:\\s*([^\\n]+)`))
+  assert.notEqual(match, null, `Panel.qml must bind ${name}`)
+  return match[1].trim()
+}
+
 function panel(initial = {}) {
   const closes = []
   const engine = initial.engine === undefined ? stubEngine() : initial.engine
@@ -242,6 +249,7 @@ function panel(initial = {}) {
     textCopier: {running: false, launched: false, payload: ""},
     fileCopier: {running: false, launched: false, path: ""},
     receivedFile: "",
+    receivedShowPath: "",
     copyNote: "",
     helperUpdateOffered: false,
     helperUpdateError: "",
@@ -266,6 +274,10 @@ function panel(initial = {}) {
     ...initial,
   }
   context.engine = engine
+  Object.defineProperty(context, "receivedShowable", {
+    enumerable: true,
+    get: () => vm.runInNewContext(`(${boolBindingExpression("receivedShowable")})`, context),
+  })
   for (const name of ["useDownloadsIndex", "helperUpdateIndex", "helperCopyCommandIndex", "helperCopyLinkIndex"]) {
     const expression = intBindingExpression(name)
     Object.defineProperty(context, name, {
@@ -495,12 +507,14 @@ assert.match(source, /Button \{ visible:root\.useDownloadsIndex>=0;[^\n]*text:st
     "keyboard Done must reach the engine the same way the visual button does")
 }
 
-// A received file puts Copy beside Done. Both have to be reachable from the
-// keyboard, and copying must not dismiss the result the user is looking at.
+// A received file puts Copy beside Done, under the row that shows it in its
+// folder. All three have to be reachable from the keyboard, and neither
+// copying nor showing may dismiss the result the user is looking at.
 {
-  const state = panel({viewState: "success", receivedFile: "/home/someone/Downloads/photo.jpg", selectedIndex: 0, copyNote: "stale"})
+  const file = "/home/someone/Downloads/photo.jpg"
+  const state = panel({viewState: "success", receivedFile: file, receivedShowPath: file, selectedIndex: 1, copyNote: "stale"})
   state.activateCursor()
-  assert.equal(state.fileCopier.path, "/home/someone/Downloads/photo.jpg")
+  assert.equal(state.fileCopier.path, file)
   assert.equal(state.fileCopier.running, true, "Enter on Copy must start the copy")
   assert.equal(state.copyNote, "Copying…", "a new copy must replace the previous outcome: converting a large picture takes seconds")
   assert.equal(callNames(state).includes("finishTerminal"), false, "copying must leave the result open")
@@ -510,20 +524,55 @@ assert.match(source, /Button \{ visible:root\.useDownloadsIndex>=0;[^\n]*text:st
   assert.equal(state.fileCopier.path, "", "a second press while the copy runs must not start another")
 
   state.moveCursor(1, 0)
-  assert.equal(state.selectedIndex, 1)
+  assert.equal(state.selectedIndex, 2)
+  state.moveCursor(1, 0)
+  assert.equal(state.selectedIndex, 2, "Done is the last stop")
   state.moveCursor(0, 1)
-  assert.equal(state.selectedIndex, 1, "Done is the last stop")
+  assert.equal(state.selectedIndex, 2, "down stays on the buttons")
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "finishTerminal")
+  state.moveCursor(-1, 0)
+  assert.equal(state.selectedIndex, 1, "left goes back to Copy")
+  state.moveCursor(-1, 0)
+  assert.equal(state.selectedIndex, 1, "left and right stay on the buttons")
+  state.moveCursor(0, -1)
+  assert.equal(state.selectedIndex, 0, "up reaches the folder row")
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "showReceivedInFolder")
+  assert.equal(callNames(state).filter(name => name === "finishTerminal").length, 1, "showing must leave the result open")
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 1, "down from the row lands on the first button")
+
+  // The cursor is hidden when the popup opens; the first arrow shows it on a stop.
+  state.selectedIndex = -1
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 1)
+}
+{
+  // Several files: the row and Done alone.
+  const state = panel({viewState: "success", receivedFile: "", receivedShowPath: "/home/someone/Downloads/Trip", selectedIndex: 1})
+  state.moveCursor(1, 0)
+  assert.equal(state.selectedIndex, 1, "Done is the only button")
   state.activateCursor()
   assert.equal(callNames(state).at(-1), "finishTerminal")
   state.moveCursor(0, -1)
-  assert.equal(state.selectedIndex, 0, "either axis must move between the only two stops")
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "showReceivedInFolder")
 }
 {
   const state = panel({viewState: "success", receivedFile: "", selectedIndex: 0})
   state.copyReceivedFile()
   assert.equal(state.fileCopier.running, false, "with no received file there is nothing to copy")
   state.activateCursor()
-  assert.equal(callNames(state).at(-1), "finishTerminal", "a result without a file keeps its single Done")
+  assert.equal(callNames(state).at(-1), "finishTerminal", "a sent result keeps its single Done")
+  assert.equal(callNames(state).includes("showReceivedInFolder"), false, "a sent result has nothing to show")
+}
+{
+  // A result that is gone, or an error, offers no row even if a path lingers.
+  const state = panel({viewState: "error", receivedShowPath: "/home/someone/Downloads/photo.jpg", selectedIndex: 0})
+  assert.equal(state.receivedShowable, false)
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "finishTerminal")
 }
 assert.match(source, /command: \[\(root\.engine \? root\.engine\.pluginDir : ""\) \+ "\/bin\/nearby-copy-file", fileCopier\.path\]/,
   "the received path must reach the copy script as one argument, never through a shell")
@@ -916,7 +965,11 @@ assert.match(source, /Button \{ visible:root\.viewState==="receiving"&&root\.inc
   "Cancel appears only while there is a session to cancel")
 assert.match(source, /readonly property bool incomingCancellable: engine \? engine\.activeIncomingSession !== "" : false/)
 
-assert.match(source, /text:Model\.plainName\(root\.receivedFile\.slice\(root\.receivedFile\.lastIndexOf\("\/"\)\+1\)\)/,
+assert.match(source, /iconText:"󰉋"; text:Model\.plainName\(root\.receivedShowPath\.slice\(root\.receivedShowPath\.lastIndexOf\("\/"\)\+1\)\)/,
   "a received name read from its path must not be able to reorder itself on screen")
+assert.match(source, /Button \{ visible:root\.receivedShowable; width:parent\.width; leftAlign:true; bordered:false;/,
+  "the folder row is a borderless row like Save to, not another bordered button")
+assert.doesNotMatch(source, /Text \{ visible:root\.receivedFile!==""; width:parent\.width; textFormat:Text\.PlainText; text:Model\.plainName/,
+  "the row replaces the file name the result showed, so the name is not shown twice")
 
 console.log("panel state tests passed")

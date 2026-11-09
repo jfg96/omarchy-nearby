@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Dejar de guardar en %1 y volver a tu carpeta Descargas",
   "folder.notUsed": "Carpeta no utilizada",
   "folder.notUsedDetail": "Los archivos recibidos conservan los nombres que les dio el remitente, por lo que no se guardan directamente en tu carpeta personal ni en una carpeta superior. Elige una subcarpeta.",
+  "folder.showInFolder": "Mostrar en la carpeta",
 
   "chooser.sendFiles": "Enviar a un dispositivo cercano",
   "chooser.sendFolder": "Enviar una carpeta a un dispositivo cercano",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "El auxiliar de Nearby se detuvo durante la transferencia",
 
   "notify.incomingBody": "De %1: %2",
-  "notify.textBody": "De %1"
+  "notify.textBody": "De %1",
+  "notify.sentBody": "A %1: %2"
 }

@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+
+# Show what a receive saved in the user's file manager, the way a browser's
+# "Show in folder" does.
+#
+# `item` selects one file or folder inside its parent; `folder` opens a folder
+# itself, for a receive of several loose files. Both go through the
+# org.freedesktop.FileManager1 interface, which Omarchy's Files implements and
+# which starts it on demand. Without it, the folder is opened with xdg-open.
+#
+# The received file is only pointed at, never opened: its name and contents
+# were chosen by another device, and opening it could run whatever it claims
+# to be. A directory is always opened as a directory.
+
+set -uo pipefail
+
+fail() {
+  printf 'nearby-show-file: %s\n' "$*" >&2
+  exit 1
+}
+
+(( $# == 2 )) || fail "usage: nearby-show-file item|folder <path>"
+mode=$1
+path=$2
+[[ $path == /* ]] || fail "not an absolute path"
+case $mode in
+  item) [[ -e $path || -L $path ]] || fail "nothing to show" ;;
+  folder) [[ -d $path ]] || fail "not a folder" ;;
+  *) fail "usage: nearby-show-file item|folder <path>" ;;
+esac
+
+# Every byte outside the unreserved set is escaped, so the URI cannot carry a
+# quote out of the D-Bus argument below.
+uri="file://"
+LC_ALL=C
+for (( index = 0; index < ${#path}; index++ )); do
+  byte=${path:index:1}
+  case $byte in
+    [a-zA-Z0-9/._~-]) uri+=$byte ;;
+    *) printf -v byte '%%%02X' "'$byte"; uri+=$byte ;;
+  esac
+done
+
+method=ShowItems
+[[ $mode == folder ]] && method=ShowFolders
+if command -v gdbus >/dev/null 2>&1 \
+  && timeout 10 gdbus call --session --dest org.freedesktop.FileManager1 \
+    --object-path /org/freedesktop/FileManager1 \
+    --method "org.freedesktop.FileManager1.$method" "['$uri']" "" >/dev/null 2>&1; then
+  exit 0
+fi
+
+# Without a file manager to select it, a file is shown by opening the folder
+# that holds it.
+folder=$path
+if [[ $mode == item && ! -d $path ]]; then
+  folder=${path%/*}
+  [[ -n $folder ]] || folder=/
+fi
+command -v xdg-open >/dev/null 2>&1 || fail "no file manager could be reached"
+exec xdg-open "$folder"

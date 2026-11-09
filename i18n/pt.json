@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Deixar de guardar em %1 e voltar à pasta Transferências",
   "folder.notUsed": "Pasta não utilizada",
   "folder.notUsedDetail": "Os ficheiros recebidos mantêm os nomes dados pelo remetente, pelo que não são guardados diretamente na sua pasta pessoal nem numa pasta superior. Escolha uma subpasta.",
+  "folder.showInFolder": "Mostrar na pasta",
 
   "chooser.sendFiles": "Enviar para um dispositivo próximo",
   "chooser.sendFolder": "Enviar pasta para um dispositivo próximo",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "O programa auxiliar do Nearby parou durante a transferência",
 
   "notify.incomingBody": "De %1: %2",
-  "notify.textBody": "De %1"
+  "notify.textBody": "De %1",
+  "notify.sentBody": "Para %1: %2"
 }

@@ -18,3 +18,4 @@ bin/*
 !bin/nearby-helper-launcher
 !bin/nearby-preview-image
 !bin/nearby-repair-helper
+!bin/nearby-show-file

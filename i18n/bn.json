@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "%1-এ সংরক্ষণ বন্ধ করে ডাউনলোড ফোল্ডারে ফিরে যান",
   "folder.notUsed": "ফোল্ডার ব্যবহার করা হয়নি",
   "folder.notUsedDetail": "প্রাপ্ত ফাইলের নাম প্রেরকের দেওয়া নামই থাকে, তাই সেগুলো সরাসরি হোম ফোল্ডার বা তার ওপরের ফোল্ডারে সংরক্ষিত হয় না। হোমের ভেতরে একটি ফোল্ডার বেছে নিন।",
+  "folder.showInFolder": "ফোল্ডারে দেখান",
 
   "chooser.sendFiles": "কাছের ডিভাইসে পাঠান",
   "chooser.sendFolder": "কাছের ডিভাইসে ফোল্ডার পাঠান",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "স্থানান্তরের সময় Nearby ব্যাকএন্ড থেমে গেছে",
 
   "notify.incomingBody": "%1 থেকে: %2",
-  "notify.textBody": "%1 থেকে"
+  "notify.textBody": "%1 থেকে",
+  "notify.sentBody": "%1-কে: %2"
 }

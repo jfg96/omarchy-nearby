@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "停止儲存至 %1，改回下載資料夾",
   "folder.notUsed": "未使用此資料夾",
   "folder.notUsedDetail": "收到的檔案會保留傳送者指定的檔名，因此不能直接存入家目錄或其上層資料夾。請選擇家目錄內的資料夾。",
+  "folder.showInFolder": "在資料夾中顯示",
 
   "chooser.sendFiles": "傳送至附近裝置",
   "chooser.sendFolder": "傳送資料夾至附近裝置",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "傳輸期間 Nearby 後端已停止",
 
   "notify.incomingBody": "來自 %1：%2",
-  "notify.textBody": "來自 %1"
+  "notify.textBody": "來自 %1",
+  "notify.sentBody": "傳送至 %1：%2"
 }

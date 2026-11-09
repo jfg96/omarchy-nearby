@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "%1에 저장하지 않고 다운로드 폴더로 돌아가기",
   "folder.notUsed": "폴더 사용 안 함",
   "folder.notUsedDetail": "받은 파일은 보낸 사람이 지정한 이름을 유지하므로 홈 폴더나 그 상위 폴더에 바로 저장되지 않습니다. 홈 폴더 안의 하위 폴더를 선택하세요.",
+  "folder.showInFolder": "폴더에서 보기",
 
   "chooser.sendFiles": "주변 기기로 보내기",
   "chooser.sendFolder": "주변 기기로 폴더 보내기",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "전송 중 Nearby 보조 프로그램이 중지되었습니다",
 
   "notify.incomingBody": "%1에서: %2",
-  "notify.textBody": "%1에서"
+  "notify.textBody": "%1에서",
+  "notify.sentBody": "%1에게: %2"
 }

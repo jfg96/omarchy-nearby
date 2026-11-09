@@ -152,7 +152,7 @@ const functionNames = [
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
-  "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "cancelIncoming", "showIncomingRequest", "noteProgress", "resetProgressRate",
+  "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "cancelIncoming", "showIncomingRequest", "showReceivedResult", "notifyFinished", "showReceivedInFolder", "noteProgress", "resetProgressRate",
   "finishIncoming", "finishOutgoing", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "previewReceivedFile", "previewMade", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
@@ -222,6 +222,14 @@ function engine(initial = {}) {
     receivedFile: "",
     receivedFileType: "",
     receivedPreview: "",
+    receivedTop: "",
+    receivedTopMixed: false,
+    receivedShowPath: "",
+    receivedShowMode: "",
+    receivedSummary: "",
+    sentSummary: "",
+    pluginDir: "/plugin",
+    transferWasOutgoing: false,
     fileTypeProbe: {running: false, path: ""},
     previewMaker: {running: false, path: ""},
     progress: 0,
@@ -937,7 +945,7 @@ assert.match(source, /IpcHandler\s*\{[\s\S]*?function showRequest\(requestId: st
 }
 
 {
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent({event: "incoming_cancelled", sessionId: "session-a"})
   assert.equal(state.viewState, "error")
   assert.equal(state.activeIncomingSession, "")
@@ -946,7 +954,7 @@ assert.match(source, /IpcHandler\s*\{[\s\S]*?function showRequest\(requestId: st
 }
 
 {
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent({event: "incoming_progress", sessionId: "a", name: "a.txt", sender: "Alice", bytes: 1, total: 2})
   state.handleEvent({event: "incoming_cancelled", sessionId: "a"})
   state.handleEvent({event: "incoming_progress", sessionId: "a", name: "a.txt", sender: "Alice", bytes: 2, total: 2})
@@ -955,7 +963,7 @@ assert.match(source, /IpcHandler\s*\{[\s\S]*?function showRequest\(requestId: st
 }
 
 {
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent({event: "incoming_progress", sessionId: "b", name: "b.txt", sender: "Bob", bytes: 1, total: 2})
   state.handleEvent({event: "incoming_progress", sessionId: "a", name: "a.txt", sender: "Alice", bytes: 2, total: 2})
   assert.equal(state.activeIncomingSession, "b")
@@ -974,7 +982,7 @@ function probeExits(state, code, type) {
   state.fileTypeProbed(code, type)
 }
 {
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
   assert.equal(state.receivedFile, "", "a file is not offered while its session is still running")
   state.handleEvent({event: "incoming_done", sessionId: "a"})
@@ -983,10 +991,12 @@ function probeExits(state, code, type) {
   assert.equal(state.fileTypeProbe.path, "/home/someone/Downloads/photo.jpg")
   assert.equal(state.fileTypeProbe.running, true)
   assert.equal(state.receivedFileType, "", "nothing is previewable until the probe has answered")
-  assert.equal(state.cursors.at(-1), 0, "Copy is the default action for a received file")
+  assert.equal(state.cursors.at(-1), 1, "Copy, under the folder row, is the default action for a received file")
+  assert.equal(state.receivedShowPath, "/home/someone/Downloads/photo.jpg")
+  assert.equal(state.receivedShowMode, "item", "one received file is selected in its folder")
 }
 {
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent(received("a", "/home/someone/Downloads/one.jpg"))
   state.handleEvent(received("a", "/home/someone/Downloads/two.jpg"))
   state.handleEvent({event: "incoming_done", sessionId: "a"})
@@ -997,7 +1007,7 @@ function probeExits(state, code, type) {
 {
   // The count belongs to the session: an earlier receive must not make the
   // next single file look like the second of two.
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent(received("a", "/home/someone/Downloads/first.jpg"))
   state.handleEvent({event: "incoming_done", sessionId: "a"})
   state.viewState = "receiving"
@@ -1020,7 +1030,7 @@ function probeExits(state, code, type) {
 {
   // A probe that fails only withholds the preview, and one that outlives the
   // result has nothing left to probe.
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
   state.handleEvent({event: "incoming_done", sessionId: "a"})
   probeExits(state, 1, "")
@@ -1042,7 +1052,7 @@ function previewExits(state, code, path) {
   state.previewMade(code, path)
 }
 {
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
   state.handleEvent({event: "incoming_done", sessionId: "a"})
   assert.equal(state.receivedPreview, "", "nothing is shown before the probe answers")
@@ -1051,7 +1061,7 @@ function previewExits(state, code, path) {
   assert.equal(state.previewMaker.running, false, "a type the shell draws needs no conversion")
 }
 {
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent(received("a", "/home/someone/Downloads/IMG_0001.HEIC"))
   state.handleEvent({event: "incoming_done", sessionId: "a"})
   probeExits(state, 0, "image/heic")
@@ -1064,7 +1074,7 @@ function previewExits(state, code, path) {
 }
 {
   // A conversion that fails only withholds the preview.
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent(received("a", "/home/someone/Downloads/broken.avif"))
   state.handleEvent({event: "incoming_done", sessionId: "a"})
   probeExits(state, 0, "image/avif")
@@ -1075,7 +1085,7 @@ function previewExits(state, code, path) {
 {
   // A conversion still running for an earlier file must not show it under
   // the next one, and the next one gets its own conversion afterwards.
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent(received("a", "/home/someone/Downloads/first.heic"))
   state.handleEvent({event: "incoming_done", sessionId: "a"})
   probeExits(state, 0, "image/heic")
@@ -1106,7 +1116,7 @@ assert.match(source, /command: \[root\.pluginDir \+ "\/bin\/nearby-preview-image
 {
   // A receive that finishes behind a queued request never shows its result,
   // so there is nothing on screen to attach a preview to.
-  const state = engine({viewState: "receiving"})
+  const state = engine({viewState: "receiving", saveDirectory: "/home/someone/Downloads"})
   state.handleEvent(received("a", "/home/someone/Downloads/photo.jpg"))
   state.handleEvent(incoming("queued"))
   state.handleEvent({event: "incoming_done", sessionId: "a"})
@@ -1123,7 +1133,7 @@ assert.match(source, /command: \[root\.pluginDir \+ "\/bin\/nearby-preview-image
   assert.equal(state.viewState, "success")
   assert.equal(state.receivedFile, "")
 }
-assert.match(source, /onViewStateChanged: if \(viewState !== "success"\) \{ receivedFile = ""; receivedFileType = ""; receivedPreview = "" \}/,
+assert.match(source, /onViewStateChanged: if \(viewState !== "success"\) \{ receivedFile = ""; receivedFileType = ""; receivedPreview = ""; receivedShowPath = ""; receivedShowMode = "" \}/,
   "leaving the result must withdraw the file and its preview, so a later result cannot show them")
 assert.match(source, /command: \["file", "--brief", "--mime-type", "--", fileTypeProbe\.path\]/,
   "the type must come from the bytes, with the path kept from being read as an option")
@@ -1975,5 +1985,138 @@ for (const busy of [
   assert.equal(state.notified.length, 2)
   assert.equal(state.incoming.requestId, "later")
 }
+
+// The result of a receive points at what it saved: one file, the single
+// top-level folder the sender chose, or else the save folder itself. Only a
+// result on screen is offered, and the row disappears with it.
+{
+  const save = "/home/someone/Downloads"
+  const run = (files, initial = {}) => {
+    const state = engine({viewState: "receiving", saveDirectory: save, ...initial})
+    for (const file of files) state.handleEvent(received("a", file))
+    state.handleEvent({event: "incoming_done", sessionId: "a"})
+    return state
+  }
+  const folder = run([`${save}/Trip/a.jpg`, `${save}/Trip/sub/b.jpg`])
+  assert.deepEqual([folder.receivedShowMode, folder.receivedShowPath], ["item", `${save}/Trip`],
+    "a received folder is selected, not the folder it landed in")
+  assert.equal(folder.receivedFile, "", "several files still keep the plain result")
+  assert.equal(folder.cursors.at(-1), 1, "Done, under the folder row, is the default action")
+
+  const loose = run([`${save}/a.jpg`, `${save}/b.jpg`])
+  assert.deepEqual([loose.receivedShowMode, loose.receivedShowPath], ["folder", save],
+    "several loose files open the save folder")
+  const mixed = run([`${save}/Trip/a.jpg`, `${save}/b.jpg`])
+  assert.deepEqual([mixed.receivedShowMode, mixed.receivedShowPath], ["folder", save])
+  const outside = run(["/elsewhere/a.jpg", "/elsewhere/b.jpg"])
+  assert.deepEqual([outside.receivedShowMode, outside.receivedShowPath], ["folder", save],
+    "a path outside the save folder is never offered")
+
+  const nested = run([`${save}/Trip/only.jpg`])
+  assert.deepEqual([nested.receivedShowMode, nested.receivedShowPath], ["item", `${save}/Trip/only.jpg`],
+    "a single file is selected even inside a received folder")
+
+  // The count belongs to the session: the next receive starts its own target.
+  const next = run([`${save}/Trip/a.jpg`, `${save}/Trip/b.jpg`])
+  next.viewState = "receiving"
+  next.handleEvent(received("b", `${save}/c.jpg`))
+  next.handleEvent(received("b", `${save}/d.jpg`))
+  next.handleEvent({event: "incoming_done", sessionId: "b"})
+  assert.deepEqual([next.receivedShowMode, next.receivedShowPath], ["folder", save])
+
+  const held = run([`${save}/a.jpg`], {pendingOutgoing: {kind: "text"}})
+  assert.equal(held.receivedShowPath, "", "a result held behind a send never reached the screen")
+
+  const shown = run([`${save}/a.jpg`])
+  shown.showReceivedInFolder()
+  assert.deepEqual(Array.from(shown.notified.at(-1)), ["/plugin/bin/nearby-show-file", "item", `${save}/a.jpg`],
+    "the path reaches the script as one argument, never through a shell")
+}
+
+// A finished transfer is announced when the panel is not showing its result,
+// and only a finished receive can reopen it.
+{
+  const save = "/home/someone/Downloads"
+  const closed = {anyViewOpen: false, openViewCount: 0, saveDirectory: save}
+  const accepted = initial => {
+    const state = engine({viewState: "nearby", ...initial})
+    state.handleEvent(incoming("req"))
+    state.acceptIncoming()
+    state.handleEvent({event: "incoming_accepted", requestId: "req"})
+    state.notified.length = 0
+    return state
+  }
+
+  const done = accepted(closed)
+  done.handleEvent(received("s1", `${save}/photo.jpg`))
+  done.handleEvent({event: "incoming_done", sessionId: "s1"})
+  const doneNotices = done.notified.filter(command => command[0] !== "/plugin/bin/nearby-show-file")
+  assert.equal(doneNotices.length, 1)
+  assert.deepEqual(Array.from(doneNotices[0]), Model.panelNotificationCommand("showResult", "s1", [
+    "--app-name", "Nearby", "--urgency", "normal", "Received", "From Phone: req.txt",
+  ]), "a finished receive names what arrived and from whom, and its click reopens the result")
+
+  const summoned = []
+  done.shell = {summon: (id, args) => { summoned.push([id, args]); return true }}
+  assert.equal(done.showReceivedResult("s1"), "ok")
+  assert.equal(done.showReceivedResult("other"), "expired")
+  assert.equal(done.showReceivedResult(""), "expired")
+  done.finishTerminal()
+  assert.equal(done.showReceivedResult("s1"), "expired", "a dismissed result opens nothing")
+  assert.equal(summoned.length, 1)
+
+  const watched = accepted({saveDirectory: save})
+  watched.handleEvent(received("s2", `${save}/photo.jpg`))
+  watched.handleEvent({event: "incoming_done", sessionId: "s2"})
+  assert.deepEqual(notificationTitles(watched), [], "a result the open panel shows needs no notification")
+
+  // Open is not enough: a result held behind a newer request never showed.
+  const behind = accepted({saveDirectory: save})
+  behind.handleEvent(received("s5", `${save}/photo.jpg`))
+  behind.handleEvent(incoming("later"))
+  behind.notified.length = 0
+  behind.handleEvent({event: "incoming_done", sessionId: "s5"})
+  assert.equal(behind.viewState, "incoming")
+  assert.deepEqual(notificationTitles(behind), ["Received"], "a result the panel did not show is still announced")
+  assert.equal(behind.showReceivedResult("s5"), "expired", "and its click has no result to reopen")
+
+  const failed = accepted(closed)
+  failed.handleEvent({event: "incoming_progress", sessionId: "s3", name: "a.txt", sender: "Phone", bytes: 1, total: 2})
+  failed.handleEvent({event: "incoming_failed", sessionId: "s3", code: "disk_full", message: "No space left"})
+  assert.deepEqual(notificationCommands(failed).map(command => command.slice(5)), [[
+    "Transfer failed", Model.failureText("disk_full", "", strings),
+  ]], "a failed receive says why, with no click action")
+
+  const cancelled = accepted(closed)
+  cancelled.handleEvent({event: "incoming_progress", sessionId: "s4", name: "a.txt", sender: "Phone <b>", bytes: 1, total: 2})
+  cancelled.handleEvent({event: "incoming_cancelled", sessionId: "s4"})
+  assert.deepEqual(notificationCommands(cancelled).map(command => command.slice(5)), [[
+    "Transfer cancelled", "from Phone &lt;b&gt;",
+  ]], "peer text in a notification stays escaped")
+
+  const sending = engine(closed)
+  sending.beginOutgoing({kind: "text", device: sending.selectedDevice, text: "hi"})
+  const id = sending.outgoingTransferId
+  sending.handleEvent({event: "outgoing_preparing", transferId: id, name: "Trip", count: 2, total: 10, target: "Phone"})
+  sending.handleEvent({event: "outgoing_progress", transferId: id, name: "Trip/b.jpg", bytes: 5, total: 10, target: "Phone"})
+  sending.handleEvent({event: "outgoing_done", transferId: id, target: "Phone"})
+  assert.deepEqual(notificationCommands(sending), [[
+    "omarchy-notification-send", "--app-name", "Nearby", "--urgency", "normal", "Sent", "To Phone: Trip",
+  ]], "a finished send names the selection, not the last file, and has nothing to reopen")
+
+  const declined = engine(closed)
+  declined.beginOutgoing({kind: "text", device: declined.selectedDevice, text: "hi"})
+  declined.handleEvent({event: "outgoing_failed", transferId: declined.outgoingTransferId, code: "declined", message: "Declined"})
+  assert.deepEqual(notificationCommands(declined).map(command => command.slice(5)), [[
+    "Transfer failed", Model.failureText("declined", "", strings),
+  ]])
+
+  const cancelledHere = engine({saveDirectory: save})
+  cancelledHere.beginOutgoing({kind: "text", device: cancelledHere.selectedDevice, text: "hi"})
+  cancelledHere.handleEvent({event: "outgoing_cancelled", transferId: cancelledHere.outgoingTransferId})
+  assert.deepEqual(notificationTitles(cancelledHere), [], "a cancel the open panel shows needs no notification")
+}
+assert.match(source, /IpcHandler\s*\{[\s\S]*?function showResult\(sessionId: string\): string \{ return root\.showReceivedResult\(sessionId\) \}/,
+  "the click action of a finished receive must reach the service")
 
 console.log("service state tests passed")
