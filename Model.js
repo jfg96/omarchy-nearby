@@ -227,16 +227,43 @@ function hasIncoming(queue, requestId) {
   })
 }
 
-// Clicking the notification asks the service to show the request, which it
-// does only while that request is pending. A notification helper older than
-// --exec refuses the option before showing anything, so the plain notification
-// is sent instead. Every value is a separate argument; bash never re-parses
-// one as code.
-var INCOMING_NOTIFICATION_SCRIPT = 'id=$1; shift; omarchy-notification-send "$@" --exec omarchy-shell -q oma.nearby showRequest "$id" 2>/dev/null || exec omarchy-notification-send "$@"'
+// Clicking a notification asks the service to show what it announced: an
+// incoming request (showRequest) or a finished receive (showResult). The
+// service does so only while that request is pending or that result is still
+// on screen. A notification helper older than --exec refuses the option before
+// showing anything, so the plain notification is sent instead. Every value is
+// a separate argument; bash never re-parses one as code, and the method comes
+// from this fixed list.
+var PANEL_NOTIFICATION_METHODS = ["showRequest", "showResult"]
+
+function panelNotificationCommand(method, id, notifyArgs) {
+  if (!id || PANEL_NOTIFICATION_METHODS.indexOf(method) < 0) return ["omarchy-notification-send"].concat(notifyArgs)
+  var script = 'id=$1; shift; omarchy-notification-send "$@" --exec omarchy-shell -q oma.nearby ' + method + ' "$id" 2>/dev/null || exec omarchy-notification-send "$@"'
+  return ["bash", "-c", script, "nearby-notify", String(id)].concat(notifyArgs)
+}
 
 function incomingNotificationCommand(requestId, notifyArgs) {
-  if (!requestId) return ["omarchy-notification-send"].concat(notifyArgs)
-  return ["bash", "-c", INCOMING_NOTIFICATION_SCRIPT, "nearby-notify", String(requestId)].concat(notifyArgs)
+  return panelNotificationCommand("showRequest", requestId, notifyArgs)
+}
+
+// What "show in folder" points at once a receive is on screen. One file is
+// selected. Several files under one top-level folder select that folder, the
+// one the sender chose. Anything else, such as several loose files, opens the
+// save folder itself. A path outside the save folder is never offered.
+function receivedTopEntry(saveDirectory, path) {
+  var base = String(saveDirectory || "").replace(/\/+$/, "")
+  var file = String(path || "")
+  if (base === "" || file.indexOf(base + "/") !== 0) return ""
+  var first = file.slice(base.length + 1).split("/")[0]
+  return first === "" ? "" : base + "/" + first
+}
+
+function receivedShowTarget(saveDirectory, fileCount, lastPath, top, mixed) {
+  var base = String(saveDirectory || "").replace(/\/+$/, "")
+  if (base === "" || fileCount < 1) return null
+  if (fileCount === 1 && receivedTopEntry(base, lastPath) !== "") return {mode: "item", path: String(lastPath)}
+  if (!mixed && top !== "") return {mode: "item", path: top}
+  return {mode: "folder", path: base}
 }
 
 function outgoingCommand(pending, transferId, pin) {
@@ -461,4 +488,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, failureText, incomingMessage, incomingSummary, notificationText, plainName, notificationDue, progressSamples, progressRate, formatDuration, progressDetail, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, failureText, incomingMessage, incomingSummary, notificationText, plainName, notificationDue, progressSamples, progressRate, formatDuration, progressDetail, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, panelNotificationCommand, receivedTopEntry, receivedShowTarget, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }

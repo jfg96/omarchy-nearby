@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Smetti di salvare in %1 e torna alla cartella Scaricati",
   "folder.notUsed": "Cartella non utilizzata",
   "folder.notUsedDetail": "I file ricevuti mantengono i nomi assegnati dal mittente, quindi non vengono salvati direttamente nella cartella personale o in una cartella superiore. Scegli una sottocartella.",
+  "folder.showInFolder": "Mostra nella cartella",
 
   "chooser.sendFiles": "Invia a un dispositivo vicino",
   "chooser.sendFolder": "Invia una cartella a un dispositivo vicino",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Il programma ausiliario Nearby si è arrestato durante il trasferimento",
 
   "notify.incomingBody": "Da %1: %2",
-  "notify.textBody": "Da %1"
+  "notify.textBody": "Da %1",
+  "notify.sentBody": "A %1: %2"
 }

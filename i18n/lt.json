@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Nebeįrašyti į %1 ir grįžti prie aplanko Atsiuntimai",
   "folder.notUsed": "Aplankas nenaudojamas",
   "folder.notUsedDetail": "Gauti failai išlaiko siuntėjo suteiktus pavadinimus, todėl jie neįrašomi tiesiai į jūsų namų aplanką ar aukščiau esantį aplanką. Pasirinkite poaplankį.",
+  "folder.showInFolder": "Rodyti aplanke",
 
   "chooser.sendFiles": "Siųsti į netoliese esantį įrenginį",
   "chooser.sendFolder": "Siųsti aplanką į netoliese esantį įrenginį",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Nearby pagalbinė programa sustojo perdavimo metu",
 
   "notify.incomingBody": "Nuo %1: %2",
-  "notify.textBody": "Nuo %1"
+  "notify.textBody": "Nuo %1",
+  "notify.sentBody": "Gavėjas %1: %2"
 }

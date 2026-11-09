@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "التوقف عن الحفظ في %1 والعودة إلى مجلد التنزيلات",
   "folder.notUsed": "لم يُستخدم المجلد",
   "folder.notUsedDetail": "تحتفظ الملفات المستلَمة بالأسماء التي وضعها المرسِل، لذا لا تُحفظ مباشرةً في مجلدك الشخصي أو أي مجلد أعلى منه. اختر مجلدًا بداخله.",
+  "folder.showInFolder": "إظهار في المجلد",
 
   "chooser.sendFiles": "إرسال إلى جهاز قريب",
   "chooser.sendFolder": "إرسال مجلد إلى جهاز قريب",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "توقفت الخدمة الخلفية لـ Nearby أثناء النقل",
 
   "notify.incomingBody": "من %1: %2",
-  "notify.textBody": "من %1"
+  "notify.textBody": "من %1",
+  "notify.sentBody": "إلى %1: %2"
 }

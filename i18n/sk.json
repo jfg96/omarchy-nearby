@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Prestať ukladať do %1 a vrátiť sa do priečinka Stiahnuté",
   "folder.notUsed": "Priečinok sa nepoužíva",
   "folder.notUsedDetail": "Prijaté súbory si zachovávajú názvy od odosielateľa, preto sa neukladajú priamo do domovského priečinka ani do nadradeného priečinka. Vyberte podpriečinok.",
+  "folder.showInFolder": "Zobraziť v priečinku",
 
   "chooser.sendFiles": "Odoslať zariadeniu v okolí",
   "chooser.sendFolder": "Odoslať priečinok zariadeniu v okolí",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Služba Nearby sa zastavila počas prenosu",
 
   "notify.incomingBody": "Od %1: %2",
-  "notify.textBody": "Od %1"
+  "notify.textBody": "Od %1",
+  "notify.sentBody": "Pre %1: %2"
 }

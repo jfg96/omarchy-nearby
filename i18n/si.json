@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "%1 වෙත සුරැකීම නවතා බාගැනීම් ෆෝල්ඩරයට ආපසු යන්න",
   "folder.notUsed": "ෆෝල්ඩරය භාවිත නොවේ",
   "folder.notUsedDetail": "ලැබෙන ගොනු යවන්නා දුන් නම් එලෙසම තබාගන්නා නිසා, ඒවා ඔබේ මුල් ෆෝල්ඩරයට හෝ ඊට ඉහළ ෆෝල්ඩරයකට සෘජුව සුරැකෙන්නේ නැත. මුල් ෆෝල්ඩරය තුළ ඇති ෆෝල්ඩරයක් තෝරන්න.",
+  "folder.showInFolder": "ෆෝල්ඩරයේ පෙන්වන්න",
 
   "chooser.sendFiles": "අසල උපාංගයකට යවන්න",
   "chooser.sendFolder": "අසල උපාංගයකට ෆෝල්ඩරයක් යවන්න",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "හුවමාරුව අතරතුර Nearby පසුබිම් සේවය නැවතුණා",
 
   "notify.incomingBody": "%1 වෙතින්: %2",
-  "notify.textBody": "%1 වෙතින්"
+  "notify.textBody": "%1 වෙතින්",
+  "notify.sentBody": "%1 වෙත: %2"
 }

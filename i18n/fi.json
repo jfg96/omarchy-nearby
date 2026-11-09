@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Lopeta tallennus kansioon %1 ja palaa Lataukset-kansioon",
   "folder.notUsed": "Kansiota ei käytetä",
   "folder.notUsedDetail": "Vastaanotetut tiedostot säilyttävät lähettäjän antamat nimet, joten niitä ei tallenneta suoraan kotikansioosi tai sen yläpuoliseen kansioon. Valitse alikansio.",
+  "folder.showInFolder": "Näytä kansiossa",
 
   "chooser.sendFiles": "Lähetä lähellä olevaan laitteeseen",
   "chooser.sendFolder": "Lähetä kansio lähellä olevaan laitteeseen",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Nearby-apuohjelma pysähtyi siirron aikana",
 
   "notify.incomingBody": "Lähettäjä %1: %2",
-  "notify.textBody": "Lähettäjä %1"
+  "notify.textBody": "Lähettäjä %1",
+  "notify.sentBody": "Vastaanottaja %1: %2"
 }

@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Спиране на записването в %1 и връщане към папката „Изтегляния“",
   "folder.notUsed": "Папката не се използва",
   "folder.notUsedDetail": "Получените файлове запазват имената, зададени от подателя, затова не се записват директно в домашната папка или в по-горна папка. Изберете подпапка.",
+  "folder.showInFolder": "Показване в папката",
 
   "chooser.sendFiles": "Изпращане до устройство наблизо",
   "chooser.sendFolder": "Изпращане на папка до устройство наблизо",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Услугата Nearby спря по време на прехвърляне",
 
   "notify.incomingBody": "От %1: %2",
-  "notify.textBody": "От %1"
+  "notify.textBody": "От %1",
+  "notify.sentBody": "До %1: %2"
 }

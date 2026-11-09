@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Stop med at gemme i %1, og vend tilbage til mappen Hentede filer",
   "folder.notUsed": "Mappen bruges ikke",
   "folder.notUsedDetail": "Modtagne filer beholder de navne, afsenderen gav dem, så de gemmes ikke direkte i din hjemmemappe eller en mappe over den. Vælg en undermappe.",
+  "folder.showInFolder": "Vis i mappe",
 
   "chooser.sendFiles": "Send til en enhed i nærheden",
   "chooser.sendFolder": "Send en mappe til en enhed i nærheden",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Nearbys hjælpeprogram stoppede under overførslen",
 
   "notify.incomingBody": "Fra %1: %2",
-  "notify.textBody": "Fra %1"
+  "notify.textBody": "Fra %1",
+  "notify.sentBody": "Til %1: %2"
 }

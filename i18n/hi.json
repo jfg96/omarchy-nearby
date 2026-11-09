@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "%1 में सहेजना बंद करके डाउनलोड फ़ोल्डर पर लौटें",
   "folder.notUsed": "फ़ोल्डर इस्तेमाल नहीं हुआ",
   "folder.notUsedDetail": "प्राप्त फ़ाइलों के नाम भेजने वाले के दिए हुए ही रहते हैं, इसलिए उन्हें सीधे होम फ़ोल्डर या उससे ऊपर के फ़ोल्डर में नहीं सहेजा जाता। होम के अंदर कोई फ़ोल्डर चुनें।",
+  "folder.showInFolder": "फ़ोल्डर में दिखाएँ",
 
   "chooser.sendFiles": "नज़दीकी डिवाइस को भेजें",
   "chooser.sendFolder": "नज़दीकी डिवाइस को फ़ोल्डर भेजें",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "स्थानांतरण के दौरान Nearby बैकएंड रुक गया",
 
   "notify.incomingBody": "%1 से: %2",
-  "notify.textBody": "%1 से"
+  "notify.textBody": "%1 से",
+  "notify.sentBody": "%1 को: %2"
 }

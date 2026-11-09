@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Διακοπή αποθήκευσης στο %1 και επιστροφή στον φάκελο Λήψεις",
   "folder.notUsed": "Ο φάκελος δεν χρησιμοποιείται",
   "folder.notUsedDetail": "Τα ληφθέντα αρχεία διατηρούν τα ονόματα που έδωσε ο αποστολέας, γι’ αυτό δεν αποθηκεύονται απευθείας στον προσωπικό σας φάκελο ή σε ανώτερο φάκελο. Επιλέξτε έναν υποφάκελο.",
+  "folder.showInFolder": "Εμφάνιση στον φάκελο",
 
   "chooser.sendFiles": "Αποστολή σε κοντινή συσκευή",
   "chooser.sendFolder": "Αποστολή φακέλου σε κοντινή συσκευή",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Η υπηρεσία Nearby σταμάτησε κατά τη μεταφορά",
 
   "notify.incomingBody": "Από %1: %2",
-  "notify.textBody": "Από %1"
+  "notify.textBody": "Από %1",
+  "notify.sentBody": "Προς %1: %2"
 }

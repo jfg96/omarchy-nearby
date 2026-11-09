@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Przestań zapisywać w %1 i wróć do folderu Pobrane",
   "folder.notUsed": "Folder nieużywany",
   "folder.notUsedDetail": "Odebrane pliki zachowują nazwy nadane przez nadawcę, dlatego nie są zapisywane bezpośrednio w folderze domowym ani powyżej niego. Wybierz podfolder.",
+  "folder.showInFolder": "Pokaż w folderze",
 
   "chooser.sendFiles": "Wyślij do pobliskiego urządzenia",
   "chooser.sendFolder": "Wyślij folder do pobliskiego urządzenia",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Usługa Nearby zatrzymała się podczas przesyłania",
 
   "notify.incomingBody": "Od %1: %2",
-  "notify.textBody": "Od %1"
+  "notify.textBody": "Od %1",
+  "notify.sentBody": "Do %1: %2"
 }

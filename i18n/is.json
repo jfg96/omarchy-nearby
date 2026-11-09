@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Hætta að vista í %1 og fara aftur í möppuna Niðurhal",
   "folder.notUsed": "Mappa ekki notuð",
   "folder.notUsedDetail": "Mótteknar skrár halda nöfnunum sem sendandinn gaf þeim og eru því ekki vistaðar beint í heimamöppuna þína eða möppu ofan hennar. Veldu undirmöppu.",
+  "folder.showInFolder": "Sýna í möppu",
 
   "chooser.sendFiles": "Senda til tækis í nágrenninu",
   "chooser.sendFolder": "Senda möppu til tækis í nágrenninu",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Hjálparforrit Nearby stöðvaðist meðan á flutningi stóð",
 
   "notify.incomingBody": "Frá %1: %2",
-  "notify.textBody": "Frá %1"
+  "notify.textBody": "Frá %1",
+  "notify.sentBody": "Til %1: %2"
 }

@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Sluta spara i %1 och återgå till mappen Hämtningar",
   "folder.notUsed": "Mappen används inte",
   "folder.notUsedDetail": "Mottagna filer behåller namnen som avsändaren gav dem och sparas därför inte direkt i din hemmapp eller en överordnad mapp. Välj en undermapp.",
+  "folder.showInFolder": "Visa i mapp",
 
   "chooser.sendFiles": "Skicka till en enhet i närheten",
   "chooser.sendFolder": "Skicka en mapp till en enhet i närheten",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Nearbys hjälpprogram stoppades under överföringen",
 
   "notify.incomingBody": "Från %1: %2",
-  "notify.textBody": "Från %1"
+  "notify.textBody": "Från %1",
+  "notify.sentBody": "Till %1: %2"
 }

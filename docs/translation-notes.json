@@ -52,6 +52,7 @@
   "folder.useDownloadsTooltip": "Receive folder action or validation. %1 = custom receive folder path.",
   "folder.notUsed": "Receive folder action or validation.",
   "folder.notUsedDetail": "Receive folder action or validation.",
+  "folder.showInFolder": "Received result row tooltip: shows the received file or folder in the file manager without opening it. Keep it the familiar file-manager phrase.",
   "chooser.sendFiles": "Native file chooser title or launch error.",
   "chooser.sendFolder": "Native file chooser title or launch error.",
   "chooser.saveTo": "Native file chooser title or launch error.",
@@ -171,6 +172,7 @@
   "status.backendStopped": "Short receiver/transfer state or explanatory error.",
   "status.backendStoppedPin": "Short receiver/transfer state or explanatory error.",
   "status.backendStoppedTransfer": "Short receiver/transfer state or explanatory error.",
-  "notify.incomingBody": "Desktop notification body. Remote arguments are escaped before substitution. %1 = escaped sender alias; %2 = escaped file summary.",
-  "notify.textBody": "Desktop notification body. Remote arguments are escaped before substitution. %1 = escaped sender alias."
+  "notify.incomingBody": "Desktop notification body for an incoming request and for a finished receive. Remote arguments are escaped before substitution. %1 = escaped sender alias; %2 = escaped file summary.",
+  "notify.textBody": "Desktop notification body. Remote arguments are escaped before substitution. %1 = escaped sender alias.",
+  "notify.sentBody": "Desktop notification body after a send finishes. Arguments are escaped before substitution. %1 = escaped receiver alias; %2 = escaped file summary."
 }

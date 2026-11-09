@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "%1への保存をやめ、ダウンロードフォルダーに戻す",
   "folder.notUsed": "使用できないフォルダー",
   "folder.notUsedDetail": "受信したファイルは送信者が付けた名前で保存されるため、ホームフォルダーやその上位フォルダーには直接保存できません。ホーム内のフォルダーを選択してください。",
+  "folder.showInFolder": "フォルダーで表示",
 
   "chooser.sendFiles": "近くのデバイスに送信",
   "chooser.sendFolder": "近くのデバイスにフォルダーを送信",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "転送中にNearbyのバックエンドが停止しました",
 
   "notify.incomingBody": "%1から: %2",
-  "notify.textBody": "%1から"
+  "notify.textBody": "%1から",
+  "notify.sentBody": "%1へ: %2"
 }

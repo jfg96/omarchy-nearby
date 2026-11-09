@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "%1 konumuna kaydetmeyi bırak ve İndirilenler klasörüne dön",
   "folder.notUsed": "Klasör kullanılmadı",
   "folder.notUsedDetail": "Alınan dosyalar, gönderenin verdiği adları koruduğundan doğrudan ev klasörünüze veya onun üstündeki bir klasöre kaydedilmez. Bir alt klasör seçin.",
+  "folder.showInFolder": "Klasörde göster",
 
   "chooser.sendFiles": "Yakındaki cihaza gönder",
   "chooser.sendFolder": "Yakındaki cihaza klasör gönder",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Nearby arka ucu aktarım sırasında durduruldu",
 
   "notify.incomingBody": "Gönderen %1: %2",
-  "notify.textBody": "Gönderen %1"
+  "notify.textBody": "Gönderen %1",
+  "notify.sentBody": "Alıcı %1: %2"
 }

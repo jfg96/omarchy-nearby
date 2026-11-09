@@ -78,8 +78,15 @@ converted, is copied as a file reference, the way a file manager copies it.
 BMP, TIFF, HEIC, AVIF and JPEG XL are previewed from a small PNG that
 ImageMagick converts under `$XDG_RUNTIME_DIR`: a stock shell cannot decode the
 formats phones often save photos in, and Nearby keeps the others out of the
-shell's process. The file in Downloads is never changed. A transfer of several
-files shows the plain result.
+shell's process. The file in Downloads is never changed.
+
+The result of a receive also names what arrived, on a row with a folder icon
+above the buttons. Choose it to show that item in Omarchy's Files: a single
+file, or the folder the sender chose, is selected in the folder that holds it;
+several loose files open the folder they were saved to. The row only points at
+the item and never opens it. Without a file manager that offers this, the
+folder is opened instead. A transfer of several files offers the row and
+**Done**.
 
 Incoming notifications use Omarchy's notification system and respect Do Not
 Disturb. A burst of requests raises one notification every few seconds; all of
@@ -90,6 +97,13 @@ from the notification history. On a shell whose notification helper predates
 click actions, the notification appears without one. A request already
 displayed in the open panel does not also need a duplicate notification;
 requests waiting behind another view can still notify.
+
+When a transfer ends while its result is not on screen, because the popup is
+closed or another request took its place, a notification says so: what was
+received and from whom, what was sent and to whom, or why it failed or that it
+was cancelled. Clicking a finished-receive notification opens the panel on its
+result while that result is still shown; after **Done** or a newer transfer,
+the click does nothing. The other notifications have no click action.
 
 ## Receiver and popup
 
@@ -179,6 +193,7 @@ These commands address the loaded `oma.nearby` service in the Omarchy shell:
 | `omarchy-shell oma.nearby status` | Report service state as JSON |
 | `omarchy-shell oma.nearby retryHelper` | Request verification/repair of the selected published helper |
 | `omarchy-shell oma.nearby showRequest <id>` | Open the popup if incoming request `<id>` is still pending, otherwise report `expired`; used by the incoming notification |
+| `omarchy-shell oma.nearby showResult <id>` | Open the popup if the result of receive `<id>` is still shown, otherwise report `expired`; used by the finished-receive notification |
 
 Popup commands do not toggle the receiver. An `ok` response acknowledges a
 command; it does not prove that startup, repair or a transfer has completed.

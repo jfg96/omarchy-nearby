@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Pārtraukt saglabāšanu mapē %1 un atgriezties mapē Lejupielādes",
   "folder.notUsed": "Mape netiek izmantota",
   "folder.notUsedDetail": "Saņemtie faili saglabā sūtītāja piešķirtos nosaukumus, tāpēc tie netiek saglabāti tieši jūsu mājas mapē vai tās vecākmapē. Izvēlieties apakšmapi.",
+  "folder.showInFolder": "Rādīt mapē",
 
   "chooser.sendFiles": "Sūtīt uz tuvumā esošu ierīci",
   "chooser.sendFolder": "Sūtīt mapi uz tuvumā esošu ierīci",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Nearby palīgprogramma apstājās pārsūtīšanas laikā",
 
   "notify.incomingBody": "No %1: %2",
-  "notify.textBody": "No %1"
+  "notify.textBody": "No %1",
+  "notify.sentBody": "Saņēmējs %1: %2"
 }

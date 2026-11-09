@@ -74,9 +74,10 @@ Run commands from the repository root. Select checks by the changed behavior:
   use stubbed external commands to test immutable metadata, download policy,
   checksum verification, XDG storage, offline reuse, races and cleanup.
 - Received file copy (`bin/nearby-copy-file`), preview conversion
-  (`bin/nearby-preview-image`) and clipboard picture (`bin/nearby-clipboard-image`):
-  run their Bash suites below. They stub `file`, `magick`, `wl-copy` and
-  `wl-paste`, so they never touch the real clipboard.
+  (`bin/nearby-preview-image`), clipboard picture (`bin/nearby-clipboard-image`)
+  and show in folder (`bin/nearby-show-file`): run their Bash suites below.
+  They stub `file`, `magick`, `wl-copy`, `wl-paste`, `gdbus` and `xdg-open`,
+  so they never touch the real clipboard or start a file manager.
 - Shell scripts: also run `bash -n` on the changed scripts. Syntax checks alone
   do not validate installation or updates on a live system.
 - Documentation only: check referenced paths and commands and run
@@ -95,6 +96,7 @@ bash tests/helper-repair.test.sh
 bash tests/copy-file.test.sh
 bash tests/preview-image.test.sh
 bash tests/clipboard-image.test.sh
+bash tests/show-file.test.sh
 cargo fmt --manifest-path backend/Cargo.toml --all -- --check
 cargo check --locked --manifest-path backend/Cargo.toml
 cargo clippy --all-targets --locked --manifest-path backend/Cargo.toml -- -D warnings

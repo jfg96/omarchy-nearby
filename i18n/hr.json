@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Prestani spremati u %1 i vrati se u mapu Preuzimanja",
   "folder.notUsed": "Mapa se ne koristi",
   "folder.notUsedDetail": "Primljene datoteke zadržavaju nazive koje im je dao pošiljatelj, pa se ne spremaju izravno u osobnu mapu ili nadređenu mapu. Odaberite podmapu.",
+  "folder.showInFolder": "Prikaži u mapi",
 
   "chooser.sendFiles": "Pošalji uređaju u blizini",
   "chooser.sendFolder": "Pošalji mapu uređaju u blizini",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Usluga Nearby zaustavila se tijekom prijenosa",
 
   "notify.incomingBody": "Od %1: %2",
-  "notify.textBody": "Od %1"
+  "notify.textBody": "Od %1",
+  "notify.sentBody": "Za %1: %2"
 }

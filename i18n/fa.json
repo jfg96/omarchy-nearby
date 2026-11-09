@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "توقف ذخیره در %1 و بازگشت به پوشهٔ بارگیری‌ها",
   "folder.notUsed": "پوشه استفاده نشد",
   "folder.notUsedDetail": "پرونده‌های دریافتی نامی را که فرستنده تعیین کرده نگه می‌دارند؛ بنابراین مستقیماً در پوشهٔ خانگی یا پوشه‌های بالاتر از آن ذخیره نمی‌شوند. پوشه‌ای درون پوشهٔ خانگی انتخاب کنید.",
+  "folder.showInFolder": "نمایش در پوشه",
 
   "chooser.sendFiles": "ارسال به دستگاه نزدیک",
   "chooser.sendFolder": "ارسال پوشه به دستگاه نزدیک",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "خدمت پس‌زمینهٔ Nearby هنگام انتقال متوقف شد",
 
   "notify.incomingBody": "از %1: %2",
-  "notify.textBody": "از %1"
+  "notify.textBody": "از %1",
+  "notify.sentBody": "به %1: %2"
 }

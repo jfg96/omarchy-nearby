@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Slutt å lagre i %1 og gå tilbake til Nedlastinger-mappen",
   "folder.notUsed": "Mappen brukes ikke",
   "folder.notUsedDetail": "Mottatte filer beholder navnene fra avsenderen og lagres derfor ikke direkte i hjemmemappen din eller en overordnet mappe. Velg en undermappe.",
+  "folder.showInFolder": "Vis i mappe",
 
   "chooser.sendFiles": "Send til en enhet i nærheten",
   "chooser.sendFolder": "Send en mappe til en enhet i nærheten",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Nearby-hjelpeprogrammet stoppet under overføringen",
 
   "notify.incomingBody": "Fra %1: %2",
-  "notify.textBody": "Fra %1"
+  "notify.textBody": "Fra %1",
+  "notify.sentBody": "Til %1: %2"
 }

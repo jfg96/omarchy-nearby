@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Lõpeta salvestamine kausta %1 ja kasuta taas kausta Allalaadimised",
   "folder.notUsed": "Kausta ei kasutata",
   "folder.notUsedDetail": "Vastuvõetud failid säilitavad saatja antud nimed, seega ei salvestata neid otse sinu kodukausta ega sellest kõrgemasse kausta. Vali alamkaust.",
+  "folder.showInFolder": "Näita kaustas",
 
   "chooser.sendFiles": "Saada lähedal asuvasse seadmesse",
   "chooser.sendFolder": "Saada kaust lähedal asuvasse seadmesse",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Nearby abiprogramm peatus edastuse ajal",
 
   "notify.incomingBody": "Saatjalt %1: %2",
-  "notify.textBody": "Saatjalt %1"
+  "notify.textBody": "Saatjalt %1",
+  "notify.sentBody": "Saajale %1: %2"
 }

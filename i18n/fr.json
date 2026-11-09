@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Ne plus enregistrer dans %1 et revenir au dossier Téléchargements",
   "folder.notUsed": "Dossier non utilisé",
   "folder.notUsedDetail": "Les fichiers reçus conservent les noms donnés par leur expéditeur. Ils ne sont donc pas enregistrés directement dans votre dossier personnel ni dans un dossier parent. Choisissez un sous-dossier.",
+  "folder.showInFolder": "Afficher dans le dossier",
 
   "chooser.sendFiles": "Envoyer à un appareil à proximité",
   "chooser.sendFolder": "Envoyer un dossier à un appareil à proximité",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "Le programme auxiliaire Nearby s’est arrêté pendant le transfert",
 
   "notify.incomingBody": "De %1 : %2",
-  "notify.textBody": "De %1"
+  "notify.textBody": "De %1",
+  "notify.sentBody": "Vers %1 : %2"
 }

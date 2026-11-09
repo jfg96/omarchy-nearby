@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "停止保存到 %1，恢复使用下载文件夹",
   "folder.notUsed": "未使用此文件夹",
   "folder.notUsedDetail": "收到的文件会保留发送者指定的文件名，因此不能直接保存到主文件夹或其上级文件夹。请选择主文件夹内的文件夹。",
+  "folder.showInFolder": "在文件夹中显示",
 
   "chooser.sendFiles": "发送到附近设备",
   "chooser.sendFolder": "向附近设备发送文件夹",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "传输过程中 Nearby 后台程序已停止",
 
   "notify.incomingBody": "来自 %1：%2",
-  "notify.textBody": "来自 %1"
+  "notify.textBody": "来自 %1",
+  "notify.sentBody": "发往 %1：%2"
 }

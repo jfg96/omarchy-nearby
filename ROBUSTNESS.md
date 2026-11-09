@@ -809,6 +809,18 @@ complete until those versions and results are written down.
     break or direction mark appear: the list must show it on one line and in
     logical order.
 
+35. Receive one picture, then a folder, then several loose files. Each result
+    must show one borderless row with a folder icon above its buttons, and no
+    extra bordered button. Choosing the row must open Files with the picture
+    or the folder selected, or on the save folder for the loose files, and
+    must leave the result on screen. With the arrow keys, Up reaches the row
+    and Left and Right move between Copy and Done. Close the popup during a
+    receive: a notification must name the file and the sender, and clicking it
+    must open the panel on the result; after **Done**, clicking it again must
+    do nothing. Close the popup during a send, and during one the peer
+    declines: each must be announced, with no click action. With the popup
+    open on the result, no notification may appear.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked
@@ -1263,3 +1275,27 @@ The complete supported suite passed on the release tree: four Node suites
 `cargo check`, `cargo clippy -D warnings`, 105 helper tests and the vendored
 `localsend-rs` HTTPS suite (152 passed, one upstream test ignored), plus the
 plugin validator and `git diff --check`.
+
+## Show in folder and finished-transfer notifications development check — 2026-11-10
+
+Plugin `1.2.13-dev` adds a row to a receive's result that shows what it saved
+in the file manager, and notifications for transfers that end while their
+result is not on screen. The helper is unchanged, so `minHelperVersion` stays
+at 1.2.9.
+
+The new Node cases failed against the previous code: `Model.receivedShowTarget`,
+`Model.panelNotificationCommand`, the service's `showReceivedResult` and
+`showReceivedInFolder`, and the panel's folder row did not exist. They cover
+one file, a received folder, loose and mixed files, paths outside the save
+folder, a result held behind a send or a newer request, the click that expires
+after **Done**, escaped peer text, and the keyboard stops. The new
+`tests/show-file.test.sh` stubs `gdbus` and `xdg-open` and covers both D-Bus
+methods, the xdg-open fallback, hostile names and refused arguments.
+
+All four Node suites (50/50 catalogues, 176 keys), all six Bash suites,
+`bash -n`, `qmllint` on both QML files, the plugin validator and
+`git diff --check` passed. No Rust code changed, so the cargo checks were not
+run. On Omarchy, `bin/nearby-show-file item` on a scratch file returned success
+through the session's `org.freedesktop.FileManager1` service. The installed
+plugin was not replaced, so the panel row, the notifications and scenario 35
+with a real LocalSend peer remain **Not run**.

@@ -60,6 +60,7 @@
   "folder.useDownloadsTooltip": "Deixa de desar a %1 i torna a la carpeta Baixades",
   "folder.notUsed": "Carpeta no utilitzada",
   "folder.notUsedDetail": "Els fitxers rebuts conserven els noms que els ha donat el remitent. Per això no es desen directament a la carpeta personal ni a una carpeta superior. Tria una subcarpeta.",
+  "folder.showInFolder": "Mostra a la carpeta",
 
   "chooser.sendFiles": "Envia a prop",
   "chooser.sendFolder": "Envia una carpeta a prop",
@@ -190,5 +191,6 @@
   "status.backendStoppedTransfer": "L'auxiliar de Nearby s'ha aturat durant la transferència",
 
   "notify.incomingBody": "De %1: %2",
-  "notify.textBody": "De %1"
+  "notify.textBody": "De %1",
+  "notify.sentBody": "A %1: %2"
 }
