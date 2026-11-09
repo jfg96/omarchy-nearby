@@ -1299,3 +1299,20 @@ run. On Omarchy, `bin/nearby-show-file item` on a scratch file returned success
 through the session's `org.freedesktop.FileManager1` service. The installed
 plugin was not replaced, so the panel row, the notifications and scenario 35
 with a real LocalSend peer remain **Not run**.
+
+## Release check — v1.2.13, 2026-11-10
+
+Plugin `1.2.13` carries #63 and keeps helper 1.2.9: `backend/` is identical to
+the helper source commit `088d5a9`, and `helper-release.env` is unchanged. The
+Cargo package, `minHelperVersion` and selected helper remain 1.2.9.
+
+The complete supported suite passed on the release tree: four Node suites
+(50/50 catalogues, 176 keys), six Bash suites, `cargo fmt --check`,
+`cargo check`, `cargo clippy -D warnings`, 105 helper tests and the vendored
+`localsend-rs` HTTPS suite (152 passed, one upstream test ignored), plus the
+plugin validator and `git diff --check`. CI passed on the merge of #63
+(`d2dc9cb`).
+
+No manual run on Omarchy was made for this release: the result row, the
+finished-transfer notifications and scenario 35 with a real LocalSend peer
+remain **Not run**.

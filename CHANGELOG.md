@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.13-dev
+## 1.2.13
 
 - Show what a receive saved in Files from its result: a row with a folder icon
   replaces the file name the result already showed, so no button is added.
