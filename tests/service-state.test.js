@@ -153,7 +153,7 @@ const functionNames = [
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
   "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "cancelIncoming", "showIncomingRequest", "showReceivedResult", "notifyFinished", "showReceivedInFolder", "noteProgress", "resetProgressRate",
-  "finishIncoming", "finishOutgoing", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "previewReceivedFile", "previewMade", "finishText", "finishTerminal",
+  "finishIncoming", "finishOutgoing", "noteDiscoveryStatus", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "previewReceivedFile", "previewMade", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
 ]
@@ -2118,5 +2118,33 @@ for (const busy of [
 }
 assert.match(source, /IpcHandler\s*\{[\s\S]*?function showResult\(sessionId: string\): string \{ return root\.showReceivedResult\(sessionId\) \}/,
   "the click action of a finished receive must reach the service")
+
+// Discovery reports whether anything was found, which only the device list
+// shows. A phone announcing itself while a result, a request or a transfer is
+// on screen must not retitle it "Ready".
+{
+  const phone = {alias: "Phone", fingerprint: "phone-fp", deviceType: "mobile", ip: "192.0.2.2", port: 53317, protocol: "https"}
+  const save = "/home/someone/Downloads"
+  const result = engine({viewState: "receiving", saveDirectory: save})
+  result.handleEvent(received("a", `${save}/photo.jpg`))
+  result.handleEvent({event: "incoming_done", sessionId: "a"})
+  assert.equal(result.statusText, "Received")
+  result.handleEvent({event: "device", device: phone})
+  result.handleEvent({event: "peer_snapshot", devices: [phone]})
+  assert.equal(result.statusText, "Received", "a device announcing itself must not retitle the result")
+  assert.equal(result.devices.length, 1, "the device list still follows discovery")
+
+  const request = engine({viewState: "nearby"})
+  request.handleEvent(incoming("req"))
+  const header = request.statusText
+  request.handleEvent({event: "device", device: phone})
+  assert.equal(request.statusText, header, "a pending request keeps its header")
+
+  const list = engine({viewState: "nearby"})
+  list.handleEvent({event: "device", device: phone})
+  assert.equal(list.statusText, "Ready", "the device list still reports what was found")
+  list.handleEvent({event: "peer_snapshot", devices: []})
+  assert.equal(list.statusText, "Looking nearby…")
+}
 
 console.log("service state tests passed")
