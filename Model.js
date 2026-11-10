@@ -246,7 +246,8 @@ function incomingNotificationCommand(requestId, notifyArgs) {
   return panelNotificationCommand("showRequest", requestId, notifyArgs)
 }
 
-// A received message that is exactly one web link, as a phone shares one, can
+// A received message that is exactly one web link, as any LocalSend sender
+// shares a page, can
 // be opened in the browser. Only http and https, with an ASCII host and no
 // user name or password, and only printable ASCII after it: the host shown is
 // then the host the browser opens, and "https://bank.example@evil.example" or
