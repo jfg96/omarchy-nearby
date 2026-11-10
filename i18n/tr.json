@@ -53,6 +53,7 @@
   "action.decline": "Reddet",
   "action.copy": "Kopyala",
   "action.done": "Tamam",
+  "action.openLink": "%1 adresini aç",
 
   "folder.saveTo": "Şuraya kaydet · %1",
   "folder.saveToTooltip": "Alınan dosyalar %1 konumuna kaydedilir. Başka bir klasör seçin.",

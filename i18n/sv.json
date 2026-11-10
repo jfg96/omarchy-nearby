@@ -53,6 +53,7 @@
   "action.decline": "Avvisa",
   "action.copy": "Kopiera",
   "action.done": "Klart",
+  "action.openLink": "Öppna %1",
 
   "folder.saveTo": "Spara i · %1",
   "folder.saveToTooltip": "Mottagna filer sparas i %1. Välj en annan mapp.",

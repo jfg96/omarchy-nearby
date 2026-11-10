@@ -605,6 +605,13 @@ Item {
     if (receivedFile === "") return
     if (!fileTypeProbe.running) probeReceivedFile()
   }
+  // A received link opens in the default browser only when chosen, and only
+  // while the text it came in is on screen.
+  function openReceivedLink() {
+    var link = Model.receivedLink(incomingText)
+    if (viewState !== "text" || !link) return
+    Quickshell.execDetached(["omarchy-launch-browser", link.url])
+  }
   // The received item is only pointed at in the file manager, never opened.
   function showReceivedInFolder() {
     if (receivedShowPath === "" || (receivedShowMode !== "item" && receivedShowMode !== "folder")) return

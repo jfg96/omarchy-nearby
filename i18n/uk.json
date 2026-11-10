@@ -53,6 +53,7 @@
   "action.decline": "Відхилити",
   "action.copy": "Копіювати",
   "action.done": "Готово",
+  "action.openLink": "Відкрити %1",
 
   "folder.saveTo": "Зберегти в · %1",
   "folder.saveToTooltip": "Отримані файли зберігаються в %1. Виберіть іншу теку.",

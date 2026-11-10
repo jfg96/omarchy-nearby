@@ -246,6 +246,21 @@ function incomingNotificationCommand(requestId, notifyArgs) {
   return panelNotificationCommand("showRequest", requestId, notifyArgs)
 }
 
+// A received message that is exactly one web link, as a phone shares one, can
+// be opened in the browser. Only http and https, with an ASCII host and no
+// user name or password, and only printable ASCII after it: the host shown is
+// then the host the browser opens, and "https://bank.example@evil.example" or
+// a look-alike Unicode host is never offered. Anything else stays text to copy.
+var MAX_LINK_LENGTH = 2048
+var LINK_PATTERN = /^https?:\/\/([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)(?::[0-9]{1,5})?(?:[\/?#][\x21-\x7e]*)?$/
+
+function receivedLink(text) {
+  var value = String(text || "").trim()
+  if (value === "" || value.length > MAX_LINK_LENGTH) return null
+  var match = LINK_PATTERN.exec(value)
+  return match ? {url: value, host: match[1].toLowerCase()} : null
+}
+
 // What "show in folder" points at once a receive is on screen. One file is
 // selected. Several files under one top-level folder select that folder, the
 // one the sender chose. Anything else, such as several loose files, opens the
@@ -488,4 +503,4 @@ function manifestMinHelperVersion(text, pluginId) {
   }
 }
 
-if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, failureText, incomingMessage, incomingSummary, notificationText, plainName, notificationDue, progressSamples, progressRate, formatDuration, progressDetail, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, panelNotificationCommand, receivedTopEntry, receivedShowTarget, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }
+if (typeof module !== "undefined") module.exports = { parseLine, upsertDevice, snapshotDevices, iconFor, formatBytes, failureText, incomingMessage, incomingSummary, notificationText, plainName, notificationDue, progressSamples, progressRate, formatDuration, progressDetail, imagePreviewMode, previewableImage, fileUrl, enqueueIncoming, removeIncoming, currentIncoming, hasIncoming, incomingNotificationCommand, panelNotificationCommand, receivedLink, receivedTopEntry, receivedShowTarget, outgoingCommand, viewAfterOutgoing, parseShellConfig, barEntry, hasStringBarEntry, promoteStringBarEntry, receiverEnabledIn, downloadDirIn, containsHome, folderName, helperVersionMatches, compareVersions, helperSatisfies, manifestVersion, manifestMinHelperVersion, MAX_DEVICES }

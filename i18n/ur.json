@@ -53,6 +53,7 @@
   "action.decline": "مسترد کریں",
   "action.copy": "کاپی کریں",
   "action.done": "مکمل",
+  "action.openLink": "%1 کھولیں",
 
   "folder.saveTo": "محفوظ کرنے کی جگہ · %1",
   "folder.saveToTooltip": "وصول شدہ فائلیں %1 میں محفوظ ہوں گی۔ کوئی اور فولڈر منتخب کریں۔",

@@ -53,6 +53,7 @@
   "action.decline": "Rebutja",
   "action.copy": "Copia",
   "action.done": "Fet",
+  "action.openLink": "Obre %1",
 
   "folder.saveTo": "Desa a · %1",
   "folder.saveToTooltip": "Els fitxers rebuts es desen a %1. Tria una altra carpeta.",

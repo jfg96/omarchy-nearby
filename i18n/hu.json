@@ -53,6 +53,7 @@
   "action.decline": "Elutasítás",
   "action.copy": "Másolás",
   "action.done": "Kész",
+  "action.openLink": "%1 megnyitása",
 
   "folder.saveTo": "Mentés ide · %1",
   "folder.saveToTooltip": "A fogadott fájlok helye: %1. Válasszon másik mappát.",

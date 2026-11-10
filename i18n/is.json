@@ -53,6 +53,7 @@
   "action.decline": "Hafna",
   "action.copy": "Afrita",
   "action.done": "Lokið",
+  "action.openLink": "Opna %1",
 
   "folder.saveTo": "Vista í · %1",
   "folder.saveToTooltip": "Mótteknar skrár eru vistaðar í %1. Veldu aðra möppu.",

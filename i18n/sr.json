@@ -53,6 +53,7 @@
   "action.decline": "Одбиј",
   "action.copy": "Копирај",
   "action.done": "Готово",
+  "action.openLink": "Отвори %1",
 
   "folder.saveTo": "Сачувај у · %1",
   "folder.saveToTooltip": "Примљене датотеке се чувају у %1. Изаберите другу фасциклу.",

@@ -53,6 +53,7 @@
   "action.decline": "Hylkää",
   "action.copy": "Kopioi",
   "action.done": "Valmis",
+  "action.openLink": "Avaa %1",
 
   "folder.saveTo": "Tallennuskansio · %1",
   "folder.saveToTooltip": "Vastaanotetut tiedostot tallennetaan kansioon %1. Valitse toinen kansio.",

@@ -53,6 +53,7 @@
   "action.decline": "Zavrni",
   "action.copy": "Kopiraj",
   "action.done": "Končano",
+  "action.openLink": "Odpri %1",
 
   "folder.saveTo": "Shrani v · %1",
   "folder.saveToTooltip": "Prejete datoteke se shranijo v %1. Izberite drugo mapo.",

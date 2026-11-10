@@ -53,6 +53,7 @@
   "action.decline": "Weigeren",
   "action.copy": "Kopiëren",
   "action.done": "Klaar",
+  "action.openLink": "%1 openen",
 
   "folder.saveTo": "Opslaan in · %1",
   "folder.saveToTooltip": "Ontvangen bestanden worden opgeslagen in %1. Kies een andere map.",

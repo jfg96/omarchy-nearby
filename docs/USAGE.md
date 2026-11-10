@@ -65,7 +65,12 @@ individual colliding files receive suffixes, for example
 hidden-component policy as outgoing paths and are checked before approval.
 Existing symlinks along the destination path are refused before writing and
 again at final publication. Received text appears in the panel; choose
-**Copy** to put it on the clipboard, or **Done** to dismiss it.
+**Copy** to put it on the clipboard, or **Done** to dismiss it. When the text
+is a single web link, as a phone shares one, a row above the buttons names its
+site, for example **Open omarchy.org**; choose it to open the link in your
+default browser. Only `http` and `https` links are offered, and only when the
+site shown is the site that opens: a link carrying a user name, a look-alike
+non-ASCII site or anything beside the link stays plain text to copy.
 
 When a transfer delivers exactly one file, the result offers **Copy** for it,
 so it can be pasted without opening a file manager. A PNG, JPEG, WebP, GIF,

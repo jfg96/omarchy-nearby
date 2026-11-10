@@ -53,6 +53,7 @@
   "action.decline": "ප්‍රතික්ෂේප",
   "action.copy": "පිටපත් කරන්න",
   "action.done": "අවසන්",
+  "action.openLink": "%1 විවෘත කරන්න",
 
   "folder.saveTo": "සුරකින තැන · %1",
   "folder.saveToTooltip": "ලැබෙන ගොනු %1 වෙත සුරැකේ. වෙනත් ෆෝල්ඩරයක් තෝරන්න.",

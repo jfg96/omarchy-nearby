@@ -53,6 +53,7 @@
   "action.decline": "거절",
   "action.copy": "복사",
   "action.done": "완료",
+  "action.openLink": "%1 열기",
 
   "folder.saveTo": "저장 위치 · %1",
   "folder.saveToTooltip": "받은 파일은 %1에 저장됩니다. 다른 폴더를 선택하세요.",

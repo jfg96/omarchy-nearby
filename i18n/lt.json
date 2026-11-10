@@ -53,6 +53,7 @@
   "action.decline": "Atmesti",
   "action.copy": "Kopijuoti",
   "action.done": "Baigta",
+  "action.openLink": "Atverti %1",
 
   "folder.saveTo": "Įrašyti į · %1",
   "folder.saveToTooltip": "Gauti failai įrašomi į %1. Pasirinkite kitą aplanką.",

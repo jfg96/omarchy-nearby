@@ -53,6 +53,7 @@
   "action.decline": "Diúltaigh",
   "action.copy": "Cóipeáil",
   "action.done": "Déanta",
+  "action.openLink": "Oscail %1",
 
   "folder.saveTo": "Sábháil in · %1",
   "folder.saveToTooltip": "Sábháiltear comhaid faighte in %1. Roghnaigh fillteán eile.",

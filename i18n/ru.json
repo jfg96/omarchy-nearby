@@ -53,6 +53,7 @@
   "action.decline": "Отклонить",
   "action.copy": "Копировать",
   "action.done": "Готово",
+  "action.openLink": "Открыть %1",
 
   "folder.saveTo": "Сохранить в · %1",
   "folder.saveToTooltip": "Полученные файлы сохраняются в %1. Выберите другую папку.",

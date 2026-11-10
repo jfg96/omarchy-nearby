@@ -58,6 +58,10 @@ Panel {
   // the file name the result already showed, so the result gains no button.
   readonly property string receivedShowPath: engine ? engine.receivedShowPath : ""
   readonly property bool receivedShowable: viewState === "success" && receivedShowPath !== ""
+  // Received text that is a single web link gets a row that opens it, in the
+  // same place and style as the folder row of a received file.
+  readonly property var receivedLink: viewState === "text" ? Model.receivedLink(incomingText) : null
+  readonly property bool resultRowShown: receivedShowable || receivedLink !== null
   readonly property bool receivedIsImage: engine ? Model.previewableImage(engine.receivedFileType) : false
   readonly property string receivedPreview: engine ? engine.receivedPreview : ""
   readonly property string transferName: engine ? engine.transferName : ""
@@ -165,6 +169,7 @@ Panel {
   function finishText() { if (engine) engine.finishText() }
   function finishTerminal() { if (engine) engine.finishTerminal() }
   function showReceivedInFolder() { if (engine) engine.showReceivedInFolder() }
+  function openReceivedLink() { if (engine) engine.openReceivedLink() }
   function cancelOutgoing() { if (engine) engine.cancelOutgoing() }
   function cancelIncoming() { if (engine) engine.cancelIncoming() }
   function cancelPin() { if (engine) engine.cancelPin() }
@@ -238,11 +243,12 @@ Panel {
       if (dy !== 0) selectedIndex = Math.max(-1, Math.min(lastNearbyIndex, selectedIndex + dy))
       return
     }
-    // A received result has the folder row on top of its buttons: Copy and
-    // Done side by side for one file, Done alone otherwise. Up reaches the
-    // row, down the buttons, and left and right move along the buttons.
-    if (receivedShowable) {
-      var lastResultIndex = receivedFile !== "" ? 2 : 1
+    // A received result has the folder or link row on top of its buttons:
+    // Copy and Done side by side for one file or a text, Done alone otherwise.
+    // Up reaches the row, down the buttons, and left and right move along the
+    // buttons.
+    if (resultRowShown) {
+      var lastResultIndex = receivedFile !== "" || receivedLink !== null ? 2 : 1
       if (dy < 0) selectedIndex = 0
       else if (dy > 0) selectedIndex = Math.max(1, selectedIndex)
       else selectedIndex = Math.max(1, Math.min(lastResultIndex, Math.max(0, selectedIndex) + dx))
@@ -276,6 +282,7 @@ Panel {
     }
     else if (viewState === "target") selectedIndex === 0 ? selectFiles() : (selectedIndex === 1 ? selectFolder() : (selectedIndex === 2 ? sendClipboard() : goBack()))
     else if (viewState === "incoming") selectedIndex === 0 ? declineIncoming() : acceptIncoming()
+    else if (receivedLink !== null) { if(selectedIndex===0)openReceivedLink(); else if(selectedIndex===1)copyReceivedText(); else finishText() }
     else if (viewState === "text") { if(selectedIndex===0)copyReceivedText(); else finishText() }
     else if (viewState === "incoming_pin_settings") incomingPinEnabled ? (selectedIndex===0?beginIncomingPinEdit():(selectedIndex===1?requestDisableIncomingPin():goBack())) : (selectedIndex===0?beginIncomingPinEdit():goBack())
     else if (viewState === "incoming_pin_disable") selectedIndex===0 ? cancelIncomingPinSettings() : confirmDisableIncomingPin()
@@ -657,9 +664,10 @@ Panel {
           visible: root.viewState==="text"; width:parent.width; spacing:Style.space(8)
           PanelSectionHeader { text:strings.t("section.receivedText"); foreground:root.foreground; fontFamily:root.fontFamily }
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incomingText; wrapMode:Text.Wrap; maximumLineCount:6; elide:Text.ElideRight; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
+          Button { visible:root.receivedLink!==null; width:parent.width; leftAlign:true; bordered:false; iconText:"󰖟"; text:root.receivedLink ? strings.t("action.openLink", [root.receivedLink.host]) : ""; tooltipText:root.receivedLink ? root.receivedLink.url : ""; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.openReceivedLink() }
           Row { width:parent.width; spacing:Style.space(8)
-            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.copy"); iconText:"󰆏"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:{root.copyReceivedText()} }
-            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.done"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===1; onHovered:function(v){root.noteHover(v,1)}; onClicked:root.finishText() }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.copy"); iconText:"󰆏"; bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===(root.receivedLink!==null?1:0); onHovered:function(v){root.noteHover(v,root.receivedLink!==null?1:0)}; onClicked:{root.copyReceivedText()} }
+            Button { width:(parent.width-parent.spacing)/2; text:strings.t("action.done"); bordered:true; foreground:root.foreground; hasCursor:root.cursorActive&&root.selectedIndex===(root.receivedLink!==null?2:1); onHovered:function(v){root.noteHover(v,root.receivedLink!==null?2:1)}; onClicked:root.finishText() }
           }
         }
       }

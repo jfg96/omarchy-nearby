@@ -53,6 +53,7 @@
   "action.decline": "প্রত্যাখ্যান",
   "action.copy": "কপি",
   "action.done": "হয়েছে",
+  "action.openLink": "%1 খুলুন",
 
   "folder.saveTo": "সংরক্ষণের স্থান · %1",
   "folder.saveToTooltip": "প্রাপ্ত ফাইল %1-এ সংরক্ষিত হবে। অন্য ফোল্ডার বেছে নিন।",

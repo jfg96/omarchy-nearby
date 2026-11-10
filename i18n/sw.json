@@ -53,6 +53,7 @@
   "action.decline": "Kataa",
   "action.copy": "Nakili",
   "action.done": "Imekamilika",
+  "action.openLink": "Fungua %1",
 
   "folder.saveTo": "Hifadhi katika · %1",
   "folder.saveToTooltip": "Faili zilizopokewa zinahifadhiwa katika %1. Chagua folda nyingine.",

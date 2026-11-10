@@ -53,6 +53,7 @@
   "action.decline": "Decline",
   "action.copy": "Copy",
   "action.done": "Done",
+  "action.openLink": "Open %1",
 
   "folder.saveTo": "Save to · %1",
   "folder.saveToTooltip": "Received files go to %1. Choose another folder.",

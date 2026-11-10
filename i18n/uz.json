@@ -53,6 +53,7 @@
   "action.decline": "Rad etish",
   "action.copy": "Nusxalash",
   "action.done": "Tayyor",
+  "action.openLink": "%1 ni ochish",
 
   "folder.saveTo": "Saqlash joyi · %1",
   "folder.saveToTooltip": "Qabul qilingan fayllar %1 jildiga saqlanadi. Boshqa jild tanlang.",

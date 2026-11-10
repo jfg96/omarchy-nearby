@@ -153,7 +153,7 @@ const functionNames = [
   "failWith", "cancelOutgoing", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
   "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "cancelIncoming", "showIncomingRequest", "showReceivedResult", "notifyFinished", "showReceivedInFolder", "noteProgress", "resetProgressRate",
-  "finishIncoming", "finishOutgoing", "noteDiscoveryStatus", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "previewReceivedFile", "previewMade", "finishText", "finishTerminal",
+  "finishIncoming", "finishOutgoing", "noteDiscoveryStatus", "openReceivedLink", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "previewReceivedFile", "previewMade", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
 ]
@@ -2145,6 +2145,28 @@ assert.match(source, /IpcHandler\s*\{[\s\S]*?function showResult\(sessionId: str
   assert.equal(list.statusText, "Ready", "the device list still reports what was found")
   list.handleEvent({event: "peer_snapshot", devices: []})
   assert.equal(list.statusText, "Looking nearby…")
+}
+
+// A received link opens only when chosen, only while its text is on screen,
+// and through Omarchy's browser launcher as one argument.
+{
+  const state = engine({viewState: "nearby"})
+  state.handleEvent({event: "incoming_text", sessionId: "t1", sender: "Phone", text: "https://omarchy.org/manual"})
+  assert.equal(state.viewState, "text")
+  state.notified.length = 0
+  state.openReceivedLink()
+  assert.deepEqual(state.notified.map(command => Array.from(command)), [["omarchy-launch-browser", "https://omarchy.org/manual"]])
+
+  state.notified.length = 0
+  state.viewState = "success"
+  state.openReceivedLink()
+  assert.deepEqual(state.notified, [], "a link that is no longer on screen does not open")
+
+  const plain = engine({viewState: "nearby"})
+  plain.handleEvent({event: "incoming_text", sessionId: "t2", sender: "Phone", text: "Dinner at 8? https://example.com"})
+  plain.notified.length = 0
+  plain.openReceivedLink()
+  assert.deepEqual(plain.notified, [], "text that is not exactly one link opens nothing")
 }
 
 console.log("service state tests passed")

@@ -2,6 +2,9 @@
 
 ## 1.2.14-dev
 
+- Open a received link in the browser: when a message is a single web link,
+  its result offers **Open** and the site it leads to, beside Copy and Done.
+
 - Keep the title of a result, such as "Received", and the header of a
   request or transfer when a device announces itself. A phone with LocalSend
   open turned them into "Ready".
