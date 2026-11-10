@@ -68,9 +68,8 @@ again at final publication. Received text appears in the panel; choose
 **Copy** to put it on the clipboard, or **Done** to dismiss it. When the text
 is a single web link, as sharing a page from a phone, another computer with
 LocalSend or **Send clipboard** in another Nearby sends it, a row above the
-buttons names its
-site, for example **Open omarchy.org**; choose it to open the link in your
-default browser. Only `http` and `https` links are offered, and only when the
+buttons names its site, for example **Open omarchy.org**; choose it to open
+the link in your default browser. Only `http` and `https` links are offered, and only when the
 site shown is the site that opens: a link carrying a user name, a look-alike
 non-ASCII site or anything beside the link stays plain text to copy.
 

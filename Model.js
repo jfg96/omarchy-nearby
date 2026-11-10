@@ -247,8 +247,7 @@ function incomingNotificationCommand(requestId, notifyArgs) {
 }
 
 // A received message that is exactly one web link, as any LocalSend sender
-// shares a page, can
-// be opened in the browser. Only http and https, with an ASCII host and no
+// shares a page, can be opened in the browser. Only http and https, with an ASCII host and no
 // user name or password, and only printable ASCII after it: the host shown is
 // then the host the browser opens, and "https://bank.example@evil.example" or
 // a look-alike Unicode host is never offered. Anything else stays text to copy.
