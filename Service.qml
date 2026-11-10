@@ -424,6 +424,11 @@ Item {
   }
   function startDiscovery() { discoveryActive = true; errorText = ""; statusText = devices.length ? strings.t("status.ready") : strings.t("status.lookingNearby"); send({command:"discovery_start"}) }
   function forceFullDiscovery() { discoveryActive = true; errorText = ""; statusText = strings.t("status.scanning"); send({command:"discovery_start",force_full:true}) }
+  // Discovery says whether anything was found, which only the device list
+  // shows. Elsewhere statusText is the title of a result or the header of a
+  // transfer, and a phone announcing itself must not turn "Received" into
+  // "Ready".
+  function noteDiscoveryStatus() { if (viewState === "nearby") statusText=devices.length ? strings.t("status.ready") : strings.t("status.lookingNearby") }
   function stopDiscovery() { discoveryActive = false; send({command:"discovery_stop"}) }
   function chooseDevice(index) { if (index >= 0 && index < devices.length) { selectedDevice = devices[index]; viewState = "target"; cursorRequested(0) } }
   function clearTarget() { viewState = "nearby"; selectedDevice = null; cursorRequested(0) }
@@ -690,8 +695,8 @@ Item {
     else if (event.event === "incoming_pin_update_failed") {
       pendingIncomingPinEnabled=null;incomingPinUpdating=false;incomingPinError=Model.failureText(event.code, event.message, strings, "pin.updateFailed");incomingPinCleared();if(viewState==="incoming_pin_edit")incomingPinFocusRequested()
     }
-    else if (event.event === "peer_snapshot") { devices=Model.snapshotDevices(event.devices); statusText=devices.length ? strings.t("status.ready") : strings.t("status.lookingNearby") }
-    else if (event.event === "device") { devices=Model.upsertDevice(devices,event.device); statusText=devices.length ? strings.t("status.ready") : strings.t("status.lookingNearby") }
+    else if (event.event === "peer_snapshot") { devices=Model.snapshotDevices(event.devices); noteDiscoveryStatus() }
+    else if (event.event === "device") { devices=Model.upsertDevice(devices,event.device); noteDiscoveryStatus() }
     else if (event.event === "discovery_started") discoveryActive=true
     else if (event.event === "discovery_stopped") discoveryActive=false
     else if (event.event === "incoming_request") {
