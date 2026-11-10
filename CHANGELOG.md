@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.14-dev
+## 1.2.14
 
 - Open a received link in the browser: when a message is a single web link,
   its result offers **Open** and the site it leads to, beside Copy and Done.
