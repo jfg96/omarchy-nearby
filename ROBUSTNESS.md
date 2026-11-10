@@ -1323,3 +1323,22 @@ plugin validator and `git diff --check`. CI passed on the merge of #63
 No manual run on Omarchy was made for this release: the result row, the
 finished-transfer notifications and scenario 35 with a real LocalSend peer
 remain **Not run**.
+
+## Release check — v1.2.14, 2026-11-10
+
+Plugin `1.2.14` carries #66 and #67, plus the README captures from #65, and
+keeps helper 1.2.9: `backend/` is identical to the helper source commit
+`088d5a9`, and `helper-release.env` is unchanged. The Cargo package,
+`minHelperVersion` and selected helper remain 1.2.9.
+
+The complete supported suite passed on the release tree: four Node suites
+(50/50 catalogues, 177 keys), six Bash suites, `cargo fmt --check`,
+`cargo check`, `cargo clippy -D warnings`, 105 helper tests and the vendored
+`localsend-rs` HTTPS suite (152 passed, one upstream test ignored), plus
+`qmllint`, the plugin validator and `git diff --check`. CI passed on the merge
+of #67 (`bea899d`).
+
+The fixed result title was seen on Omarchy while retaking the README captures
+with a local LocalSend peer that did not announce itself during the receive.
+No manual run was made with the released code: the result title with a peer
+announcing itself, the link row and scenario 36 remain **Not run**.
