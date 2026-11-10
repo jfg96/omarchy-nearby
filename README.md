@@ -22,9 +22,9 @@ LocalSend application is not required on your Omarchy computer.
 
 ![Nearby actions for sending files, a folder or the clipboard to a selected device](assets/screenshots/nearby-send-actions.png)
 
-### See a message before accepting it
+### Preview and copy what arrives
 
-![An incoming text message shown in Nearby's request before it is accepted](assets/screenshots/nearby-incoming-message.png)
+![A photo received from a phone, previewed in Nearby with its folder row and Copy and Done buttons](assets/screenshots/nearby-received-photo.png)
 
 ### Follow progress, speed and time left
 
