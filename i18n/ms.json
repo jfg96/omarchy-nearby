@@ -53,6 +53,7 @@
   "action.decline": "Tolak",
   "action.copy": "Salin",
   "action.done": "Selesai",
+  "action.openLink": "Buka %1",
 
   "folder.saveTo": "Simpan ke · %1",
   "folder.saveToTooltip": "Fail yang diterima disimpan ke %1. Pilih folder lain.",

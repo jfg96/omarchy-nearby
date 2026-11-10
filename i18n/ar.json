@@ -53,6 +53,7 @@
   "action.decline": "رفض",
   "action.copy": "نسخ",
   "action.done": "تم",
+  "action.openLink": "فتح %1",
 
   "folder.saveTo": "حفظ في · %1",
   "folder.saveToTooltip": "تُحفظ الملفات المستلَمة في %1. اختر مجلدًا آخر.",

@@ -53,6 +53,7 @@
   "action.decline": "Keeldu",
   "action.copy": "Kopeeri",
   "action.done": "Valmis",
+  "action.openLink": "Ava %1",
 
   "folder.saveTo": "Salvesta kausta · %1",
   "folder.saveToTooltip": "Vastuvõetud failid salvestatakse kausta %1. Vali teine kaust.",

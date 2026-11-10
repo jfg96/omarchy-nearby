@@ -53,6 +53,7 @@
   "action.decline": "Отхвърляне",
   "action.copy": "Копиране",
   "action.done": "Готово",
+  "action.openLink": "Отваряне на %1",
 
   "folder.saveTo": "Запазване в · %1",
   "folder.saveToTooltip": "Получените файлове се записват в %1. Изберете друга папка.",

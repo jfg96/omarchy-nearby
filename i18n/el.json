@@ -53,6 +53,7 @@
   "action.decline": "Απόρριψη",
   "action.copy": "Αντιγραφή",
   "action.done": "Τέλος",
+  "action.openLink": "Άνοιγμα %1",
 
   "folder.saveTo": "Αποθήκευση σε · %1",
   "folder.saveToTooltip": "Τα ληφθέντα αρχεία αποθηκεύονται στο %1. Επιλέξτε άλλον φάκελο.",

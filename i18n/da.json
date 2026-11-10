@@ -53,6 +53,7 @@
   "action.decline": "Afvis",
   "action.copy": "Kopiér",
   "action.done": "Færdig",
+  "action.openLink": "Åbn %1",
 
   "folder.saveTo": "Gem i · %1",
   "folder.saveToTooltip": "Modtagne filer gemmes i %1. Vælg en anden mappe.",

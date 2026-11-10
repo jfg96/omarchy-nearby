@@ -53,6 +53,7 @@
   "action.decline": "拒绝",
   "action.copy": "复制",
   "action.done": "完成",
+  "action.openLink": "打开 %1",
 
   "folder.saveTo": "保存到 · %1",
   "folder.saveToTooltip": "收到的文件将保存到 %1。选择其他文件夹。",

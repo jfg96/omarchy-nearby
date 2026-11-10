@@ -431,4 +431,27 @@ assert.equal(Model.notificationDue(null, 1000), true)
 assert.equal(Model.notificationDue(1000, 5999), false)
 assert.equal(Model.notificationDue(1000, 6000), true)
 
+// A received message is offered as a link only when it is exactly one web
+// link whose shown host is the host the browser opens.
+{
+  const link = text => Model.receivedLink(text)
+  assert.deepEqual(link("https://omarchy.org/manual"), {url: "https://omarchy.org/manual", host: "omarchy.org"})
+  assert.deepEqual(link("  http://Example.COM:8080/a?b=c#d \n"), {url: "http://Example.COM:8080/a?b=c#d", host: "example.com"},
+    "surrounding whitespace is trimmed and the host is shown in lower case")
+  assert.deepEqual(link("https://bank.example/@evil.example"), {url: "https://bank.example/@evil.example", host: "bank.example"},
+    "an @ after the host is part of the path, so the shown host is still right")
+  for (const refused of [
+    "https://bank.example@evil.example",       // credentials make the real host the one after @
+    "https://user:pass@example.com/",
+    "https://exаmple.com",                     // Cyrillic a: a look-alike host
+    "https://x.com/café",                 // non-ASCII after the host
+    "https://x.com‮/moc.live",            // a direction mark reorders what is shown
+    "https://good.example\\@evil.example",     // a backslash some browsers read as a separator
+    "javascript:alert(1)", "file:///etc/passwd", "smb://server/share", "HTTPS://example.com",
+    "https://", "https://-bad.example", "https://example.com/a b", "see https://example.com",
+    "https://example.com\nhttps://other.example", "", null,
+    "https://example.com/" + "a".repeat(2048),
+  ]) assert.equal(link(refused), null, `must not be offered as a link: ${JSON.stringify(refused)}`)
+}
+
 console.log("Model tests passed")

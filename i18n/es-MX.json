@@ -53,6 +53,7 @@
   "action.decline": "Rechazar",
   "action.copy": "Copiar",
   "action.done": "Listo",
+  "action.openLink": "Abrir %1",
 
   "folder.saveTo": "Guardar en · %1",
   "folder.saveToTooltip": "Los archivos recibidos se guardan en %1. Elige otra carpeta.",

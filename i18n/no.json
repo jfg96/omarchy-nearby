@@ -53,6 +53,7 @@
   "action.decline": "Avslå",
   "action.copy": "Kopier",
   "action.done": "Ferdig",
+  "action.openLink": "Åpne %1",
 
   "folder.saveTo": "Lagre i · %1",
   "folder.saveToTooltip": "Mottatte filer lagres i %1. Velg en annen mappe.",

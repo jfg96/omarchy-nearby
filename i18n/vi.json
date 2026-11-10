@@ -53,6 +53,7 @@
   "action.decline": "Từ chối",
   "action.copy": "Sao chép",
   "action.done": "Xong",
+  "action.openLink": "Mở %1",
 
   "folder.saveTo": "Lưu vào · %1",
   "folder.saveToTooltip": "Tệp nhận được sẽ lưu vào %1. Chọn thư mục khác.",

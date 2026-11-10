@@ -53,6 +53,7 @@
   "action.decline": "رد",
   "action.copy": "رونوشت",
   "action.done": "تمام",
+  "action.openLink": "باز کردن %1",
 
   "folder.saveTo": "ذخیره در · %1",
   "folder.saveToTooltip": "پرونده‌های دریافتی در %1 ذخیره می‌شوند. پوشهٔ دیگری انتخاب کنید.",

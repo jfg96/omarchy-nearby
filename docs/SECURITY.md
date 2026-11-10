@@ -69,6 +69,12 @@ with the path percent-encoded so no character of a peer-chosen name can leave
 the D-Bus argument, and otherwise opens the containing folder, which is always
 a directory. Only paths inside the save folder are offered.
 
+A received link opens only when its row is chosen, through
+`omarchy-launch-browser` as a single argument. The row is offered only for a
+message that is exactly one `http` or `https` link with an ASCII host, no user
+name or password, and only printable ASCII after the host, so the host the row
+names is the host the browser opens.
+
 **Cancel** while receiving deletes what that transfer saved. Only regular files
 the receiver created for that session inside the save folder are removed, and
 folders only once empty; the receiver never replaces an existing file, so

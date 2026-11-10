@@ -53,6 +53,7 @@
   "action.decline": "Tanggihan",
   "action.copy": "Kopyahin",
   "action.done": "Tapos na",
+  "action.openLink": "Buksan ang %1",
 
   "folder.saveTo": "I-save sa · %1",
   "folder.saveToTooltip": "Sa %1 napupunta ang mga natanggap na file. Pumili ng ibang folder.",

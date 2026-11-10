@@ -46,6 +46,7 @@
   "action.decline": "Button/tooltip. Buttons should stay short.",
   "action.copy": "Button/tooltip. Buttons should stay short.",
   "action.done": "Button/tooltip. Buttons should stay short.",
+  "action.openLink": "Received text row that opens a single web link in the browser. Keep it short: it shares a line with an icon. %1 = the link's host, such as omarchy.org; it is ASCII and never translated.",
   "folder.saveTo": "Receive folder action or validation. %1 = display name of receive folder.",
   "folder.saveToTooltip": "Receive folder action or validation. %1 = full receive folder path.",
   "folder.useDownloads": "Receive folder action or validation.",

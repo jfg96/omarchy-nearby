@@ -53,6 +53,7 @@
   "action.decline": "Refuză",
   "action.copy": "Copiază",
   "action.done": "Gata",
+  "action.openLink": "Deschide %1",
 
   "folder.saveTo": "Salvează în · %1",
   "folder.saveToTooltip": "Fișierele primite se salvează în %1. Alege alt dosar.",

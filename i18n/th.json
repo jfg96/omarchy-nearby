@@ -53,6 +53,7 @@
   "action.decline": "ปฏิเสธ",
   "action.copy": "คัดลอก",
   "action.done": "เสร็จสิ้น",
+  "action.openLink": "เปิด %1",
 
   "folder.saveTo": "บันทึกไปยัง · %1",
   "folder.saveToTooltip": "ไฟล์ที่ได้รับจะบันทึกใน %1 เลือกโฟลเดอร์อื่น",

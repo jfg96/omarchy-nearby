@@ -174,7 +174,7 @@ const functionNames = [
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
   "clearSecretInputs",
   "goBack", "selectFiles", "selectFolder", "chooseDownloadDir", "useDownloads", "sendClipboard", "copyReceivedText", "copyReceivedFile", "moveCursor", "activateCursor",
-  "retryHelper", "copyText", "copyUpdateCommand", "copyRepositoryLink", "noteHover", "showReceivedInFolder",
+  "retryHelper", "copyText", "copyUpdateCommand", "copyRepositoryLink", "noteHover", "showReceivedInFolder", "openReceivedLink",
 ]
 
 // Every call the view makes has to land on the shared engine, so the stub
@@ -194,6 +194,7 @@ function stubEngine() {
     finishText: record("finishText"),
     finishTerminal: record("finishTerminal"),
     showReceivedInFolder: record("showReceivedInFolder"),
+    openReceivedLink: record("openReceivedLink"),
     cancelOutgoing: record("cancelOutgoing"),
     cancelIncoming: record("cancelIncoming"),
     cancelPin: record("cancelPin"),
@@ -225,8 +226,8 @@ function intBindingExpression(name) {
   return match[1].trim()
 }
 
-function boolBindingExpression(name) {
-  const match = source.match(new RegExp(`readonly property bool ${name}:\\s*([^\\n]+)`))
+function bindingExpression(type, name) {
+  const match = source.match(new RegExp(`readonly property ${type} ${name}:\\s*([^\\n]+)`))
   assert.notEqual(match, null, `Panel.qml must bind ${name}`)
   return match[1].trim()
 }
@@ -250,6 +251,7 @@ function panel(initial = {}) {
     fileCopier: {running: false, launched: false, path: ""},
     receivedFile: "",
     receivedShowPath: "",
+    incomingText: "",
     copyNote: "",
     helperUpdateOffered: false,
     helperUpdateError: "",
@@ -274,9 +276,15 @@ function panel(initial = {}) {
     ...initial,
   }
   context.engine = engine
-  Object.defineProperty(context, "receivedShowable", {
+  for (const name of ["receivedShowable", "resultRowShown"]) {
+    Object.defineProperty(context, name, {
+      enumerable: true,
+      get: () => vm.runInNewContext(`(${bindingExpression("bool", name)})`, context),
+    })
+  }
+  Object.defineProperty(context, "receivedLink", {
     enumerable: true,
-    get: () => vm.runInNewContext(`(${boolBindingExpression("receivedShowable")})`, context),
+    get: () => vm.runInNewContext(`(${bindingExpression("var", "receivedLink")})`, context),
   })
   for (const name of ["useDownloadsIndex", "helperUpdateIndex", "helperCopyCommandIndex", "helperCopyLinkIndex"]) {
     const expression = intBindingExpression(name)
@@ -971,5 +979,37 @@ assert.match(source, /Button \{ visible:root\.receivedShowable; width:parent\.wi
   "the folder row is a borderless row like Save to, not another bordered button")
 assert.doesNotMatch(source, /Text \{ visible:root\.receivedFile!==""; width:parent\.width; textFormat:Text\.PlainText; text:Model\.plainName/,
   "the row replaces the file name the result showed, so the name is not shown twice")
+
+// Received text that is one link puts an Open row above Copy and Done, reached
+// with Up like the folder row. Other text keeps its two buttons.
+{
+  const state = panel({viewState: "text", incomingText: "https://omarchy.org/manual", selectedIndex: -1})
+  assert.equal(state.receivedLink.host, "omarchy.org")
+  state.moveCursor(0, 1)
+  assert.equal(state.selectedIndex, 1, "the first arrow lands on Copy")
+  state.moveCursor(1, 0)
+  assert.equal(state.selectedIndex, 2)
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "finishText")
+  state.moveCursor(0, -1)
+  assert.equal(state.selectedIndex, 0, "up reaches the Open row")
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "openReceivedLink")
+  assert.equal(callNames(state).filter(name => name === "finishText").length, 1, "opening leaves the text on screen")
+  state.moveCursor(0, 1)
+  state.activateCursor()
+  assert.equal(state.clipboardWriter.running, true, "Copy still copies the text")
+}
+{
+  const state = panel({viewState: "text", incomingText: "Dinner at 8? https://example.com", selectedIndex: 0})
+  assert.equal(state.receivedLink, null)
+  state.moveCursor(1, 0)
+  assert.equal(state.selectedIndex, 1, "plain text keeps Copy and Done as its only stops")
+  state.activateCursor()
+  assert.equal(callNames(state).at(-1), "finishText")
+  assert.equal(callNames(state).includes("openReceivedLink"), false)
+}
+assert.match(source, /iconText:"󰖟"; text:root\.receivedLink \? strings\.t\("action\.openLink", \[root\.receivedLink\.host\]\)/,
+  "the row names the host the link opens")
 
 console.log("panel state tests passed")

@@ -53,6 +53,7 @@
   "action.decline": "דחייה",
   "action.copy": "העתקה",
   "action.done": "סיום",
+  "action.openLink": "פתיחת %1",
 
   "folder.saveTo": "שמירה ב־ · %1",
   "folder.saveToTooltip": "הקבצים שיתקבלו יישמרו ב־%1. אפשר לבחור תיקייה אחרת.",

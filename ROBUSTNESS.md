@@ -821,6 +821,13 @@ complete until those versions and results are written down.
     declines: each must be announced, with no click action. With the popup
     open on the result, no notification may appear.
 
+36. Share a web page from a phone with LocalSend, and send a copied link with
+    **Send clipboard** from another Nearby: each received text must offer
+    **Open** with the page's site, and choosing it must open the page in the
+    default browser while the text stays on screen. Send a message with a link
+    inside a sentence, and one such as `https://bank.example@evil.example`:
+    neither may offer the row.
+
 ## Result record
 
 Copy this template for each validation session. Leave unexecuted cases marked

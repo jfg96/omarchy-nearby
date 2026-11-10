@@ -53,6 +53,7 @@
   "action.decline": "Odmietnuť",
   "action.copy": "Kopírovať",
   "action.done": "Hotovo",
+  "action.openLink": "Otvoriť %1",
 
   "folder.saveTo": "Uložiť do · %1",
   "folder.saveToTooltip": "Prijaté súbory sa ukladajú do %1. Vyberte iný priečinok.",

@@ -53,6 +53,7 @@
   "action.decline": "अस्वीकारें",
   "action.copy": "कॉपी करें",
   "action.done": "हो गया",
+  "action.openLink": "%1 खोलें",
 
   "folder.saveTo": "यहाँ सहेजें · %1",
   "folder.saveToTooltip": "प्राप्त फ़ाइलें %1 में सहेजी जाएँगी। दूसरा फ़ोल्डर चुनें।",
