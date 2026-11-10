@@ -22,14 +22,29 @@ must not be read as a complete list of differences from current upstream.
 - Upstream project: <https://github.com/CrossCopy/localsend-rs>
 - Local path: `backend/vendor/localsend-rs`
 - Package metadata version in the vendored tree: `0.1.2`
-- Exact upstream base commit of the original import: **unknown/unrecorded**
+- Upstream base commit of the original import:
+  `71027deebe4ddd0ebcfa0afea898d1e8bf90a922` (2026-07-16, `feat: expose
+  transfer progress and test rate controls`), identified by content comparison
 
-The original tree appears in Nearby commit `80fad5e` (`Initial release`). A
-content comparison against commits reachable in the upstream repository on
-2026-08-13 did not find an exact match for that imported tree. This does not
-establish a base revision: the import may have contained changes already, or its
-source revision may no longer be reachable in upstream history. No upstream SHA
-should be inferred from the package version.
+The original tree appears in Nearby commit `80fad5e` (`Initial release`). No
+upstream commit matches it exactly, because the import already contained
+changes made before Nearby's first commit. Comparing the imported tree with
+every upstream commit identifies `71027de` as its base:
+
+- `Cargo.toml` is byte-identical to that revision and to no other.
+- It has the fewest differing lines of any upstream commit. The last upstream
+  commit before the import, `9092239` (2026-08-06), differs considerably more.
+- The remaining differences outside `src/` and `tests/` are upstream repository
+  files that were not imported, such as `docs/`, `e2e/` and agent configuration.
+- The differences in `src/` (786 insertions and 194 deletions across 16 files)
+  and `tests/` (98 insertions and 6 deletions across 4 files) are Nearby
+  integration changes, for example the `.nearby-` partial-file prefix, discovery
+  with a TLS identity, `PeerRegistered` and `TransferRequestExpired` events, and
+  throttled progress events.
+
+These pre-import changes are not recorded in Nearby's Git history and are not
+individually documented below. No upstream SHA should be inferred from the
+package version.
 
 Commit `0ac2d7d` (`Support installation with Omarchy plugin manager`) later
 moved the tree from `oma.nearby/backend/vendor/localsend-rs` to its current path.
