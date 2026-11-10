@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.14-dev
+
+- Keep the title of a result, such as "Received", and the header of a
+  request or transfer when a device announces itself. A phone with LocalSend
+  open turned them into "Ready".
+
 ## 1.2.13
 
 - Show what a receive saved in Files from its result: a row with a folder icon
