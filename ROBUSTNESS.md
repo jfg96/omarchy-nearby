@@ -1342,3 +1342,21 @@ The fixed result title was seen on Omarchy while retaking the README captures
 with a local LocalSend peer that did not announce itself during the receive.
 No manual run was made with the released code: the result title with a peer
 announcing itself, the link row and scenario 36 remain **Not run**.
+
+## Release check — v1.2.15, 2026-11-12
+
+Plugin `1.2.15` carries #69 and #70 and keeps helper 1.2.9: `backend/` is
+identical to the helper source commit `088d5a9`, and `helper-release.env` is
+unchanged. The Cargo package, `minHelperVersion` and selected helper remain
+1.2.9.
+
+The complete supported suite passed on the release tree: four Node suites
+(50/50 catalogues, 177 keys), six Bash suites, `cargo fmt --check`,
+`cargo check`, `cargo clippy -D warnings`, 105 helper tests and the vendored
+`localsend-rs` HTTPS suite (152 passed, one upstream test ignored), plus
+`qmllint`, the plugin validator and `git diff --check`. CI passed on the merge
+of #70 (`ea1d3aa`).
+
+No manual run was made on Omarchy for this release: the active bar icon tint,
+received text kept behind another offer or a newer text, and scenario 36
+remain **Not run**.
