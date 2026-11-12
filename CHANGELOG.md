@@ -1,19 +1,15 @@
 # Changelog
 
-## 1.2.15-dev
+## 1.2.15
 
 - Use Omarchy's active color for Nearby's vector bar icon while a request,
   transfer or PIN prompt is active.
 
-- Keep received text that has not been copied yet when another offer
-  arrives. Declining the offer or finishing its transfer returns to the text,
-  and copying it names the device that sent it.
-
-- Keep every received text until it is copied or dismissed: a newer text
-  shows first and the earlier one returns after it, instead of being
-  replaced. A request that arrives while a text is being delivered is shown
-  first rather than left waiting behind the text. Received text names the
-  device that sent it, and stays available when copying it fails.
+- Keep every received text until it is copied or dismissed. Another offer or
+  a newer text is shown first, and the earlier text returns after it instead
+  of being lost. A request that arrives while a text is being delivered is
+  shown first rather than left waiting behind the text. Received text names
+  the device that sent it, and stays available when copying it fails.
 
 ## 1.2.14
 
