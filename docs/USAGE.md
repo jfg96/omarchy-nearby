@@ -65,7 +65,9 @@ individual colliding files receive suffixes, for example
 hidden-component policy as outgoing paths and are checked before approval.
 Existing symlinks along the destination path are refused before writing and
 again at final publication. Received text appears in the panel; choose
-**Copy** to put it on the clipboard, or **Done** to dismiss it. When the text
+**Copy** to put it on the clipboard, or **Done** to dismiss it. A text that
+has not been copied is kept when something else arrives: a newer text or
+transfer is shown first, and the earlier text returns after it. When the text
 is a single web link, as sharing a page from a phone, another computer with
 LocalSend or **Send clipboard** in another Nearby sends it, a row above the
 buttons names its site, for example **Open omarchy.org**; choose it to open

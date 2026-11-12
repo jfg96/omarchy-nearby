@@ -29,6 +29,10 @@ assert.match(source, /active:\s*root\.barIconActive/,
   "the bar button must use the shared active state")
 assert.match(source, /color:\s*root\.barIconActive\s*\?\s*root\.urgent\s*:\s*root\.barIconColor/,
   "the custom bar logo must use the urgent color while active")
+assert.match(source, /visible:root\.incomingTextSender!==""[^\n]*strings\.t\("transfer\.from", \[root\.incomingTextSender\]\)/,
+  "received text must name its own sender, not the peer of a later transfer")
+assert.equal((source.match(/root\.failTextCopy\(strings\.t\("clipboard\.copyTextMissing"\)\)/g) || []).length, 2,
+  "a failed text copy must keep the text, whether wl-copy is missing or exits with an error")
 assert.match(source, /onTabRequested:\s*function\(direction\)\s*\{\s*root\.switchPanel\(direction\)\s*\}/,
   "Tab must move to the neighbouring bar panel, as it does in Omarchy's own panels")
 for (const match of source.matchAll(/\bduration\s*:\s*([^;}\n]+)/g)) {
@@ -145,7 +149,9 @@ for (const [failure, description] of [
 ]) {
   const key = Object.keys(require("../i18n/en.json")).find(key => strings.t(key) === failure)
   assert.ok(key, `${description} must have an English catalogue entry`)
-  assert.ok(source.includes(`failWith(strings.t("${key}"))`),
+  // A failed text copy goes through failTextCopy, which keeps the text and
+  // then raises the same failure.
+  assert.ok(source.includes(`failWith(strings.t("${key}"))`) || source.includes(`failTextCopy(strings.t("${key}"))`),
     `${description} errors must be raised through failWith`)
 }
 

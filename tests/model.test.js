@@ -78,6 +78,13 @@ assert.equal(Model.parseLine("not json"), null)
 const requestA = {requestId:"a",sender:"Alice"}
 const requestB = {requestId:"b",sender:"Bob"}
 const requestC = {requestId:"c",sender:"Carol"}
+assert.deepEqual(Model.holdText(null, "hi", "Alice"), [{text: "hi", sender: "Alice"}])
+{
+  let texts = []
+  for (let i = 0; i < Model.MAX_HELD_TEXTS + 5; i++) texts = Model.holdText(texts, `t${i}`, "Alice")
+  assert.equal(texts.length, Model.MAX_HELD_TEXTS, "held texts are bounded")
+  assert.equal(texts[0].text, `t${Model.MAX_HELD_TEXTS + 4}`, "the most recently held text comes back first")
+}
 assert.deepEqual(Model.enqueueIncoming([], null), [])
 assert.deepEqual(Model.enqueueIncoming([], {}), [])
 assert.deepEqual(Model.enqueueIncoming([], requestA), [requestA])

@@ -150,10 +150,10 @@ const functionNames = [
   "startDiscovery", "forceFullDiscovery", "stopDiscovery", "chooseDevice", "clearTarget",
   "openIncomingPinSettings", "beginIncomingPinEdit", "requestDisableIncomingPin",
   "cancelIncomingPinSettings", "submitIncomingPin", "confirmDisableIncomingPin",
-  "failWith", "cancelOutgoing", "noteTextCopied",
+  "failWith", "cancelOutgoing", "failTextCopy", "noteTextCopied",
   "clearPendingOutgoing", "dispatchPendingOutgoing", "beginOutgoing", "retryWithPin",
   "showPinPrompt", "cancelPin", "acceptIncoming", "declineIncoming", "cancelIncoming", "showIncomingRequest", "showReceivedResult", "notifyFinished", "showReceivedInFolder", "noteProgress", "resetProgressRate",
-  "finishIncoming", "finishOutgoing", "noteDiscoveryStatus", "openReceivedLink", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "previewReceivedFile", "previewMade", "finishText", "finishTerminal",
+  "finishIncoming", "finishOutgoing", "noteDiscoveryStatus", "openReceivedLink", "offerReceivedFile", "probeReceivedFile", "fileTypeProbed", "previewReceivedFile", "previewMade", "promoteQueuedText", "showQueuedText", "finishText", "finishTerminal",
   "handleBackendExit", "handleEvent",
   "reportFailure", "startHelperUpdate", "handleUpdaterEvent", "finishHelperUpdate",
 ]
@@ -215,7 +215,9 @@ function engine(initial = {}) {
     errorText: "",
     incomingQueue: [],
     incomingText: "",
+    incomingTextSender: "",
     incomingTextPending: false,
+    incomingTextQueue: [],
     lastReceivedPath: "",
     receivedSession: "",
     receivedFileCount: 0,
@@ -1163,6 +1165,132 @@ assert.match(source, /onExited: function\(code\) \{ root\.fileTypeProbed\(code, 
   state.declineIncoming()
   assert.equal(state.viewState, "text", "deferred text must follow the last queued file request")
   assert.equal(state.incomingText, "deferred")
+}
+
+// Received text on screen is the only copy there is: an offer that arrives
+// before it was copied must hold it, not discard it.
+{
+  const state = engine()
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "code 4821"})
+  state.handleEvent(incoming("files"))
+  assert.equal(state.viewState, "incoming", "a new offer still takes the view")
+  state.declineIncoming()
+  assert.equal(state.viewState, "text", "declining the offer must return to the text it interrupted")
+  assert.equal(state.incomingText, "code 4821")
+}
+
+{
+  const state = engine()
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "code 4821"})
+  state.handleEvent(incoming("r-2", "Bob"))
+  state.acceptIncoming()
+  state.handleEvent({event: "incoming_accepted", requestId: "r-2"})
+  state.handleEvent({event: "incoming_progress", sessionId: "s-1", name: "photo.jpg", sender: "Bob", bytes: 1, total: 1})
+  state.handleEvent({event: "incoming_done", sessionId: "s-1"})
+  assert.equal(state.viewState, "text", "a finished receive must return to the text it interrupted")
+  assert.equal(state.incomingText, "code 4821")
+  state.noteTextCopied()
+  assert.equal(state.transferPeer, "Alice", "the copied text is from its own sender, not the later one")
+}
+
+// Accepts the text request on screen, as its sender then delivers it.
+function acceptText(state, requestId, sender, text) {
+  state.acceptIncoming()
+  state.handleEvent({event: "incoming_accepted", requestId})
+  state.handleEvent({event: "incoming_text", sender, text})
+}
+
+// A second text must not overwrite one that has not been copied: it shows
+// first, and the earlier one returns after it.
+{
+  const state = engine()
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "one"})
+  state.handleEvent(incoming("r-2", "Carol"))
+  acceptText(state, "r-2", "Carol", "two")
+  assert.equal(state.viewState, "text")
+  assert.equal(state.incomingText, "two", "the text just accepted is shown")
+  state.noteTextCopied()
+  assert.equal(state.transferPeer, "Carol")
+  state.finishTerminal()
+  assert.equal(state.viewState, "text", "the earlier text returns once the newer one is copied")
+  assert.equal(state.incomingText, "one")
+  state.noteTextCopied()
+  assert.equal(state.transferPeer, "Alice")
+  state.finishTerminal()
+  assert.equal(state.viewState, "nearby")
+}
+
+// Dismissing without copying returns to the earlier text too.
+{
+  const state = engine()
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "one"})
+  state.handleEvent(incoming("r-2", "Carol"))
+  acceptText(state, "r-2", "Carol", "two")
+  state.finishText()
+  assert.equal(state.viewState, "text")
+  assert.equal(state.incomingText, "one")
+  state.finishText()
+  assert.equal(state.viewState, "nearby")
+  assert.equal(state.incomingText, "")
+}
+
+// A request that arrived while a text was being delivered must not be left
+// queued behind it with nothing on screen to answer it.
+{
+  const state = engine()
+  state.handleEvent(incoming("r-1", "Alice"))
+  state.acceptIncoming()
+  state.handleEvent({event: "incoming_accepted", requestId: "r-1"})
+  state.handleEvent(incoming("r-2", "Bob"))
+  state.notified.length = 0
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "hello"})
+  assert.equal(state.viewState, "incoming", "the waiting request takes the view")
+  assert.equal(state.incoming.requestId, "r-2")
+  assert.deepEqual(notificationTitles(state), [strings.t("status.textReceived")], "a text held behind a request is announced")
+  state.declineIncoming()
+  assert.equal(state.viewState, "text", "the held text is shown once the request is answered")
+  assert.equal(state.incomingText, "hello")
+}
+
+// A failed copy must not cost the text: it returns for another try.
+{
+  const state = engine()
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "one"})
+  state.failTextCopy("no clipboard")
+  assert.equal(state.viewState, "error")
+  assert.equal(state.errorText, "no clipboard")
+  state.finishTerminal()
+  assert.equal(state.viewState, "text", "the text returns once the failure is dismissed")
+  assert.equal(state.incomingText, "one")
+  assert.equal(state.incomingTextSender, "Alice")
+}
+
+// A held text survives the helper stopping: it was already received.
+{
+  const state = engine()
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "one"})
+  state.handleEvent(incoming("r-2", "Bob"))
+  state.handleBackendExit(1)
+  assert.equal(state.viewState, "error")
+  state.finishTerminal()
+  assert.equal(state.viewState, "text", "the held text returns once the failure is dismissed")
+  assert.equal(state.incomingText, "one")
+}
+
+// Nor may a text take the view from a receive in progress, whose next
+// progress event would retake it and leave the text unreachable.
+{
+  const state = engine()
+  state.handleEvent(incoming("r-1", "Bob"))
+  state.acceptIncoming()
+  state.handleEvent({event: "incoming_accepted", requestId: "r-1"})
+  state.handleEvent({event: "incoming_progress", sessionId: "s-1", name: "photo.jpg", sender: "Bob", bytes: 1, total: 2})
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "hello"})
+  assert.equal(state.viewState, "receiving")
+  assert.equal(state.transferPeer, "Bob", "a held text must not rename the transfer on screen")
+  state.handleEvent({event: "incoming_done", sessionId: "s-1"})
+  assert.equal(state.viewState, "text", "the held text is shown when the receive ends")
+  assert.equal(state.incomingText, "hello")
 }
 
 {

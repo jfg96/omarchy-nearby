@@ -85,7 +85,13 @@ Item {
   property var incomingQueue: []
   readonly property var incoming: Model.currentIncoming(incomingQueue)
   property string incomingText: ""
+  // Who sent the text, kept apart from transferPeer, which a transfer that
+  // interrupts the text overwrites.
+  property string incomingTextSender: ""
   property bool incomingTextPending: false
+  // Texts a newer one displaced before they were copied, most recent first.
+  // Each returns as the one before it is copied or dismissed.
+  property var incomingTextQueue: []
   property string lastReceivedPath: ""
   // The one file the receive on screen delivered, offered for preview and
   // copy. A session of several files keeps the plain result.
@@ -416,6 +422,7 @@ Item {
     selectedDevice = null
     incomingQueue = []
     incomingTextPending = false
+    incomingTextQueue = []
     activeIncomingSession = ""
     clearPendingOutgoing()
     viewState = "nearby"
@@ -501,7 +508,10 @@ Item {
   function failWith(message) { viewState="error"; errorText=message; statusText=errorText }
   function cancelOutgoing() { send({command:"cancel_outgoing",transfer_id:outgoingTransferId}) }
   function cancelIncoming() { if(activeIncomingSession!=="")send({command:"cancel_incoming",session_id:activeIncomingSession}) }
-  function noteTextCopied() { if (viewState !== "text") return; viewState="success"; transferWasOutgoing=false; statusText=strings.t("status.received") }
+  // A text that could not be copied is still the only copy: it is set aside
+  // and returns when the failure is dismissed, so Copy can be tried again.
+  function failTextCopy(message) { if (viewState !== "text") return; incomingTextQueue=Model.holdText(incomingTextQueue,incomingText,incomingTextSender); failWith(message) }
+  function noteTextCopied() { if (viewState !== "text") return; viewState="success"; transferWasOutgoing=false; transferPeer=incomingTextSender; statusText=strings.t("status.received") }
   function clearPendingOutgoing() { pendingOutgoing=null; outgoingTransferId=""; pinError=""; pinCleared() }
   function dispatchPendingOutgoing(pin) {
     if (!pendingOutgoing) return
@@ -637,10 +647,26 @@ Item {
     if (previewMaker.path === receivedFile) { if (code === 0 && path !== "") receivedPreview = path }
     else if (receivedFile !== "" && Model.imagePreviewMode(receivedFileType) === "convert") previewReceivedFile()
   }
-  function finishText() { incomingText=""; incomingTextPending=false; viewState="nearby"; cursorRequested(0); startDiscovery() }
-  function finishTerminal() { viewState="nearby"; cursorRequested(0); startDiscovery() }
+  function promoteQueuedText() {
+    if (incomingTextQueue.length === 0) return false
+    var next = incomingTextQueue[0]
+    incomingTextQueue = incomingTextQueue.slice(1)
+    incomingText = next.text
+    incomingTextSender = next.sender
+    return true
+  }
+  function showQueuedText() {
+    if (!promoteQueuedText()) return false
+    incomingTextPending=false; viewState="text"; statusText=strings.t("status.textReceived"); errorText=""; cursorRequested(0)
+    return true
+  }
+  function finishText() { if(showQueuedText())return; incomingText=""; incomingTextPending=false; viewState="nearby"; cursorRequested(0); startDiscovery() }
+  function finishTerminal() { if(showQueuedText())return; viewState="nearby"; cursorRequested(0); startDiscovery() }
   function handleBackendExit(code) {
     var restarting=restartPending; restartPending=false
+    // A text already received does not depend on the helper: one that was
+    // waiting its turn is set aside, to return when the failure is dismissed.
+    if (incomingTextPending) incomingTextQueue=Model.holdText(incomingTextQueue,incomingText,incomingTextSender)
     backendReady=false; discoveryActive=false; incomingQueue=[]; incomingTextPending=false; activeIncomingSession=""; incomingPinUpdating=false; pendingIncomingPinEnabled=null; incomingPinError=""; incomingPinCleared(); clearPendingOutgoing()
     if (shutdownPending) { finishReceiverShutdown(); return }
     if (!receiverEnabled) { statusText=strings.t("status.turnedOff"); errorText=""; return }
@@ -708,7 +734,9 @@ Item {
     else if (event.event === "discovery_stopped") discoveryActive=false
     else if (event.event === "incoming_request") {
       if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
-      incomingQueue=Model.enqueueIncoming(incomingQueue,event); if(!incomingTextPending)incomingText=""
+      // Received text on screen exists nowhere else until it is copied, so an
+      // offer that takes the view holds it, as an outgoing transfer does.
+      incomingQueue=Model.enqueueIncoming(incomingQueue,event); if(viewState==="text")incomingTextPending=true; else if(!incomingTextPending){incomingTextPending=promoteQueuedText(); if(!incomingTextPending)incomingText=""}
       var incomingTakesView = viewState!=="sending" && viewState!=="receiving" && viewState!=="pin"
       if (incomingTakesView) { viewState="incoming"; cursorRequested(1) }
       if (notificationNeeded(incomingTakesView && incoming && incoming.requestId===event.requestId) && Model.notificationDue(lastIncomingNotification, Date.now())) {
@@ -718,7 +746,15 @@ Item {
     }
     else if (event.event === "incoming_text") {
       if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
-      incomingText=String(event.text || ""); transferPeer=String(event.sender || ""); incomingTextPending=pendingOutgoing!==null; if (!pendingOutgoing) { viewState="text"; stopDiscovery() }
+      // An uncopied text gives way to the new one and returns after it.
+      if (viewState==="text"||incomingTextPending) incomingTextQueue=Model.holdText(incomingTextQueue,incomingText,incomingTextSender)
+      incomingText=String(event.text || ""); incomingTextSender=String(event.sender || "")
+      // The text waits behind a send, a receive in progress or a request that
+      // needs an answer. Its own approval left the view on "receiving" with no
+      // session, which a waiting request takes over.
+      if (pendingOutgoing!==null||activeIncomingSession!=="") incomingTextPending=true
+      else if (incoming!==null) { incomingTextPending=true; if(viewState==="receiving"){viewState="incoming";statusText=strings.t("status.incomingTransfer");cursorRequested(1)} }
+      else { incomingTextPending=false; transferPeer=incomingTextSender; viewState="text"; stopDiscovery() }
       if (notificationNeeded(!incomingTextPending))
         Quickshell.execDetached(["omarchy-notification-send","--app-name","Nearby","--urgency","normal",strings.t("status.textReceived"),strings.t("notify.textBody", [Model.notificationText(event.sender)])])
     }
