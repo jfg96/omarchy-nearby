@@ -23,6 +23,12 @@ assert.match(source, /barIconColor:\s*root\.receiverEnabled\s*\?\s*barForeground
   "the bar icon must dim when receiver is disabled")
 assert.match(source, /BarIconButton[\s\S]*?foreground:\s*root\.barIconColor/,
   "the bar icon button must use barIconColor")
+assert.match(source, /readonly property bool barIconActive:\s*root\.incoming !== null \|\| root\.viewState === "receiving" \|\| root\.viewState === "sending" \|\| root\.viewState === "pin"/,
+  "bar active state must cover incoming requests and transfers")
+assert.match(source, /active:\s*root\.barIconActive/,
+  "the bar button must use the shared active state")
+assert.match(source, /color:\s*root\.barIconActive\s*\?\s*root\.urgent\s*:\s*root\.barIconColor/,
+  "the custom bar logo must use the urgent color while active")
 assert.match(source, /onTabRequested:\s*function\(direction\)\s*\{\s*root\.switchPanel\(direction\)\s*\}/,
   "Tab must move to the neighbouring bar panel, as it does in Omarchy's own panels")
 for (const match of source.matchAll(/\bduration\s*:\s*([^;}\n]+)/g)) {

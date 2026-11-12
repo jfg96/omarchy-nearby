@@ -32,6 +32,7 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.4)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color barIconColor: root.receiverEnabled ? barForeground : Qt.darker(barForeground, 1.55)
+  readonly property bool barIconActive: root.incoming !== null || root.viewState === "receiving" || root.viewState === "sending" || root.viewState === "pin"
 
   // Engine state, read under the names the popup already used. A view with no
   // engine says so rather than rendering an empty panel.
@@ -422,9 +423,15 @@ Panel {
     id: button; anchors.fill: parent; bar: root.bar
     foreground: root.barIconColor
     iconComponent: Component {
-      Item { NearbyIcon { anchors.centerIn: parent; iconSize: Style.bar.iconFont; color: root.barIconColor } }
+      Item {
+        NearbyIcon {
+          anchors.centerIn: parent
+          iconSize: Style.bar.iconFont
+          color: root.barIconActive ? root.urgent : root.barIconColor
+        }
+      }
     }
-    active: root.incoming !== null || root.viewState === "receiving" || root.viewState === "sending" || root.viewState === "pin"
+    active: root.barIconActive
     tooltipText: !root.receiverEnabled ? strings.t("bar.turnedOff") : (root.backendReady ? (root.viewState === "pin" ? strings.t("bar.pinRequired") : (root.incoming ? strings.t("status.incomingTransfer") : strings.t("bar.ready"))) : strings.t("bar.unavailable"))
     onPressed: function(code) { root.toggle() }
   }
