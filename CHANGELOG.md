@@ -5,6 +5,10 @@
 - Use Omarchy's active color for Nearby's vector bar icon while a request,
   transfer or PIN prompt is active.
 
+- Keep received text that has not been copied yet when another offer
+  arrives. Declining the offer or finishing its transfer returns to the text,
+  and copying it names the device that sent it.
+
 ## 1.2.14
 
 - Open a received link in the browser: when a message is a single web link,

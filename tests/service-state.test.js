@@ -215,6 +215,7 @@ function engine(initial = {}) {
     errorText: "",
     incomingQueue: [],
     incomingText: "",
+    incomingTextSender: "",
     incomingTextPending: false,
     lastReceivedPath: "",
     receivedSession: "",
@@ -1163,6 +1164,32 @@ assert.match(source, /onExited: function\(code\) \{ root\.fileTypeProbed\(code, 
   state.declineIncoming()
   assert.equal(state.viewState, "text", "deferred text must follow the last queued file request")
   assert.equal(state.incomingText, "deferred")
+}
+
+// Received text on screen is the only copy there is: an offer that arrives
+// before it was copied must hold it, not discard it.
+{
+  const state = engine()
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "code 4821"})
+  state.handleEvent(incoming("files"))
+  assert.equal(state.viewState, "incoming", "a new offer still takes the view")
+  state.declineIncoming()
+  assert.equal(state.viewState, "text", "declining the offer must return to the text it interrupted")
+  assert.equal(state.incomingText, "code 4821")
+}
+
+{
+  const state = engine()
+  state.handleEvent({event: "incoming_text", sender: "Alice", text: "code 4821"})
+  state.handleEvent(incoming("r-2", "Bob"))
+  state.acceptIncoming()
+  state.handleEvent({event: "incoming_accepted", requestId: "r-2"})
+  state.handleEvent({event: "incoming_progress", sessionId: "s-1", name: "photo.jpg", sender: "Bob", bytes: 1, total: 1})
+  state.handleEvent({event: "incoming_done", sessionId: "s-1"})
+  assert.equal(state.viewState, "text", "a finished receive must return to the text it interrupted")
+  assert.equal(state.incomingText, "code 4821")
+  state.noteTextCopied()
+  assert.equal(state.transferPeer, "Alice", "the copied text is from its own sender, not the later one")
 }
 
 {

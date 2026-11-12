@@ -85,6 +85,9 @@ Item {
   property var incomingQueue: []
   readonly property var incoming: Model.currentIncoming(incomingQueue)
   property string incomingText: ""
+  // Who sent the text, kept apart from transferPeer, which a transfer that
+  // interrupts the text overwrites.
+  property string incomingTextSender: ""
   property bool incomingTextPending: false
   property string lastReceivedPath: ""
   // The one file the receive on screen delivered, offered for preview and
@@ -501,7 +504,7 @@ Item {
   function failWith(message) { viewState="error"; errorText=message; statusText=errorText }
   function cancelOutgoing() { send({command:"cancel_outgoing",transfer_id:outgoingTransferId}) }
   function cancelIncoming() { if(activeIncomingSession!=="")send({command:"cancel_incoming",session_id:activeIncomingSession}) }
-  function noteTextCopied() { if (viewState !== "text") return; viewState="success"; transferWasOutgoing=false; statusText=strings.t("status.received") }
+  function noteTextCopied() { if (viewState !== "text") return; viewState="success"; transferWasOutgoing=false; transferPeer=incomingTextSender; statusText=strings.t("status.received") }
   function clearPendingOutgoing() { pendingOutgoing=null; outgoingTransferId=""; pinError=""; pinCleared() }
   function dispatchPendingOutgoing(pin) {
     if (!pendingOutgoing) return
@@ -708,7 +711,9 @@ Item {
     else if (event.event === "discovery_stopped") discoveryActive=false
     else if (event.event === "incoming_request") {
       if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
-      incomingQueue=Model.enqueueIncoming(incomingQueue,event); if(!incomingTextPending)incomingText=""
+      // Received text on screen exists nowhere else until it is copied, so an
+      // offer that takes the view holds it, as an outgoing transfer does.
+      incomingQueue=Model.enqueueIncoming(incomingQueue,event); if(viewState==="text")incomingTextPending=true; else if(!incomingTextPending)incomingText=""
       var incomingTakesView = viewState!=="sending" && viewState!=="receiving" && viewState!=="pin"
       if (incomingTakesView) { viewState="incoming"; cursorRequested(1) }
       if (notificationNeeded(incomingTakesView && incoming && incoming.requestId===event.requestId) && Model.notificationDue(lastIncomingNotification, Date.now())) {
@@ -718,7 +723,7 @@ Item {
     }
     else if (event.event === "incoming_text") {
       if(viewState.indexOf("incoming_pin_")===0){incomingPinError="";incomingPinCleared()}
-      incomingText=String(event.text || ""); transferPeer=String(event.sender || ""); incomingTextPending=pendingOutgoing!==null; if (!pendingOutgoing) { viewState="text"; stopDiscovery() }
+      incomingText=String(event.text || ""); incomingTextSender=String(event.sender || ""); transferPeer=incomingTextSender; incomingTextPending=pendingOutgoing!==null; if (!pendingOutgoing) { viewState="text"; stopDiscovery() }
       if (notificationNeeded(!incomingTextPending))
         Quickshell.execDetached(["omarchy-notification-send","--app-name","Nearby","--urgency","normal",strings.t("status.textReceived"),strings.t("notify.textBody", [Model.notificationText(event.sender)])])
     }
