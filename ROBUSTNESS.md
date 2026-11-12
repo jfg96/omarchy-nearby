@@ -1357,6 +1357,7 @@ The complete supported suite passed on the release tree: four Node suites
 `qmllint`, the plugin validator and `git diff --check`. CI passed on the merge
 of #70 (`ea1d3aa`).
 
-No manual run was made on Omarchy for this release: the active bar icon tint,
-received text kept behind another offer or a newer text, and scenario 36
-remain **Not run**.
+On Omarchy, with the installed plugin checked out at `ea1d3aa`, a text sent
+from a phone and then a file offered before the text was copied returned to
+the text after the offer: **Pass**. The active bar icon tint, a newer text
+displacing an uncopied one and scenario 36 remain **Not run**.
