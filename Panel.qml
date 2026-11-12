@@ -48,6 +48,7 @@ Panel {
   readonly property var incoming: engine ? engine.incoming : null
   readonly property string incomingMessage: root.incoming ? Model.incomingMessage(root.incoming.files) : ""
   readonly property string incomingText: engine ? engine.incomingText : ""
+  readonly property string incomingTextSender: engine ? engine.incomingTextSender : ""
   readonly property real progress: engine ? engine.progress : 0
   // A receive has no session to name until its first progress event.
   readonly property bool incomingCancellable: engine ? engine.activeIncomingSession !== "" : false
@@ -187,6 +188,7 @@ Panel {
   function copyUpdateCommand() { copyText(updateCommand) }
   function copyRepositoryLink() { copyText(repositoryUrl) }
   function failWith(message) { if (engine) engine.failWith(message) }
+  function failTextCopy(message) { if (engine) engine.failTextCopy(message) }
   function noteTextCopied() { if (engine) engine.noteTextCopied() }
   function beginOutgoing(pending) { if (engine) engine.beginOutgoing(pending) }
   function goBack() { if (viewState === "pin") cancelPin(); else if (viewState.indexOf("incoming_pin_")===0) cancelIncomingPinSettings(); else if (viewState === "target") { if (engine) engine.clearTarget() } else close() }
@@ -670,6 +672,8 @@ Panel {
         Column {
           visible: root.viewState==="text"; width:parent.width; spacing:Style.space(8)
           PanelSectionHeader { text:strings.t("section.receivedText"); foreground:root.foreground; fontFamily:root.fontFamily }
+          // Texts can follow one another, so each says who sent it.
+          Text { visible:root.incomingTextSender!==""; width:parent.width; textFormat:Text.PlainText; text:strings.t("transfer.from", [root.incomingTextSender]); elide:Text.ElideRight; color:root.dim; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Text { width:parent.width; textFormat:Text.PlainText; text:root.incomingText; wrapMode:Text.Wrap; maximumLineCount:6; elide:Text.ElideRight; color:root.foreground; font.family:root.fontFamily; font.pixelSize:Style.font.body }
           Button { visible:root.receivedLink!==null; width:parent.width; leftAlign:true; bordered:false; iconText:"󰖟"; text:root.receivedLink ? strings.t("action.openLink", [root.receivedLink.host]) : ""; tooltipText:root.receivedLink ? root.receivedLink.url : ""; foreground:root.dim; fontFamily:root.fontFamily; hasCursor:root.cursorActive&&root.selectedIndex===0; onHovered:function(v){root.noteHover(v,0)}; onClicked:root.openReceivedLink() }
           Row { width:parent.width; spacing:Style.space(8)
@@ -715,7 +719,7 @@ Panel {
     running: false
     stdinEnabled: true
     onStarted: { clipboardWriter.launched=true; write(root.incomingText); stdinEnabled=false }
-    onRunningChanged: if (!running && !clipboardWriter.launched && root.viewState==="text") root.failWith(strings.t("clipboard.copyTextMissing"))
-    onExited: function(code) { stdinEnabled=true; if(root.viewState!=="text")return; if(code===0){root.noteTextCopied()} else root.failWith(strings.t("clipboard.copyTextMissing")) }
+    onRunningChanged: if (!running && !clipboardWriter.launched && root.viewState==="text") root.failTextCopy(strings.t("clipboard.copyTextMissing"))
+    onExited: function(code) { stdinEnabled=true; if(root.viewState!=="text")return; if(code===0){root.noteTextCopied()} else root.failTextCopy(strings.t("clipboard.copyTextMissing")) }
   }
 }
