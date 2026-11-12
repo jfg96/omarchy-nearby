@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.15-dev
+
+- Use Omarchy's active color for Nearby's vector bar icon while a request,
+  transfer or PIN prompt is active.
+
 ## 1.2.14
 
 - Open a received link in the browser: when a message is a single web link,
